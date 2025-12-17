@@ -1,5 +1,7 @@
+import { create } from 'node:domain';
 import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
+import { createClient } from '@supabase/supabase-js';
 
 // 1. Authentication with displayname
 export const authAPI = {
@@ -113,10 +115,21 @@ export const authAPI = {
         if (!user.user) {
             throw new Error('User not authenticated')
         }
-      
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.user.id)
+      const supabaseAdmin = createClient(
+        process.env.EXPO_PUBLIC_SUPABASE_URL!,
+        process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY! // NOT the anon key
+      )
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.user.id)
       if (deleteError) throw deleteError
-        return true
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.user.id)
+
+      if (profileError) throw profileError
+      await supabase.auth.signOut()
+      return true
     } catch (error) {
       console.error('Error deleting account:', error)
         return false
@@ -140,16 +153,28 @@ export const profileAPI = {
       return { data: null, error: error as Error }
     }
   },
-
+  async createProfile(profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname' | 'avatar_url'>>): Promise<ApiResponse<UserProfile>> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert(profile)
+        .select()
+        .single()
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
   async updateProfile(
-    userId: string,
-    updates: Partial<Pick<UserProfile, 'username' | 'displayname' | 'avatar_url'>>
+    updates: Partial<Pick<UserProfile, 'id' |'username' | 'displayname' | 'avatar_url'>>
   ): Promise<ApiResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', userId)
+        .eq('id', updates.id)
         .select()
         .single()
       

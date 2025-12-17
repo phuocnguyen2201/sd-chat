@@ -40,7 +40,6 @@ export default function CompleteProfile() {
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
-    console.log(session);
   }, [])
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">
@@ -73,16 +72,25 @@ export default function CompleteProfile() {
               <VStack>
                 <Button className="p-0" size='xl'  
                     onPress={async () => {
-                      const profile = {
+                      const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname' | 'avatar_url'>> = {
+                        id: session?.user.id as string,
+                        username: session?.user.email?.split('@')[0] as string || '',
                         displayname: displayName,
                         avatar_url: selectedIcon
                       };
 
-                      (await profileAPI.updateProfile(session?.user.id as string, profile));
-                       router.replace({
-                         pathname: '/tabs/(tabs)/Chat',
-                         params: { email: session?.user?.email || '' },
-                       })
+                      const response = await profileAPI.updateProfile(profile);
+                      if (response.error) {
+                        console.error('Error creating profile:', response.error);
+                        return;
+                      }
+                      else {
+                        router.replace({
+                          pathname: '/tabs/(tabs)/Chat',
+                        });
+                      }
+
+                     
                     }}>
                 <ButtonText>Save</ButtonText>
               </Button></VStack>
@@ -91,7 +99,8 @@ export default function CompleteProfile() {
 
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={() => {
+                    onPress={async () => {
+                      await supabase.auth.signOut();
                        router.push('/');
                     }}>
                 <ButtonText>Back to Home</ButtonText>
