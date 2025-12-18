@@ -68,7 +68,8 @@ export default function Settings() {
     supabase.auth.getSession()
     .then(async ({ data: { session } }) => {
     if (session) {
-      const response = await profileAPI.updateProfile(session.user.id,{
+      const response = await profileAPI.updateProfile({
+      id: session.user.id,
       displayname: displayName,
       avatar_url: selectedIcon
     });

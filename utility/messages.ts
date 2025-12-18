@@ -2,6 +2,7 @@ import { create } from 'node:domain';
 import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
+import { verify } from 'node:crypto';
 
 // 1. Authentication with displayname
 export const authAPI = {
@@ -190,6 +191,7 @@ export const profileAPI = {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
+        .neq('id', await supabase.auth.getUser().then(({data})=>data.user?.id))
         .order('username')
       
       if (error) throw error
@@ -211,6 +213,19 @@ export const conversationAPI = {
       if (error) throw error
       return { data: { conversationId: data }, error: null }
     } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async verifyDMConversation(otherUserId: string): Promise<ApiResponse<{ conversationId: string | null }>> {
+    try {
+const { data, error } = await supabase.rpc('get_conversation_between_users', {
+        _user_a: otherUserId,
+        _user_b: await supabase.auth.getUser().then(({data})=>data.user?.id) || ''
+      })
+      if (error) throw error
+      return { data: { conversationId: data }, error: null }
+    }
+    catch (error) {
       return { data: null, error: error as Error }
     }
   },
@@ -408,7 +423,22 @@ export const realtimeAPI = {
       .subscribe()
   }
 }
-
+// 6. Utility Functions
+export const channelsAndUsersAPI = {
+  async getChannelsAndUsers(): Promise<ApiResponse<{ channels: Conversation[]; users: UserProfile[] }>> {
+    try {
+      const [channelsRes, usersRes] = await Promise.all([
+        conversationAPI.getConversations(),
+        profileAPI.getAllProfiles()
+      ])
+      if (channelsRes.error) throw channelsRes.error
+      if (usersRes.error) throw usersRes.error
+      return { data: { channels: channelsRes.data || [], users: usersRes.data || [] }, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  }
+}
 // Helper function to get user's display name
 export function getUserDisplayName(
   profile: Pick<UserProfile, 'displayname' | 'username'> | null | undefined

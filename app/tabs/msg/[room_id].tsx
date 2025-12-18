@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { MediaType } from 'expo-image-picker';
 import { uploadImageToSupabase, uploadFileToSupabase } from '@/utility/handleStorage';
+import { authAPI } from '@/utility/messages';
 type Message = {
   id: string;
   room_id: string;
@@ -25,7 +26,7 @@ type Message = {
 }
 
 export default function ChatScreen() {
-  const { room_id, displayName, userId } = useLocalSearchParams() as { room_id?: string, displayName?: string, userId?: string };
+  const { conversation_id, displayName, userId } = useLocalSearchParams() as { conversation_id?: string, displayName?: string, userId?: string };
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function ChatScreen() {
 
 
   useEffect(() => {
-    if (!room_id || !displayName) return;
+    if (!conversation_id || !displayName) return;
 
     let isMounted = true;
 
@@ -41,9 +42,9 @@ export default function ChatScreen() {
         const { data, error } = await supabase
           .from('messages')
           .select('*')
-          .eq('room_id', room_id)
-          .order('inserted_at', { ascending: true }).limit(50);
-
+          .eq('conversation_id', conversation_id)
+          .order('created_at', { ascending: true }).limit(50);
+        
         if (error) {
           console.warn('Error loading messages', error);
           return;
@@ -54,8 +55,8 @@ export default function ChatScreen() {
 
       loadMessages();
 
-      const channel = supabase.channel(`public:messages:room_id=eq.${room_id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${room_id}` }, (payload) => {
+      const channel = supabase.channel(`public:messages:conversation_id=eq.${conversation_id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversation_id}` }, (payload) => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
         })
@@ -72,7 +73,7 @@ export default function ChatScreen() {
         }
       };
 
-  }, [room_id]);
+  }, [conversation_id]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -85,19 +86,20 @@ export default function ChatScreen() {
   }, [messages.length]);
 
   async function handleSend() {
-    if (!newMessage.trim() || !room_id) return;
+    debugger;
+    if (!newMessage.trim() || !conversation_id) return;
     setLoading(true);
 
     let sender: string | null = null;
     try {
-      sender = userId ?? null;
+      sender = await supabase.auth.getUser().then(({ data }) => data.user?.id) ?? null;
     } catch (e) {
       sender = null;
     }
 
     const { data, error } = await supabase
       .from('messages')
-      .insert([{ room_id: room_id, sender_id: sender, content: newMessage }])
+      .insert([{ conversation_id: conversation_id, sender_id: sender, content: newMessage }])
       .select()
       .single();
 
@@ -125,11 +127,11 @@ export default function ChatScreen() {
       quality: 1,
     });
 
-    if (!result.canceled && room_id) {
+    if (!result.canceled && conversation_id) {
       const uri = result.assets[0].uri;
       const fileName = uri.split('/').pop() || 'image.jpg';
       setLoading(true);
-      const response = await uploadImageToSupabase(uri, fileName, room_id, userId ?? null);
+      const response = await uploadImageToSupabase(uri, fileName, conversation_id, userId ?? null);
       setLoading(false);
       if (response.success) {
         Alert.alert('Success', response.message);
@@ -145,10 +147,10 @@ export default function ChatScreen() {
         type: '*/*',
       });
 
-      if (result.assets && result.assets.length > 0 && room_id) {
+      if (result.assets && result.assets.length > 0 && conversation_id) {
         const file = result.assets[0];
         setLoading(true);
-        const response = await uploadFileToSupabase(file.uri, file.name, room_id, userId ?? null);
+        const response = await uploadFileToSupabase(file.uri, file.name, conversation_id, userId ?? null);
         setLoading(false);
         if (response.success) {
           Alert.alert('Success', response.message);
