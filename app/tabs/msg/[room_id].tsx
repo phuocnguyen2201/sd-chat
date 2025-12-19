@@ -16,7 +16,7 @@ import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { MediaType } from 'expo-image-picker';
-import { uploadImageToSupabase, uploadFileToSupabase } from '@/utility/handleStorage';
+import { storageAPIs } from '@/utility/handleStorage';
 import { authAPI } from '@/utility/messages';
 type Message = {
   id: string;
@@ -132,7 +132,7 @@ export default function ChatScreen() {
       const uri = result.assets[0].uri;
       const fileName = uri.split('/').pop() || 'image.jpg';
       setLoading(true);
-      const response = await uploadImageToSupabase(uri, fileName, conversation_id, userId ?? null);
+      await storageAPIs.uploadImageToSupabase(uri, fileName, conversation_id, userId ?? null);
       setLoading(false);
     }
   }
@@ -146,7 +146,7 @@ export default function ChatScreen() {
       if (result.assets && result.assets.length > 0 && conversation_id) {
         const file = result.assets[0];
         setLoading(true);
-        const response = await uploadFileToSupabase(file.uri, file.name, conversation_id, userId ?? null);
+        await storageAPIs.uploadFileToSupabase(file.uri, file.name, conversation_id, userId ?? null);
         setLoading(false);
       }
     } catch (e) {

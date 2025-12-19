@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
-import { Avatar, AvatarFallbackText } from '@/components/ui/avatar';
+import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { supabase } from '@/utility/connection';
 import { ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -19,15 +20,25 @@ import {
   AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
+import * as ImagePicker from 'expo-image-picker';
 import { Icon, CloseIcon, CheckIcon } from '@/components/ui/icon';
 import { authAPI, profileAPI }  from '../../../utility/messages';
-
+import {
+  Actionsheet,
+  ActionsheetContent,
+  ActionsheetItem,
+  ActionsheetItemText,
+  ActionsheetDragIndicator,
+  ActionsheetDragIndicatorWrapper,
+  ActionsheetBackdrop,
+} from '@/components/ui/actionsheet';
+import { storageAPIs } from '@/utility/handleStorage';
 
 const AVATARS = ['😀', '😎', '🤩', '😊', '🥳', '😇', '🤗', '😋', '😜', '🤔'];
 
 export default function Settings() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState<string>(AVATARS[0]);
   const [newPassword, setNewPassword] = useState('');
@@ -37,6 +48,7 @@ export default function Settings() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showActionsheet, setShowActionsheet] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -52,7 +64,8 @@ export default function Settings() {
     { 
       const response = await authAPI.getProfileUser();
       if (response.data) {
-          setEmail(response.data.email);
+        console.log('Profile data:', response.data.avatar_url);
+          setAvatar(response.data.avatar_url || '');
           setDisplayName(response.data.displayname || '');
           setSelectedIcon(response.data.avatar_url || AVATARS[0]);
       }
@@ -60,8 +73,7 @@ export default function Settings() {
       Alert.alert('Error', 'Failed to fetch account information');
       console.warn(e);
     }
-  }
-
+  };
 
   async function updateProfile(): Promise<void> {
     setLoading(true);
@@ -86,6 +98,7 @@ export default function Settings() {
       setTimeout(() => setSuccessMessage(''), 3000);
     });
   }
+
   async function updatePassword(password: string, confirmPassword: string): Promise<void> {
     try{   
       setLoading(true);
@@ -132,6 +145,55 @@ export default function Settings() {
         router.replace('/');
     }
   }
+  async function pickImageFromAlbumOrGallery() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need permission to access your photo library.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      const fileName = uri.split('/').pop() || 'image.jpg';
+      setLoading(true);
+      await storageAPIs.uploadAvatarToSupabase(uri, fileName, (await supabase.auth.getUser()).data.user?.id || '');
+      setLoading(false);
+    }
+    setShowActionsheet(false);
+  }
+
+  async function takePicture() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need permission to access your camera.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      const fileName = uri.split('/').pop() || 'image.jpg';
+      console.log('Captured image URI:', uri);
+      console.log('Captured image file name:', fileName);
+      setLoading(true);
+      await storageAPIs.uploadAvatarToSupabase(uri, fileName, (await supabase.auth.getUser()).data.user?.id || '');
+      setLoading(false);
+    }
+    setShowActionsheet(false);
+
+  }
 
   return (
     <ScrollView className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
@@ -145,10 +207,21 @@ export default function Settings() {
           </Box>
         )}
 
-        {/* Email Section */}
+        {/* Avatar Section */}
         <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
-          <Text className="text-xs text-gray-500 uppercase font-bold mb-2">Email</Text>
-          <Text className="text-lg text-black font-semibold">{email}</Text>
+          <HStack className="justify-between items-center mb-2">
+            <Pressable onPress={() => setShowActionsheet(true)}>
+              <Avatar size="xl">
+                <AvatarFallbackText>{displayName}</AvatarFallbackText>
+                <AvatarImage
+                  source={{
+                    uri: `${avatar}`,
+                  }}
+                />
+                <AvatarBadge />
+              </Avatar>
+            </Pressable>
+          </HStack>
         </Box>
 
         {/* Display Name Section */}
@@ -165,25 +238,6 @@ export default function Settings() {
               onPress={() => setShowDisplayNameDialog(true)}
             >
               <ButtonText>Edit</ButtonText>
-            </Button>
-          </HStack>
-        </Box>
-
-        {/* Avatar Section */}
-        <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
-          <Text className="text-xs text-gray-500 uppercase font-bold mb-3">Avatar</Text>
-          <HStack className="items-center justify-between">
-            <Avatar size="xl">
-              <AvatarFallbackText>{selectedIcon}</AvatarFallbackText>
-            </Avatar>
-            <Text className="text-4xl">{selectedIcon}</Text>
-            <Button
-              size="sm"
-              action="primary"
-              className="bg-blue-500"
-              onPress={() => setShowIconDialog(true)}
-            >
-              <ButtonText>Change</ButtonText>
             </Button>
           </HStack>
         </Box>
@@ -317,7 +371,7 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Avatar Picker Dialog */}
+      {/* Icon Picker Dialog */}
       <AlertDialog isOpen={showIconDialog} onClose={() => setShowIconDialog(false)}>
         <AlertDialogBackdrop />
         <AlertDialogContent>
@@ -379,7 +433,23 @@ export default function Settings() {
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
+        
       </AlertDialog>
+      {/* <AlertDialogBackdrop /> */}
+      <Actionsheet isOpen={showActionsheet} onClose={() => setShowActionsheet(false)}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent>
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+          <ActionsheetItem onPress={takePicture}>
+            <ActionsheetItemText>Take Photo</ActionsheetItemText>
+          </ActionsheetItem>
+          <ActionsheetItem onPress={pickImageFromAlbumOrGallery}>
+            <ActionsheetItemText>Select from album</ActionsheetItemText>
+          </ActionsheetItem>
+        </ActionsheetContent>
+      </Actionsheet>
     </ScrollView>
   );
 }

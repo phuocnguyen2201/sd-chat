@@ -49,7 +49,7 @@ export default function Home() {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if(session && session.user){
             authAPI.getProfileUser().then((exists) => {
-              console.log("User profile exists:", exists);
+              //console.log("User profile exists:", exists);
               if (!exists.data?.displayname) {
                 router.replace('/CompleteProfile');
               } else {
