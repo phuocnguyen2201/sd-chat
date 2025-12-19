@@ -11,7 +11,6 @@ import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '../../../uti
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
-import { FontDisplay } from 'expo-font';
 
 export default function Tab2() {
 
@@ -105,6 +104,7 @@ export default function Tab2() {
               >
                 <Avatar size="lg" className="mb-2">
                   <AvatarFallbackText>{(user.displayname || 'U').slice(0,2)}</AvatarFallbackText>
+                  <AvatarImage source={{ uri: user.avatar_url || undefined }} />
                   <AvatarBadge className="bg-green-500" />
                 </Avatar>
                 <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
@@ -118,6 +118,7 @@ export default function Tab2() {
         <VStack space="xs" className="pb-6">
           {listChatRooms && listChatRooms.length > 0 ? (
             listChatRooms.map((room: any, index: number) => {
+
               const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
               const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
               const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -135,6 +136,7 @@ export default function Tab2() {
                   <Box className="relative">
                     <Avatar size="lg" className="mr-3">
                       <AvatarFallbackText>{(room.conversation_participants[1]?.profiles.displayname || 'U').slice(0,2)}</AvatarFallbackText>
+                      <AvatarImage source={{ uri: room.conversation_participants[1]?.profiles.avatar_url || undefined }} />
                     </Avatar>
                     <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
                   </Box>

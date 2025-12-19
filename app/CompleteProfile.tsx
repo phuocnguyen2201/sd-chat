@@ -14,25 +14,58 @@ import { router } from 'expo-router';
 import { Divider } from '@/components/ui/divider';
 import { UserProfile } from '@/utility/types/supabse';
 import { Pressable } from 'react-native';
+import { Spinner } from '@/components/ui/spinner';
+
+import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
+import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
+import {
+  Actionsheet,
+  ActionsheetContent,
+  ActionsheetItem,
+  ActionsheetItemText,
+  ActionsheetDragIndicator,
+  ActionsheetDragIndicatorWrapper,
+  ActionsheetBackdrop,
+} from '@/components/ui/actionsheet';
+
 export default function CompleteProfile() {
 
   const [session, setSession] = useState<Session | null>(null)
   const [displayName, setDisplayName] = useState<string>('');
-  const AVATARS = ['😀', '😎', '🤩', '😊', '🥳', '😇', '🤗', '😋', '😜', '🤔'];
-  const [selectedIcon, setSelectedIcon] = useState<string>(AVATARS[0]);
+  
+  const [avatar, setAvatar] = useState<string>('');
 
-  async function updateAvatar(icon: string) {
+  const [showActionsheet, setShowActionsheet] = useState<boolean>(false);
 
-      try {
-        setSelectedIcon(icon);
+  async function pickImage() {
+    const result = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
+    if (result != null)
+    { 
 
-      } catch (e) {
-
-        console.warn(e);
-      } finally {
-
-      }
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      .finally(async () => {
+        setShowActionsheet(false);
+        const response = await authAPI.getProfileUser();
+        setAvatar(response.data?.avatar_url || '');
+      });
     }
+    
+  }
+
+  async function takePicture() {
+    const result =  await handleDeviceFilePath.takePicture();
+    if (result != null)
+    { 
+
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      .finally(async () => {
+        const response = await authAPI.getProfileUser();
+        setAvatar(response.data?.avatar_url || '');
+      });
+    }
+    setShowActionsheet(false);    
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -41,6 +74,7 @@ export default function CompleteProfile() {
       setSession(session)
     })
   }, [])
+
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">
       <Box className="absolute h-[500px] w-[500px] lg:w-[700px] lg:h-[700px]">
@@ -57,15 +91,19 @@ export default function CompleteProfile() {
                   <InputField type="text" className="text-white" value={displayName} onChangeText={setDisplayName} />
                 </Input>
                 <Box className="flex-row flex-wrap justify-between gap-2 mt-4">
-                  {AVATARS.map((avatar) => (
-                    <Pressable
-                      key={avatar}
-                      onPress={() => updateAvatar(avatar)}
-                      className={`p-3 rounded-full border-2 ${selectedIcon === avatar ? 'bg-blue-500 border-blue-600' : 'bg-gray-100 border-gray-200'}`}
-                    >
-                      <Text className="text-3xl">{avatar}</Text>
-                    </Pressable>
-                  ))}
+
+                <Pressable onPress={() => setShowActionsheet(true)}>
+              <Avatar size="xl" className='bg-background-200'>
+                <AvatarFallbackText>{displayName}</AvatarFallbackText>
+                <AvatarImage
+                  source={{
+                    uri: `${avatar}`,
+                  }}
+                />
+                <AvatarBadge />
+              </Avatar>
+            </Pressable>
+
                 </Box>
               </VStack>
            
@@ -75,8 +113,7 @@ export default function CompleteProfile() {
                       const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname' | 'avatar_url'>> = {
                         id: session?.user.id as string,
                         username: session?.user.email?.split('@')[0] as string || '',
-                        displayname: displayName,
-                        avatar_url: selectedIcon
+                        displayname: displayName
                       };
 
                       const response = await profileAPI.updateProfile(profile);
@@ -107,7 +144,21 @@ export default function CompleteProfile() {
               </Button></VStack>
             </VStack>
           </FormControl>
-        {/* </ScrollView> */}
+         {/* <AlertDialogBackdrop /> */}
+      <Actionsheet isOpen={showActionsheet} onClose={() => setShowActionsheet(false)}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent>
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+          <ActionsheetItem onPress={takePicture}>
+            <ActionsheetItemText>Take Photo</ActionsheetItemText>
+          </ActionsheetItem>
+          <ActionsheetItem onPress={pickImage}>
+            <ActionsheetItemText>Select from album</ActionsheetItemText>
+          </ActionsheetItem>
+        </ActionsheetContent>
+      </Actionsheet>
         </Box>
       </Box>
     </Box>

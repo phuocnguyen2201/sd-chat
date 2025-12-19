@@ -236,7 +236,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         .select(`
           *,
           conversation_participants!inner(
-            profiles(id, username, displayname)
+            profiles(id, username, displayname, avatar_url)
           ),
           messages(
             id,
@@ -410,7 +410,7 @@ export const realtimeAPI = {
               .select(`
                 *,
                 conversation_participants!inner(
-                  profiles(id, username, displayname)
+                  profiles(id, username, displayname, avatar_url)
                 )
               `)
               .eq('id', payload.new.conversation_id)

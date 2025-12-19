@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
+import { Spinner } from '@/components/ui/spinner';
 import { Box } from '@/components/ui/box';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
@@ -32,21 +32,22 @@ import {
   ActionsheetDragIndicatorWrapper,
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
-import { storageAPIs } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
 
-const AVATARS = ['😀', '😎', '🤩', '😊', '🥳', '😇', '🤗', '😋', '😜', '🤔'];
+
+
 
 export default function Settings() {
   const router = useRouter();
   const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState<string>(AVATARS[0]);
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
   const [showDisplayNameDialog, setShowDisplayNameDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [showIconDialog, setShowIconDialog] = useState(false);
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showActionsheet, setShowActionsheet] = useState(false);
   
@@ -64,10 +65,9 @@ export default function Settings() {
     { 
       const response = await authAPI.getProfileUser();
       if (response.data) {
-        console.log('Profile data:', response.data.avatar_url);
+        //console.log('Profile data:', response.data.avatar_url);
           setAvatar(response.data.avatar_url || '');
           setDisplayName(response.data.displayname || '');
-          setSelectedIcon(response.data.avatar_url || AVATARS[0]);
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to fetch account information');
@@ -83,7 +83,7 @@ export default function Settings() {
       const response = await profileAPI.updateProfile({
       id: session.user.id,
       displayname: displayName,
-      avatar_url: selectedIcon
+      avatar_url: avatar
     });
     if (!response) {
       Alert.alert('Error', 'Failed to fetch account information');
@@ -93,7 +93,7 @@ export default function Settings() {
     }}).finally(() => {
       setLoading(false);
       setShowDisplayNameDialog(false);
-      setShowIconDialog(false);
+
       setSuccessMessage('Profile updated successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
     });
@@ -145,56 +145,41 @@ export default function Settings() {
         router.replace('/');
     }
   }
-  async function pickImageFromAlbumOrGallery() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need permission to access your photo library.');
-      return;
-    }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
+  async function pickImage() {
+    const result = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
+    if (result != null)
+    { 
 
-    if (!result.canceled && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
-      const fileName = uri.split('/').pop() || 'image.jpg';
-      setLoading(true);
-      await storageAPIs.uploadAvatarToSupabase(uri, fileName, (await supabase.auth.getUser()).data.user?.id || '');
-      setLoading(false);
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      .then(() => {
+        setLoading(true);
+      }).finally(() => {
+        setLoading(false);
+      
+        getCurrentUserProfile();
+      });
     }
     setShowActionsheet(false);
   }
 
   async function takePicture() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const result =  await handleDeviceFilePath.takePicture();
+    if (result != null)
+    { 
+
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '').then(() => {
+        setLoading(true);
+      }).finally(() => {
+        setLoading(false);
+        getCurrentUserProfile();
+      });
+    }
+
     
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need permission to access your camera.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
-      const fileName = uri.split('/').pop() || 'image.jpg';
-      console.log('Captured image URI:', uri);
-      console.log('Captured image file name:', fileName);
-      setLoading(true);
-      await storageAPIs.uploadAvatarToSupabase(uri, fileName, (await supabase.auth.getUser()).data.user?.id || '');
-      setLoading(false);
-    }
     setShowActionsheet(false);
 
   }
-
   return (
     <ScrollView className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
       <Box className="p-6">
@@ -221,9 +206,10 @@ export default function Settings() {
                 <AvatarBadge />
               </Avatar>
             </Pressable>
+            {loading ? <Spinner size="large" color="grey" />:<></>}
           </HStack>
         </Box>
-
+        
         {/* Display Name Section */}
         <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
           <HStack className="justify-between items-center mb-2">
@@ -371,41 +357,6 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Icon Picker Dialog */}
-      <AlertDialog isOpen={showIconDialog} onClose={() => setShowIconDialog(false)}>
-        <AlertDialogBackdrop />
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <Heading size="lg">Choose Avatar</Heading>
-            <AlertDialogCloseButton onPress={() => setShowIconDialog(false)}>
-              <Icon as={CloseIcon} />
-            </AlertDialogCloseButton>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <Box className="flex-row flex-wrap justify-between gap-2 mt-4">
-              {AVATARS.map((avatar) => (
-                <Pressable
-                  key={avatar}
-                  onPress={() => {
-                    setSelectedIcon(avatar);
-                  }}
-                  className={`p-3 rounded-full ${selectedIcon === avatar ? 'bg-blue-500' : 'bg-gray-100'}`}
-                >
-                  <Text className="text-3xl">{avatar}</Text>
-                </Pressable>
-              ))}
-
-            </Box>
-            <Button
-              variant="outline"
-              action="primary"
-              onPress={() => updateProfile()}
-            >
-              <ButtonText>Save</ButtonText>
-            </Button>
-          </AlertDialogBody>
-        </AlertDialogContent>
-      </AlertDialog>
       {/* Delete Account Dialog */}
       <AlertDialog isOpen={showDeleteDialog} onClose={handleDeleteAccount} size="md">
         <AlertDialogContent>
@@ -445,7 +396,7 @@ export default function Settings() {
           <ActionsheetItem onPress={takePicture}>
             <ActionsheetItemText>Take Photo</ActionsheetItemText>
           </ActionsheetItem>
-          <ActionsheetItem onPress={pickImageFromAlbumOrGallery}>
+          <ActionsheetItem onPress={pickImage}>
             <ActionsheetItemText>Select from album</ActionsheetItemText>
           </ActionsheetItem>
         </ActionsheetContent>
