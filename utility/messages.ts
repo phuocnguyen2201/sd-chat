@@ -1,8 +1,7 @@
-import { create } from 'node:domain';
+
 import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
-import { verify } from 'node:crypto';
 
 // 1. Authentication with displayname
 export const authAPI = {
@@ -324,6 +323,7 @@ export const messageAPI = {
         .single()
       
       if (error) throw error
+
       return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }

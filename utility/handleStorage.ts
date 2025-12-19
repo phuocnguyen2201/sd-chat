@@ -5,7 +5,7 @@ import { Alert } from 'react-native';
 async function uploadImageToSupabase(
   imageUri: string,
   fileName: string,
-  roomId: string,
+  conversation_id: string,
   userId: string | null,
   bucket: string = 'storage-msg'
 ) {
@@ -20,15 +20,15 @@ async function uploadImageToSupabase(
       });
 
     if (error) throw error;
-    
-    const { data: publicUrl } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(data.path);
 
+    const { data: publicUrl, error: urlError } = await supabase.storage.from(bucket).createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+
+    if (urlError) throw urlError;
+    
     // Send message with image URL
     await supabase
       .from('messages')
-      .insert([{ room_id: roomId, sender_id: userId, content: `📷 ${publicUrl.publicUrl}` }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, content: `${publicUrl.signedUrl}` }])
       .select()
       .single();
 
@@ -42,7 +42,7 @@ async function uploadImageToSupabase(
 async function uploadFileToSupabase(
   fileUri: string,
   fileName: string,
-  roomId: string,
+  conversation_id: string,
   userId: string | null
 ) {
   try {
@@ -54,15 +54,15 @@ async function uploadFileToSupabase(
       .upload(`files/${Date.now()}-${fileName}`, arrayBuffer);
 
     if (error) throw error;
-    
-    const { data: publicUrl } = supabase.storage
-      .from('chat-files')
-      .getPublicUrl(data.path);
+
+    const { data: publicUrl, error: urlError } = await supabase.storage.from('chat-files').createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+
+    if (urlError) throw urlError;
 
     // Send message with file URL
     await supabase
       .from('messages')
-      .insert([{ room_id: roomId, sender_id: userId, content: `📎 ${fileName}\n${publicUrl.publicUrl}` }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, content: `${publicUrl.signedUrl}` }])
       .select()
       .single();
 

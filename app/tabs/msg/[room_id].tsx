@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField, InputSlot } from '@/components/ui/input';
@@ -133,11 +134,6 @@ export default function ChatScreen() {
       setLoading(true);
       const response = await uploadImageToSupabase(uri, fileName, conversation_id, userId ?? null);
       setLoading(false);
-      if (response.success) {
-        Alert.alert('Success', response.message);
-      } else {
-        Alert.alert('Error', response.error);
-      }
     }
   }
 
@@ -152,11 +148,6 @@ export default function ChatScreen() {
         setLoading(true);
         const response = await uploadFileToSupabase(file.uri, file.name, conversation_id, userId ?? null);
         setLoading(false);
-        if (response.success) {
-          Alert.alert('Success', response.message);
-        } else {
-          Alert.alert('Error', response.error);
-        }
       }
     } catch (e) {
       Alert.alert('Permission Error', 'Unable to access files. Please check your permissions.');
@@ -193,6 +184,7 @@ export default function ChatScreen() {
             {messages.map((m) => {
               const isCurrentUser = m.sender_id === userId;
               return (
+                
                 <Box
                   key={m.id}
                   className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
@@ -204,13 +196,21 @@ export default function ChatScreen() {
                         : 'bg-gray-300 rounded-bl-none'
                     }`}
                   >
-                    <Text
-                      className={`text-sm ${
-                        isCurrentUser ? 'text-white font-semibold' : 'text-black'
-                      }`}
-                    >
+                    {(m.content.includes('.jpg') || m.content.includes('.png') || m.content.includes('.jpeg')) ? 
+                      <Image
+                        source={{ uri: m.content}}
+                        className="w-48 h-48 rounded-lg"
+                        alt='image'
+                      />
+                     : 
+                      <Text
+                        className={`text-sm ${
+                          isCurrentUser ? 'text-white font-semibold' : 'text-black'
+                        }`}
+                      >
                       {m.content}
-                    </Text>
+                    </Text>}
+                   
                   </Box>
                 </Box>
               );

@@ -11,6 +11,7 @@ import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '../../../uti
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
+import { FontDisplay } from 'expo-font';
 
 export default function Tab2() {
 
@@ -117,7 +118,7 @@ export default function Tab2() {
         <VStack space="xs" className="pb-6">
           {listChatRooms && listChatRooms.length > 0 ? (
             listChatRooms.map((room: any, index: number) => {
-
+              const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
               const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
               const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
               return (
@@ -126,7 +127,7 @@ export default function Tab2() {
                   onPress={() => {
                     router.push({
                       pathname: '../msg/[room_id]',
-                      params: { conversation_id: room.id, displayName: room.conversation_participants[1]?.profiles.displayname, userId: userId },
+                      params: { conversation_id: room.id, displayName: participantNames, userId: userId },
                     });
                   }}
                   className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
@@ -140,7 +141,7 @@ export default function Tab2() {
 
                   <Box className="flex-1">
                     <HStack className="justify-between items-center mb-1">
-                      <Text className="font-semibold text-typography-900 text-base">{room.conversation_participants[1]?.profiles.displayname}</Text>
+                      <Text className="font-semibold text-typography-900 text-base">{participantNames}</Text>
                       <Text className="text-xs text-gray-500">{time}</Text>
                     </HStack>
                     <Text className="text-sm text-gray-600" numberOfLines={1}>{lastMsg}</Text>
