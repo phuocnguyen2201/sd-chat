@@ -4,20 +4,22 @@ import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField, InputSlot } from '@/components/ui/input';
 import { Button, ButtonText } from '@/components/ui/button';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Link } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Avatar, AvatarFallbackText } from '@/components/ui/avatar';
 import { Heading } from '@/components/ui/heading';
 import { supabase } from '@/utility/connection';
 import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert } from 'react-native';
-import { ChevronLeftIcon, Icon } from '@/components/ui/icon';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { MediaType } from 'expo-image-picker';
 import { storageAPIs } from '@/utility/handleStorage';
-import { authAPI } from '@/utility/messages';
+import ZoomImage from '@/components/ZoomImage';
+import { LinkText } from '@/components/ui/link';
+import { ArrowBigDown } from 'lucide-react-native';
+import { Icon } from '@/components/ui/icon';
 type Message = {
   id: string;
   room_id: string;
@@ -28,9 +30,12 @@ type Message = {
 
 export default function ChatScreen() {
   const { conversation_id, displayName, userId } = useLocalSearchParams() as { conversation_id?: string, displayName?: string, userId?: string };
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
 
 
@@ -87,7 +92,6 @@ export default function ChatScreen() {
   }, [messages.length]);
 
   async function handleSend() {
-    debugger;
     if (!newMessage.trim() || !conversation_id) return;
     setLoading(true);
 
@@ -105,9 +109,6 @@ export default function ChatScreen() {
       .single();
 
     if (error) console.warn('Error sending message', error);
-    else if (data) {
-      //setMessages((prev) => [...prev, data as Message]);
-    }
 
     setNewMessage('');
     setLoading(false);
@@ -196,15 +197,23 @@ export default function ChatScreen() {
                         : 'bg-gray-300 rounded-bl-none'
                     }`}
                   >
-                    {(m.content.includes('.jpg') || m.content.includes('.png') || m.content.includes('.jpeg')) ? 
-                      <Image
+                    <ZoomImage image={avatarUrl} visible={modalVisible} onClose={() => setModalVisible(false)} />
+                    {(m.content.includes('.jpg') || m.content.includes('/storage/v1/object/sign/storage-msg/') || m.content.includes('.jpeg')) ? 
+                      <Pressable onPress={() => {
+                        setModalVisible(true);
+                        setAvatarUrl(m.content);
+                      }}><Image
                         source={{ uri: m.content}}
                         className="w-48 h-48 rounded-lg"
                         alt='image'
-                      />
-                     : 
-                      <Text
-                        className={`text-sm ${
+                      /></Pressable>
+                     : ((m.content.includes('.pdf') || m.content.includes('.docx') || m.content.includes('.txt') || m.content.includes('.xlsx') || m.content.includes('.pptx'))) && m.content.includes('/storage/v1/object/sign/chat-files/') ?
+                        <Link href={`${m.content}`} target="_blank" rel="noopener noreferrer">
+                            <LinkText className='text-black text-xl'>Download file</LinkText>
+                            <Icon as={ArrowBigDown} size="lg" className="mt-0.5 text-info-600 text-black" />
+                        </Link>
+                      : <Text
+                        className={`text-lg ${
                           isCurrentUser ? 'text-white font-semibold' : 'text-black'
                         }`}
                       >

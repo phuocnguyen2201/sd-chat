@@ -70,9 +70,6 @@ export default function CompleteProfile() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
   }, [])
 
   return (
