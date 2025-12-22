@@ -1,0 +1,32 @@
+export type User = {
+  id: string;
+  email?: string;
+  user_metadata?: {
+    [key: string]: any;
+  };
+  app_metadata?: {
+    [key: string]: any;
+  };
+  created_at?: string;
+  updated_at?: string;
+} | null;
+
+export type Profile = {
+  id: string;
+  email?: string;
+  username?: string;
+  displayname?: string;
+  avatar_url?: string;
+  bio?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Add other profile fields as needed
+} | null;
+
+export type UserContextType = {
+  user: User;
+  profile: Profile;
+  loading: boolean;
+  refreshProfile: () => Promise<void>;
+  logout: () => Promise<void>;
+};

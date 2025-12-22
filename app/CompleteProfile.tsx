@@ -27,10 +27,12 @@ import {
   ActionsheetDragIndicatorWrapper,
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
+import { useUser } from '@/utility/session/UserContext';
 
 export default function CompleteProfile() {
 
-  const [session, setSession] = useState<Session | null>(null)
+  const { user, profile } = useUser();
+
   const [displayName, setDisplayName] = useState<string>('');
   
   const [avatar, setAvatar] = useState<string>('');
@@ -42,11 +44,11 @@ export default function CompleteProfile() {
     if (result != null)
     { 
 
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
       .finally(async () => {
         setShowActionsheet(false);
-        const response = await authAPI.getProfileUser();
-        setAvatar(response.data?.avatar_url || '');
+        //const response = await authAPI.getProfileUser();
+        setAvatar(profile?.avatar_url || '');
       });
     }
     
@@ -57,20 +59,14 @@ export default function CompleteProfile() {
     if (result != null)
     { 
 
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
       .finally(async () => {
-        const response = await authAPI.getProfileUser();
-        setAvatar(response.data?.avatar_url || '');
+        //const response = await authAPI.getProfileUser();
+        setAvatar(profile?.avatar_url || '');
       });
     }
     setShowActionsheet(false);    
   }
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
-  }, [])
 
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">
@@ -108,8 +104,8 @@ export default function CompleteProfile() {
                 <Button className="p-0" size='xl'  
                     onPress={async () => {
                       const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname' | 'avatar_url'>> = {
-                        id: session?.user.id as string,
-                        username: session?.user.email?.split('@')[0] as string || '',
+                        id: user?.id as string,
+                        username: user?.email?.split('@')[0] as string || '',
                         displayname: displayName
                       };
 

@@ -33,8 +33,7 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
-
-
+import { useUser } from '@/utility/session/UserContext';
 
 
 export default function Settings() {
@@ -54,20 +53,18 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
+  const { user, profile } = useUser();
   useEffect(() => {
     getCurrentUserProfile();
   }, []);
 
-
-
   async function getCurrentUserProfile(): Promise<void> {
     try
     { 
-      const response = await authAPI.getProfileUser();
-      if (response.data) {
+      if (profile) {
         //console.log('Profile data:', response.data.avatar_url);
-          setAvatar(response.data.avatar_url || '');
-          setDisplayName(response.data.displayname || '');
+          setAvatar(profile.avatar_url || '');  
+          setDisplayName(profile.displayname || '');
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to fetch account information');
@@ -77,27 +74,24 @@ export default function Settings() {
 
   async function updateProfile(): Promise<void> {
     setLoading(true);
-    supabase.auth.getSession()
-    .then(async ({ data: { session } }) => {
-    if (session) {
-      const response = await profileAPI.updateProfile({
-      id: session.user.id,
+    if (user?.id) {
+      const response = profileAPI.updateProfile({
+      id: user?.id,
       displayname: displayName,
       avatar_url: avatar
-    });
-    if (!response) {
-      Alert.alert('Error', 'Failed to fetch account information');
-      throw new Error('Profile update failed');
-    }
-
-    }}).finally(() => {
+    }).finally(() => {
       setLoading(false);
       setShowDisplayNameDialog(false);
 
       setSuccessMessage('Profile updated successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
     });
-  }
+
+    if (!response) {
+      Alert.alert('Error', 'Failed to fetch account information');
+      throw new Error('Profile update failed');
+    }
+  }}
 
   async function updatePassword(password: string, confirmPassword: string): Promise<void> {
     try{   
@@ -107,7 +101,7 @@ export default function Settings() {
         setLoading(false);
         return;
       }
-      const response = await authAPI.updatePassword(password);
+      const response = authAPI.updatePassword(password);
       if (!response) {
         Alert.alert('Error', 'Failed to update password');
         throw new Error('Password update failed');
@@ -125,7 +119,6 @@ export default function Settings() {
     finally {
       setLoading(false);
     }
- 
   }
 
   async function handleDeleteAccount(): Promise<void> { 
@@ -151,7 +144,7 @@ export default function Settings() {
     if (result != null)
     { 
 
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '')
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
       .then(() => {
         setLoading(true);
       }).finally(() => {
@@ -167,18 +160,14 @@ export default function Settings() {
     const result =  await handleDeviceFilePath.takePicture();
     if (result != null)
     { 
-
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, (await supabase.auth.getUser()).data.user?.id || '').then(() => {
+      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then(() => {
         setLoading(true);
       }).finally(() => {
         setLoading(false);
         getCurrentUserProfile();
       });
     }
-
-    
     setShowActionsheet(false);
-
   }
   return (
     <ScrollView className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
@@ -260,6 +249,8 @@ export default function Settings() {
           className="bg-red-500"
           onPress={async () => {
             await supabase.auth.signOut();
+           // await AsyncStorage.removeItem('user');
+            //await AsyncStorage.removeItem('profile');
             router.replace('/');
           }}
         >

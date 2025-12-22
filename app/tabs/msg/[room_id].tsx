@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, use } from 'react';
 import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
@@ -20,6 +20,7 @@ import ZoomImage from '@/components/ZoomImage';
 import { LinkText } from '@/components/ui/link';
 import { ArrowBigDown } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
+import { useUser } from '@/utility/session/UserContext';
 type Message = {
   id: string;
   room_id: string;
@@ -37,7 +38,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
-
+  const { user, profile } = useUser();
 
   useEffect(() => {
     if (!conversation_id || !displayName) return;
@@ -97,7 +98,7 @@ export default function ChatScreen() {
 
     let sender: string | null = null;
     try {
-      sender = await supabase.auth.getUser().then(({ data }) => data.user?.id) ?? null;
+      sender = await user?.id ?? null;
     } catch (e) {
       sender = null;
     }

@@ -18,19 +18,16 @@ import {
   AlertDialogBackdrop,
 } from '@/components/ui/alert-dialog';
 import { Divider } from '@/components/ui/divider';
-import { supabase } from '@/utility/connection';
-import { Session } from '@supabase/supabase-js';
-import LoadingModal from '@/components/LoadingModal';
+import { useUser } from '@/utility/session/UserContext';
 
 export default function Home() {
-  const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const router = useRouter();
-
+  const { user, profile, refreshProfile, logout } = useUser();
   const handleClose = () => setShowAlertDialog(false);
     const handleState = () => {
       setShowPassword((showState) => {
@@ -43,32 +40,6 @@ export default function Home() {
         setShowAlertDialog(true);
       }
     }, [message]);
-
-    useEffect(() => {
-      setLoading(true);
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if(session && session.user){
-            authAPI.getProfileUser().then((exists) => {
-              //console.log("User profile exists:", exists);
-              if (!exists.data?.displayname) {
-                router.replace('/CompleteProfile');
-              } else {
-                router.push({
-                  pathname: '/tabs/(tabs)/Chat',
-                  params: { email: session.user.email },
-                })
-              }
-            })
-          }
-          else{
-            setLoading(false);
-          }
-
-      }).finally(() => { 
-        setLoading(false); 
-      });
-      
-    }, []);
  
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">

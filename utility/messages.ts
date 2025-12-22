@@ -2,8 +2,9 @@
 import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // 1. Authentication with displayname
+
 export const authAPI = {
   async signUp(
     email: string, 
@@ -60,6 +61,8 @@ export const authAPI = {
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('profile');
       return { data: null, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
@@ -77,14 +80,14 @@ export const authAPI = {
   },
    async getProfileUser(): Promise<ApiResponse<UserProfile>> {
     try {
-      const { data: user, error } = await supabase.auth.getUser()
+      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.user?.id)
         .single()
 
-      if (error || profileError) throw error
+
       const userProfile: UserProfile = {
         id: user.user?.id || '',
         email: user.user?.email || '',
@@ -111,21 +114,21 @@ export const authAPI = {
     },
     async deleteAccount(): Promise<boolean> {
     try {
-      const { data: user } = await supabase.auth.getUser()
-        if (!user.user) {
+        const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
+        if (!user) {
             throw new Error('User not authenticated')
         }
       const supabaseAdmin = createClient(
         process.env.EXPO_PUBLIC_SUPABASE_URL!,
         process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY! // NOT the anon key
       )
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.user.id)
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
       if (deleteError) throw deleteError
 
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
-        .eq('id', user.user.id)
+        .eq('id', user.id)
 
       if (profileError) throw profileError
       await supabase.auth.signOut()
@@ -187,10 +190,11 @@ export const profileAPI = {
 
   async getAllProfiles(): Promise<ApiResponse<UserProfile[]>> {
     try {
+      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .neq('id', await supabase.auth.getUser().then(({data})=>data.user?.id))
+        .neq('id', user?.id || '')
         .order('username')
       
       if (error) throw error
@@ -217,9 +221,10 @@ export const conversationAPI = {
   },
   async verifyDMConversation(otherUserId: string): Promise<ApiResponse<{ conversationId: string | null }>> {
     try {
+      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
 const { data, error } = await supabase.rpc('get_conversation_between_users', {
         _user_a: otherUserId,
-        _user_b: await supabase.auth.getUser().then(({data})=>data.user?.id) || ''
+        _user_b: user?.id || ''
       })
       if (error) throw error
       return { data: { conversationId: data }, error: null }
@@ -260,8 +265,8 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     participantIds: string[]
   ): Promise<ApiResponse<Conversation>> {
     try {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('User not authenticated')
+      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
+      if (!user) throw new Error('User not authenticated')
       
       // Create conversation
       const { data: conversation, error: convError } = await supabase
@@ -269,7 +274,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         .insert({
           name,
           is_group: true,
-          created_by: user.user.id
+          created_by: user.id
         })
         .select()
         .single()
@@ -278,7 +283,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       
       // Add participants
       const participants = [
-        { conversation_id: conversation.id, user_id: user.user.id },
+        { conversation_id: conversation.id, user_id: user.id },
         ...participantIds.map(id => ({ 
           conversation_id: conversation.id, 
           user_id: id 
@@ -307,15 +312,15 @@ export const messageAPI = {
     metadata?: any
   ): Promise<ApiResponse<Message>> {
     try {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('User not authenticated')
+      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
+      if (!user) throw new Error('User not authenticated')
       
       const { data, error } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           content,
-          sender_id: user.user.id,
+          sender_id: user.id,
           message_type: messageType,
           metadata
         })

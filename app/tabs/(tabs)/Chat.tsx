@@ -11,6 +11,7 @@ import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '../../../uti
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
+import { useUser } from '@/utility/session/UserContext';
 
 export default function Tab2() {
 
@@ -18,7 +19,8 @@ export default function Tab2() {
   const [ listUser, setListUser ] = useState<any>(null);
   const [ listChatRooms, setListChatRooms ] = useState<any>(null);
   const [ searchQuery, setSearchQuery ] = useState<string>('');
-
+  const { user, profile } = useUser();
+  
   const fetchUsers = async () => {
     const { data } = await profileAPI.getAllProfiles();
     setListUser(data || []);
@@ -28,11 +30,9 @@ export default function Tab2() {
     setListChatRooms(data || []);
   };
   const fetchUserProfile = async () => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setUserId(data.user.id);
-      }
-    });
+    if(user) {
+      setUserId(user.id);
+    }
   }
   useEffect(() => {
     
