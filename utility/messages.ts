@@ -3,14 +3,15 @@ import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ref } from 'node:process';
+
 // 1. Authentication with displayname
 
 export const authAPI = {
   async signUp(
     email: string, 
-    password: string, 
-    username: string, 
-    displayname: string
+    password: string,
+    username: string
   ): Promise<ApiResponse<{ user: any }>> {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -18,8 +19,7 @@ export const authAPI = {
         password,
         options: {
           data: {
-            username,
-            displayname
+            username
           }
         }
       })
@@ -33,7 +33,6 @@ export const authAPI = {
       .insert({
         id: authData.user.id, // Use the same ID from auth
         username: username|| '',
-        displayname: displayname|| '',
         created_at: new Date().toISOString()
       })
     if (profileError) throw profileError
@@ -81,21 +80,23 @@ export const authAPI = {
    async getProfileUser(): Promise<ApiResponse<UserProfile>> {
     try {
       const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
+      //console.log('Current user in getProfileUser:', user.id);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.user?.id)
+        .eq('id', user?.id)
         .single()
 
 
       const userProfile: UserProfile = {
-        id: user.user?.id || '',
-        email: user.user?.email || '',
-        username: user.user?.user_metadata.username || '',
+        id: user?.id || '',
+        email: user?.email || '',
+        username: user?.user_metadata?.username || '',
         displayname: profileData?.displayname || null,
         avatar_url: profileData?.avatar_url || null,
-        created_at: user.user?.created_at || ''
+        created_at: user?.created_at || ''
       }
+
       return { data: userProfile, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
@@ -128,7 +129,7 @@ export const authAPI = {
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
-        .eq('id', user.id)
+        .eq('id', user.id)  
 
       if (profileError) throw profileError
       await supabase.auth.signOut()
@@ -182,6 +183,7 @@ export const profileAPI = {
         .single()
       
       if (error) throw error
+
       return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
@@ -444,6 +446,7 @@ export const channelsAndUsersAPI = {
     }
   }
 }
+
 // Helper function to get user's display name
 export function getUserDisplayName(
   profile: Pick<UserProfile, 'displayname' | 'username'> | null | undefined

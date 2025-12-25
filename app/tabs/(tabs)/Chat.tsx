@@ -3,15 +3,15 @@ import { Avatar, AvatarBadge, AvatarFallbackText, AvatarImage } from '@/componen
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { supabase } from '@/utility/connection';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
-import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '../../../utility/messages';
+import { conversationAPI, profileAPI, realtimeAPI }  from '../../../utility/messages';
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
+
 
 export default function Tab2() {
 
@@ -19,7 +19,7 @@ export default function Tab2() {
   const [ listUser, setListUser ] = useState<any>(null);
   const [ listChatRooms, setListChatRooms ] = useState<any>(null);
   const [ searchQuery, setSearchQuery ] = useState<string>('');
-  const { user, profile } = useUser();
+  const { user, profile, refreshProfile } = useUser();
   
   const fetchUsers = async () => {
     const { data } = await profileAPI.getAllProfiles();
@@ -34,8 +34,9 @@ export default function Tab2() {
       setUserId(user.id);
     }
   }
+
   useEffect(() => {
-    
+    refreshProfile;
     fetchChatRooms();
     fetchUsers();
     fetchUserProfile();
@@ -47,6 +48,12 @@ export default function Tab2() {
       subscription.unsubscribe();
     }
   }, []);
+  useEffect(() => {
+    if(profile?.avatar_url || profile?.displayname) {
+      refreshProfile();
+    }
+    refreshProfile();
+  }, [profile]);
 
   return (
     <Box className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">

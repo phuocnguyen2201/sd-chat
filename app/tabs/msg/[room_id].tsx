@@ -23,8 +23,9 @@ import { Icon } from '@/components/ui/icon';
 import { useUser } from '@/utility/session/UserContext';
 type Message = {
   id: string;
-  room_id: string;
+  conversation_id: string;
   sender_id: string | null;
+  message_type: string;
   content: string;
   created_at: string;
 }
@@ -199,7 +200,7 @@ export default function ChatScreen() {
                     }`}
                   >
                     <ZoomImage image={avatarUrl} visible={modalVisible} onClose={() => setModalVisible(false)} />
-                    {(m.content.includes('.jpg') || m.content.includes('/storage/v1/object/sign/storage-msg/') || m.content.includes('.jpeg')) ? 
+                    {(m.message_type.includes('image') && m.content.includes('/storage/v1/object/sign/storage-msg/')) ? 
                       <Pressable onPress={() => {
                         setModalVisible(true);
                         setAvatarUrl(m.content);
@@ -208,7 +209,7 @@ export default function ChatScreen() {
                         className="w-48 h-48 rounded-lg"
                         alt='image'
                       /></Pressable>
-                     : ((m.content.includes('.pdf') || m.content.includes('.docx') || m.content.includes('.txt') || m.content.includes('.xlsx') || m.content.includes('.pptx'))) && m.content.includes('/storage/v1/object/sign/chat-files/') ?
+                     : (m.message_type.includes('file') && m.content.includes('/storage/v1/object/sign/chat-files/')) ?
                         <Link href={`${m.content}`} target="_blank" rel="noopener noreferrer">
                             <LinkText className='text-black text-xl'>Download file</LinkText>
                             <Icon as={ArrowBigDown} size="lg" className="mt-0.5 text-info-600 text-black" />

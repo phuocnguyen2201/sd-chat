@@ -104,15 +104,11 @@ export default function Home() {
                     onPress={async () => {
                       
                         const msg = await authAPI.signIn(email, password);
-                        console.log("Login response:", msg);
-                        debugger;
                         if(msg?.error){
                           setMessage(msg.error.message);
                         }
                         else if(msg.data?.user){
-                          const userProfileExists = await authAPI.getProfileUser();
-                          console.log("User profile exists:", userProfileExists.data?.displayname);
-                          if (!userProfileExists.data?.displayname) {
+                          if (!profile?.displayname) {
                             router.replace('/CompleteProfile');
                           }
                           else{
@@ -129,8 +125,7 @@ export default function Home() {
               <VStack>
                 <Button className="p-0" size='xl'  
                     onPress={async () => {
-                        const msg = await authAPI.signUp(email, password,'','');
-                        console.log(msg);
+                        const msg = await authAPI.signUp(email, password,'');
                         if(msg?.error){
                           setMessage(msg.error.message);
                         }

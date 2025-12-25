@@ -31,27 +31,30 @@ import { useUser } from '@/utility/session/UserContext';
 
 export default function CompleteProfile() {
 
-  const { user, profile } = useUser();
+  const { user, profile, refreshProfile } = useUser();
 
   const [displayName, setDisplayName] = useState<string>('');
+
+  const [ loading, setLoading ] = useState<boolean>(false);
   
   const [avatar, setAvatar] = useState<string>('');
 
   const [showActionsheet, setShowActionsheet] = useState<boolean>(false);
 
-  async function pickImage() {
-    const result = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
-    if (result != null)
-    { 
-
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
-      .finally(async () => {
-        setShowActionsheet(false);
-        //const response = await authAPI.getProfileUser();
-        setAvatar(profile?.avatar_url || '');
-      });
-    }
-    
+  function pickImage() {
+    handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
+      if (result != null)
+      {
+        setLoading(true);
+        storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then((data) => {
+          if(data.msg?.success)
+            setAvatar(data.msg?.avatar_url || '');
+        })
+        .finally(async () => {
+          setShowActionsheet(false);
+          setLoading(false);
+        });
+      }});
   }
 
   async function takePicture() {
@@ -61,7 +64,6 @@ export default function CompleteProfile() {
 
       storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
       .finally(async () => {
-        //const response = await authAPI.getProfileUser();
         setAvatar(profile?.avatar_url || '');
       });
     }
@@ -85,16 +87,20 @@ export default function CompleteProfile() {
                 </Input>
                 <Box className="flex-row flex-wrap justify-between gap-2 mt-4">
 
-                <Pressable onPress={() => setShowActionsheet(true)}>
-              <Avatar size="xl" className='bg-background-200'>
-                <AvatarFallbackText>{displayName}</AvatarFallbackText>
-                <AvatarImage
-                  source={{
-                    uri: `${avatar}`,
-                  }}
-                />
-                <AvatarBadge />
-              </Avatar>
+                <Pressable onPress={() => {
+                  setShowActionsheet(true);
+
+                }
+              }>
+                  <Avatar size="xl" className='bg-background-200'>
+                    <AvatarFallbackText>{displayName}</AvatarFallbackText>
+                    <AvatarImage
+                      source={{
+                        uri: `${avatar}`,
+                      }}
+                    />
+                    <AvatarBadge />
+                  </Avatar>
             </Pressable>
 
                 </Box>
@@ -103,13 +109,14 @@ export default function CompleteProfile() {
               <VStack>
                 <Button className="p-0" size='xl'  
                     onPress={async () => {
-                      const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname' | 'avatar_url'>> = {
+                      const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname'>> = {
                         id: user?.id as string,
                         username: user?.email?.split('@')[0] as string || '',
                         displayname: displayName
                       };
 
                       const response = await profileAPI.updateProfile(profile);
+                      await refreshProfile();
                       if (response.error) {
                         console.error('Error creating profile:', response.error);
                         return;
@@ -119,8 +126,6 @@ export default function CompleteProfile() {
                           pathname: '/tabs/(tabs)/Chat',
                         });
                       }
-
-                     
                     }}>
                 <ButtonText>Save</ButtonText>
               </Button></VStack>
@@ -149,6 +154,7 @@ export default function CompleteProfile() {
           </ActionsheetItem>
           <ActionsheetItem onPress={pickImage}>
             <ActionsheetItemText>Select from album</ActionsheetItemText>
+            {loading ? <Spinner size="large" color="grey"/> : null}
           </ActionsheetItem>
         </ActionsheetContent>
       </Actionsheet>

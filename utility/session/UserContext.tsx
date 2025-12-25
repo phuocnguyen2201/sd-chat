@@ -89,23 +89,22 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile;
-
+          await fetchProfile();
+      
           // Check if profile is complete
           const { data: profileData } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
-
+          setProfile(profileData);
+          
           if (!profileData?.displayname) {
             router.replace('/CompleteProfile');
           }
           else {
-            setProfile(profileData);
             router.push({
-              pathname: '/tabs/(tabs)/Chat',
-              params: { email: session.user.email },
+              pathname: '/tabs/(tabs)/Chat'
             });
           }
         }

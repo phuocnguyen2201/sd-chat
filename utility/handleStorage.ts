@@ -3,7 +3,7 @@ import { supabase } from './connection';
 import { authAPI, profileAPI } from './messages';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 export const STORAGE_BUCKETS = {
   MESSAGES: 'storage-msg',
   FILES: 'chat-files',
@@ -36,7 +36,7 @@ export const storageAPIs = {
     // Send message with image URL
     await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, content: `${publicUrl.signedUrl}` }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'image', content: `${publicUrl.signedUrl}` }])
       .select()
       .single();
 
@@ -62,14 +62,14 @@ export const storageAPIs = {
 
     if (error) throw error;
 
-    const { data: publicUrl, error: urlError } = await supabase.storage.from('chat-files').createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+    const { data: publicUrl, error: urlError } = await supabase.storage.from(STORAGE_BUCKETS.FILES).createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
 
     if (urlError) throw urlError;
 
     // Send message with file URL
     await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, content: `${publicUrl.signedUrl}` }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'file', content: `${publicUrl.signedUrl}` }])
       .select()
       .single();
 
@@ -87,22 +87,7 @@ export const storageAPIs = {
   try {
     const response = await fetch(imageUri);
     const arrayBuffer = await response.arrayBuffer();
-    const { data: profileUser, error: profileError } = await authAPI.getProfileUser();
-
-    // Check for existing avatar and delete it
-    if (profileError) {
-      throw profileError;
-    }
-    if (profileUser?.avatar_url) {
-      // Extract path from existing avatar URL
-      const url = new URL(profileUser.avatar_url);
-      const path = url.pathname.replace('/storage/v1/object/sign/avatars/', '');
-      // Delete existing avatar
-      const { error: deleteError } = await supabase.storage.from(STORAGE_BUCKETS.AVATARS).remove([path]);
-      if (deleteError) {
-        console.warn('Error deleting existing avatar:', deleteError);
-      }
-    }
+    await storageAPIs.deleteAvatarFromSupabase(); // Delete existing avatar if any
 
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKETS.AVATARS)
@@ -120,12 +105,42 @@ export const storageAPIs = {
     //console.log('New avatar URL:', publicUrl.signedUrl);
     await profileAPI.updateProfile({ id: userId, avatar_url: publicUrl.signedUrl });
 
-    return { success: true, message: 'Avatar uploaded and updated!' };
+    return { msg: { success: true, avatar_url: publicUrl.signedUrl}, message: 'Avatar uploaded and updated!' };
   } catch (e) {
     console.warn('Avatar upload error:', e);
-    return { success: false, error: 'Failed to upload avatar' };
+    return { msg: { success: false, avatar_url: null}, error: 'Failed to upload avatar' };
   }
-  }
+  },
+  async deleteAvatarFromSupabase(
+) {
+          try {
+            const { data: profileUser, error: profileError } = await authAPI.getProfileUser();
+            // Check for existing avatar and delete it
+            //console.log('User data for avatar deletion:', user);
+            if (!profileUser) {
+              throw profileError;
+            }
+            if (profileUser?.avatar_url) {
+              // Extract path from existing avatar URL
+              const url = new URL(profileUser.avatar_url);
+
+              // const filePath = `avatars/${user.id}/${fileName}`;
+              const path = url.pathname.replace('/storage/v1/object/sign/avatars/', '');
+              // Delete existing avatar
+
+              const { error: deleteError } = await supabase.storage.from(STORAGE_BUCKETS.AVATARS).remove([path]);
+              if (deleteError) {
+                console.warn('Error deleting existing avatar:', deleteError);
+                return { success: false, error: 'Failed to delete avatar' };
+              }
+              return { success: true, message: 'Avatar deleted successfully' };
+            }
+            return { success: false, error: 'No avatar to delete' };
+          } catch (e) {
+            console.warn('Avatar deletion error:', e);
+            return { success: false, error: 'Failed to delete avatar' };
+          }
+        }
 };
 
 export const handleDeviceFilePath = {

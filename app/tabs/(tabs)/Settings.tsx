@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/actionsheet';
 import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
 import { useUser } from '@/utility/session/UserContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 export default function Settings() {
@@ -53,24 +54,21 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile } = useUser();
-  useEffect(() => {
-    getCurrentUserProfile();
-  }, []);
+  const { user, profile, refreshProfile } = useUser();
 
-  async function getCurrentUserProfile(): Promise<void> {
-    try
-    { 
-      if (profile) {
-        //console.log('Profile data:', response.data.avatar_url);
-          setAvatar(profile.avatar_url || '');  
-          setDisplayName(profile.displayname || '');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to fetch account information');
-      console.warn(e);
+  useEffect(() => {
+    if (profile?.avatar_url && profile?.displayname) {
+      setAvatar(profile.avatar_url || '');  
+      setDisplayName(profile.displayname || '');
     }
-  };
+    else {
+      refreshProfile();
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    refreshProfile();
+  }, [user]);
 
   async function updateProfile(): Promise<void> {
     setLoading(true);
@@ -123,9 +121,11 @@ export default function Settings() {
 
   async function handleDeleteAccount(): Promise<void> { 
     try {
+        const avatar = await storageAPIs.deleteAvatarFromSupabase();
         const success = await authAPI.deleteAccount();
-        if (success) {
-            Alert.alert('Success', 'Account deleted successfully');
+        if (avatar.success && success) {
+          
+          Alert.alert('Success', 'Account deleted successfully');
         } else {
             Alert.alert('Error', 'Failed to delete account');
         }
@@ -150,7 +150,7 @@ export default function Settings() {
       }).finally(() => {
         setLoading(false);
       
-        getCurrentUserProfile();
+
       });
     }
     setShowActionsheet(false);
@@ -164,7 +164,7 @@ export default function Settings() {
         setLoading(true);
       }).finally(() => {
         setLoading(false);
-        getCurrentUserProfile();
+
       });
     }
     setShowActionsheet(false);
@@ -249,8 +249,8 @@ export default function Settings() {
           className="bg-red-500"
           onPress={async () => {
             await supabase.auth.signOut();
-           // await AsyncStorage.removeItem('user');
-            //await AsyncStorage.removeItem('profile');
+            await AsyncStorage.removeItem('user');
+            await AsyncStorage.removeItem('profile');
             router.replace('/');
           }}
         >
