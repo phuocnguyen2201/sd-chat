@@ -77,16 +77,15 @@ export const authAPI = {
       return { data: null, error: error as Error }
     }
   },
-   async getProfileUser(): Promise<ApiResponse<UserProfile>> {
+   async getProfileUser(userId: string): Promise<ApiResponse<UserProfile>> {
     try {
       const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
-      //console.log('Current user in getProfileUser:', user.id);
+
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', user?.id?? userId)
         .single()
-
 
       const userProfile: UserProfile = {
         id: user?.id || '',

@@ -33,15 +33,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           .single()
   
         if (error || profileError) throw error
-        const userProfile: Profile = {
-          id: user.user?.id || '',
-          email: user.user?.email || '',
-          username: user.user?.user_metadata.username || '',
-          displayname: profileData?.displayname || null,
-          avatar_url: profileData?.avatar_url || null,
-          created_at: user.user?.created_at || ''
-        }
-        setProfile(userProfile);
+
+        setProfile(profileData);
+
       } catch (error) {
          return Promise.reject(error);
       }
@@ -98,7 +92,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             .eq('id', session.user.id)
             .single();
           setProfile(profileData);
-          
+
           if (!profileData?.displayname) {
             router.replace('/CompleteProfile');
           }

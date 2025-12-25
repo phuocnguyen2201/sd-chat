@@ -27,7 +27,7 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const router = useRouter();
-  const { user, profile, refreshProfile, logout } = useUser();
+  const { user, profile, refreshProfile } = useUser();
   const handleClose = () => setShowAlertDialog(false);
     const handleState = () => {
       setShowPassword((showState) => {
@@ -107,14 +107,14 @@ export default function Home() {
                         if(msg?.error){
                           setMessage(msg.error.message);
                         }
-                        else if(msg.data?.user){
-                          if (!profile?.displayname) {
+                        else if(msg.data?.user) {
+                          const data = await authAPI.getProfileUser( msg.data.user.id);
+                          if (!data?.data?.displayname) {
                             router.replace('/CompleteProfile');
                           }
                           else{
                             router.replace({
                               pathname: '/tabs/(tabs)/Chat',
-                              params: { email: email },
                             })
                           }
                         }

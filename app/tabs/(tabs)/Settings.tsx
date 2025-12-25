@@ -35,6 +35,8 @@ import {
 import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
 import { useUser } from '@/utility/session/UserContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ref } from 'node:process';
+import { emitKeypressEvents } from 'node:readline';
 
 
 export default function Settings() {
@@ -61,15 +63,17 @@ export default function Settings() {
       setAvatar(profile.avatar_url || '');  
       setDisplayName(profile.displayname || '');
     }
-    else {
-      refreshProfile();
+    else{
+      authAPI.getProfileUser(user?.id || '').then((data) => {
+        if (data) {
+          setAvatar(data?.data?.avatar_url || '');
+          setDisplayName(data?.data?.displayname || '');
+        }
+      });
     }
-  }, [profile]);
 
-  useEffect(() => {
-    refreshProfile();
-  }, [user]);
-
+    }, [profile]);
+  
   async function updateProfile(): Promise<void> {
     setLoading(true);
     if (user?.id) {
@@ -143,14 +147,11 @@ export default function Settings() {
     const result = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
     if (result != null)
     { 
-
       storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
       .then(() => {
         setLoading(true);
       }).finally(() => {
         setLoading(false);
-      
-
       });
     }
     setShowActionsheet(false);
