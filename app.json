@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "sd-chat",
+    "name": "SD chat",
     "slug": "sd-chat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,7 +26,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.phuocng23000.sdchat"
+      "package": "com.phuocng23000.sdchat",
+      "googleServicesFile": "google-services.json"
     },
     "web": {
       "bundler": "metro",

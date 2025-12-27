@@ -11,7 +11,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
-
+import  Push from '../../../components/Push';
 
 export default function Tab2() {
 
@@ -119,7 +119,7 @@ export default function Tab2() {
             ))}
           </HStack>
         </Box>
-
+      <Box className="h-4"><Push /></Box>
       {/* Conversations List */}
       <ScrollView className="flex-1 bg-background-50">
         <VStack space="xs" className="pb-6">
