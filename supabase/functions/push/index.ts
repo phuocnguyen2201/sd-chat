@@ -1,44 +1,93 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "npm:@supabase/supabase-js@2";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_PUSH_NOTIFICATIONS_KEY = Deno.env.get("EXPO_API_PUSH_NOTIFICATION")!;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+Deno.serve(async (req: Request) => {
+  try {
+    // Only accept POST if that's intended
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Only POST allowed" }), {
+        status: 405,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-Deno.serve(async (req) => {
-  const { name } = await req.json()
-  const test = 'ExponentPushToken[ATeYCXE-oYLaWrdo5unRAD]';
+    // Parse JSON safely
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Failed to parse JSON body:", e);
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-  const sender_data = await supabase.from('messages').select('conversation_id, content').eq('id', '3f4b8f12-6f4e-4d3b-8f4a-6f4e4d3b8f12').single();
+    // Support both shapes: { payload: { ... } } and { ... }
+    const payload = body?.payload ?? body;
 
-  const receiver_data = await supabase.from('profiles').select('fcm_token').eq('id', 'user-2-id').single();
+    if (!payload) {
+      console.warn("No payload found in request body:", body);
+      return new Response(JSON.stringify({ error: "No payload provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-  const res = await fetch("https://exp.host/--/api/v2/push/send", {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: receiver_data.data?.fcm_token || test,
-      sound: 'default',
-      title: user.displayname || 'New Message',
-      body: sender_data.data?.content || 'You have a new message',
-    }),
-  }).then(res => res.json());
+    // Inspect the webhook trigger
+    console.log("Received webhook payload:", JSON.stringify(payload, null, 2));
+    //const inserted_Data = JSON.stringify(payload, null, 2)
+    // Example: extract fields safely
+    const { type, table, record, old_record } = payload;
 
-  return new Response(JSON.stringify(res), {
-    headers: { "Content-Type": "application/json" },
-  });
-})
+    // TODO: Add your business logic here (DB calls, push notifications, etc.)
+    const content = record?.content || "No content";
+    const sender_name = await supabaseClient
+      .from("profiles")
+      .select("displayname")
+      .eq("id", record?.sender_id)
+      .single();
+    const receivedPerson = await supabaseClient
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", record?.conversation_id).neq("user_id", record?.sender_id)
+      .single();
+    const received_fcm_token = await supabaseClient
+      .from("profiles")
+      .select("fcm_token")
+      .eq("id", receivedPerson.data?.user_id)
+      .single();
+    // If you need Supabase client, construct it with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
 
-/* To invoke locally:
+    console.log("Preparing to send push notification...");
+     const res = await fetch(SUPABASE_PUSH_NOTIFICATIONS_KEY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: received_fcm_token.data?.fcm_token || '',
+        sound: 'default',
+        title: sender_name.data?.displayname || 'New Message',
+        body: content || 'You have a new message',
+      }),
+    }).then(res => res.json());
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/push' \
-    --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
-
-*/
+    // Return the received payload as confirmation
+    return new Response(JSON.stringify({ ok: true, payload }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Unexpected error in function:", error);
+    return new Response(JSON.stringify({ error: "Internal server error", message: String(error) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+});
