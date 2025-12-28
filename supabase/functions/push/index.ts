@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
 import { createClient } from "npm:@supabase/supabase-js@2";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Inspect the webhook trigger
-    console.log("Received webhook payload:", JSON.stringify(payload, null, 2));
+   // console.log("Received webhook payload:", JSON.stringify(payload, null, 2));
     //const inserted_Data = JSON.stringify(payload, null, 2)
     // Example: extract fields safely
     const { type, table, record, old_record } = payload;
@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
       .single();
     const received_fcm_token = await supabaseClient
       .from("profiles")
-      .select("fcm_token")
+      .select("fcm_token, displayname")
       .eq("id", receivedPerson.data?.user_id)
       .single();
     // If you need Supabase client, construct it with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
@@ -75,6 +75,7 @@ Deno.serve(async (req: Request) => {
         sound: 'default',
         title: sender_name.data?.displayname || 'New Message',
         body: content || 'You have a new message',
+        data: { conversation_id: record?.conversation_id, displayname: sender_name.data?.displayname}
       }),
     }).then(res => res.json());
 

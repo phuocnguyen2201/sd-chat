@@ -6,12 +6,13 @@ import { HStack } from '@/components/ui/hstack';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
-import { conversationAPI, profileAPI, realtimeAPI }  from '../../../utility/messages';
+import { conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
-import  Push from '../../../components/Push';
+import { usePushNotifications } from '@/utility/push-notification/push-Notification';
+import * as Notifications from 'expo-notifications';
 
 export default function Tab2() {
 
@@ -20,7 +21,15 @@ export default function Tab2() {
   const [ listChatRooms, setListChatRooms ] = useState<any>(null);
   const [ searchQuery, setSearchQuery ] = useState<string>('');
   const { user, profile, refreshProfile } = useUser();
-  
+  const [ pushNoficationUser, setPushNotificationUser ] = useState<any>(null);
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
   const fetchUsers = async () => {
     const { data } = await profileAPI.getAllProfiles();
     setListUser(data || []);
@@ -34,18 +43,48 @@ export default function Tab2() {
       setUserId(user.id);
     }
   }
-
+  const handlePushNotification = async () => {
+    if(profile?.fcm_token) {
+      //console.log('Push token already exists:', profile.fcm_token);
+      return;
+    }
+    const token = await usePushNotifications.registerForPushNotificationsAsync();
+    //console.log('Push Notification Token:', token);
+    if (token) {
+      await usePushNotifications.savePushTokenToDatabase(token);
+      //console.log('Push token saved to database');
+    }
+  };
   useEffect(() => {
+    handlePushNotification();
     refreshProfile;
     fetchChatRooms();
     fetchUsers();
     fetchUserProfile();
+
     const subscription = realtimeAPI.subscribeToConversations(userId, (newConversation) => {
       setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
     });
 
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification',notification.request.content.data);
+
+      setPushNotificationUser(notification.request.content.data);
+      
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Response', response);
+      router.push({
+        pathname: '../msg/[room_id]',
+        params: { conversation_id: pushNoficationUser.conversation_id, displayName: pushNoficationUser.displayname, userId: userId },
+      });
+    });
+
     return () => {
       subscription.unsubscribe();
+      notificationListener.remove();
+      responseListener.remove();
     }
   }, []);
   useEffect(() => {
@@ -119,7 +158,7 @@ export default function Tab2() {
             ))}
           </HStack>
         </Box>
-      <Box className="h-4"><Push /></Box>
+      
       {/* Conversations List */}
       <ScrollView className="flex-1 bg-background-50">
         <VStack space="xs" className="pb-6">

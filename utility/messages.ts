@@ -3,7 +3,6 @@ import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ref } from 'node:process';
 
 // 1. Authentication with displayname
 
