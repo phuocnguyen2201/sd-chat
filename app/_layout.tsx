@@ -48,6 +48,7 @@ function RootLayoutNav() {
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
 
   return (
+    
     <GluestackUIProvider mode={colorMode}>
       <UserProvider>
         <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
