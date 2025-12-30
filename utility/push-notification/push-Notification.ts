@@ -49,10 +49,9 @@ export const usePushNotifications = {
             projectId,
             })
         ).data;
-        //console.log(pushTokenString);
         return pushTokenString;
         } catch (e: unknown) {
-        console.log(`${e}`);
+        console.log(`Testing: ${e}`);
         }
     } else {
         console.log('Must use physical device for push notifications');

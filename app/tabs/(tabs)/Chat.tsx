@@ -44,10 +44,12 @@ export default function Tab2() {
     }
   }
   const handlePushNotification = async () => {
+
     if(profile?.fcm_token) {
       //console.log('Push token already exists:', profile.fcm_token);
       return;
     }
+
     const token = await usePushNotifications.registerForPushNotificationsAsync();
     //console.log('Push Notification Token:', token);
     if (token) {
@@ -67,14 +69,14 @@ export default function Tab2() {
     });
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification',notification.request.content.data);
+      //console.log('Notification',notification.request.content.data);
 
       setPushNotificationUser(notification.request.content.data);
       
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Response', response);
+      //console.log('Response', response);
       router.push({
         pathname: '../msg/[room_id]',
         params: { conversation_id: pushNoficationUser.conversation_id, displayName: pushNoficationUser.displayname, userId: userId },
