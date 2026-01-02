@@ -47,7 +47,7 @@ export default function Tab2() {
 
     if(profile?.fcm_token) {
       //console.log('Push token already exists:', profile.fcm_token);
-      return;
+      //return;
     }
 
     const token = await usePushNotifications.registerForPushNotificationsAsync();
@@ -59,7 +59,6 @@ export default function Tab2() {
   };
   useEffect(() => {
     handlePushNotification();
-    refreshProfile;
     fetchChatRooms();
     fetchUsers();
     fetchUserProfile();
@@ -69,17 +68,18 @@ export default function Tab2() {
     });
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      //console.log('Notification',notification.request.content.data);
 
-      setPushNotificationUser(notification.request.content.data);
-      
+      //setPushNotificationUser(notification.request.content.data);
+      //console.log('Push Notification User', notification.request.content.data);
+
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      //console.log('Response', response);
+      //console.log('Notification response received:', response.notification.request.content.data);
+     // console.log('message', response.notification.request.content.body);
       router.push({
         pathname: '../msg/[room_id]',
-        params: { conversation_id: pushNoficationUser.conversation_id, displayName: pushNoficationUser.displayname, userId: userId },
+        params: { conversation_id: response.notification.request.content.data.conversation_id as string, displayName: response.notification.request.content.data.displayname as string, userId: userId },
       });
     });
 
@@ -89,6 +89,7 @@ export default function Tab2() {
       responseListener.remove();
     }
   }, []);
+  
   useEffect(() => {
     if(profile?.avatar_url || profile?.displayname) {
       refreshProfile();
@@ -118,9 +119,10 @@ export default function Tab2() {
 
       {/* Users Horizontal Scroll */}
         <Box className="bg-white border-b border-gray-100 py-3">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <HStack space="md" className="px-4">
             {listUser && listUser.map((user: any, index: number) => (
-              <Pressable
+              <Pressable className="pr-4"
                 key={`${user.id}-${index}` || `user-${index}`}
                 onPress={async () => {
 
@@ -137,16 +139,13 @@ export default function Tab2() {
                     
                     if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
                       conversationId = newConversation.data.conversationId;
-                    } else {
-                      // Handle error - no valid conversation ID
-                      console.error('Failed to get/create conversation');
-                      return;
                     }
                   }
-                    router.push({
-                      pathname: '../msg/[room_id]',
-                      params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
-                    });
+
+                  router.push({
+                    pathname: '../msg/[room_id]',
+                    params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
+                  });
                 }}
                 className="items-center"
               >
@@ -158,7 +157,9 @@ export default function Tab2() {
                 <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
               </Pressable>
             ))}
+            
           </HStack>
+          </ScrollView>
         </Box>
       
       {/* Conversations List */}
