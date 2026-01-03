@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
 import { conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable, ScrollView, StatusBar } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
@@ -53,7 +53,7 @@ export default function Tab2() {
 
     if(profile?.fcm_token) {
       //console.log('Push token already exists:', profile.fcm_token);
-      //return;
+      return;
     }
 
     const token = await usePushNotifications.registerForPushNotificationsAsync();
@@ -63,6 +63,11 @@ export default function Tab2() {
       //console.log('Push token saved to database');
     }
   };
+
+  const statusBar = () => {
+    return <StatusBar barStyle="light-content" />;
+  };
+
   useEffect(() => {
     handlePushNotification();
     fetchChatRooms();
@@ -75,8 +80,7 @@ export default function Tab2() {
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
 
-      //setPushNotificationUser(notification.request.content.data);
-      //console.log('Push Notification User', notification.request.content.data);
+      fetchChatRooms();
 
     });
 
@@ -137,6 +141,7 @@ export default function Tab2() {
   }, [searchQuery, listUser, listChatRooms, userId]);
 
   return (
+    
     <Box className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
       {/* Header */}
       <Box className="bg-white border-b border-gray-200 pt-4 px-4 pb-3">
@@ -157,13 +162,13 @@ export default function Tab2() {
       </Box>
 
       {/* Users Horizontal Scroll */}
-      {searchQuery == '' ? (
+      {(
         <Box>
           <Box className="bg-white border-b border-gray-100 py-3">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <HStack space="md" className="px-4">
               {filteredUsers && filteredUsers.map((user: any, index: number) => (
-                <Pressable className="pr-4"
+                <Pressable className="pr-4 items-center"
                   key={`${user.id}-${index}` || `user-${index}`}
                   onPress={async () => {
 
@@ -188,7 +193,6 @@ export default function Tab2() {
                       params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
                     });
                   }}
-                  className="items-center"
                 >
                   <Avatar size="lg" className="mb-2">
                     <AvatarFallbackText>{(user.displayname || 'U').slice(0,2)}</AvatarFallbackText>
@@ -204,7 +208,7 @@ export default function Tab2() {
       
       {/* Conversations List */}
       <Box>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={true}>
           <VStack space="xs" className="pb-6">
             {filteredChatRooms && filteredChatRooms.length > 0 ? (
               filteredChatRooms.map((room: any, index: number) => {
@@ -252,48 +256,7 @@ export default function Tab2() {
         </ScrollView>
       </Box>
         </Box>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <HStack space="md" className="px-4">
-            {filteredUsers && filteredUsers.map((user: any, index: number) => (
-              <Pressable className="pr-4"
-                key={`${user.id}-${index}` || `user-${index}`}
-                onPress={async () => {
-
-                  const existing = await conversationAPI.verifyDMConversation(user.id);
-                  const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                  let conversationId: string;
-
-                  if (existing.data?.conversationId && guidRegex.test(existing.data.conversationId)) {
-                    // Use existing conversation
-                    conversationId = existing.data.conversationId;
-                  } else {
-                    // Create new conversation
-                    const newConversation = await conversationAPI.getOrCreateDM(user.id);
-                    
-                    if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
-                      conversationId = newConversation.data.conversationId;
-                    }
-                  }
-
-                  router.push({
-                    pathname: '../msg/[room_id]',
-                    params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
-                  });
-                }}
-                className="items-center"
-              >
-                <Avatar size="lg" className="mb-2">
-                  <AvatarFallbackText>{(user.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                  <AvatarImage source={{ uri: user.avatar_url || undefined }} />
-                  <AvatarBadge className="bg-green-500" />
-                </Avatar>
-                <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
-              </Pressable>
-            ))}
-          </HStack>
-        </ScrollView>
-        )}
+      )}
       
     </Box>
   );

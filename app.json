@@ -25,9 +25,9 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
       "package": "com.phuocng23000.sdchat",
-      "googleServicesFile": "google-services.json"
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",

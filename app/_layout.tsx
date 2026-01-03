@@ -48,24 +48,26 @@ function RootLayoutNav() {
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
 
   return (
-    
-    <GluestackUIProvider mode={colorMode}>
-      <UserProvider>
-        <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
-          <Slot />
-          {pathname === '/' && (
-            <Fab
-              onPress={() =>
-                setColorMode(colorMode === 'dark' ? 'light' : 'dark')
-              }
-              className="m-6"
-              size="lg"
-            >
-              <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
-            </Fab>
-          )}
-        </ThemeProvider>
-      </UserProvider>
-    </GluestackUIProvider>
+    <>
+      <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
+      <GluestackUIProvider mode={colorMode}>
+        <UserProvider>
+          <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
+            <Slot />
+            {pathname === '/' && (
+              <Fab
+                onPress={() =>
+                  setColorMode(colorMode === 'dark' ? 'light' : 'dark')
+                }
+                className="m-6"
+                size="lg"
+              >
+                <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
+              </Fab>
+            )}
+          </ThemeProvider>
+        </UserProvider>
+      </GluestackUIProvider>
+    </>
   );
 }

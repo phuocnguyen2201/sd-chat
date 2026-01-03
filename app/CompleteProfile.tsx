@@ -57,18 +57,22 @@ export default function CompleteProfile() {
       }});
   }
 
-  async function takePicture() {
-    const result =  await handleDeviceFilePath.takePicture();
-    if (result != null)
-    { 
-
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
-      .finally(async () => {
-        setAvatar(profile?.avatar_url || '');
-      });
-    }
-    setShowActionsheet(false);    
-  }
+  function takePicture() {
+    handleDeviceFilePath.takePicture().then((result) => {
+      if (result != null)
+      {
+        setLoading(true);
+        storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then((data) => {
+          if(data.msg?.success)
+            setAvatar(data.msg?.avatar_url || '');
+        })
+        .finally(async () => {
+          setShowActionsheet(false);
+          setLoading(false);
+        });
+      }});
+    }   
+  
 
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">

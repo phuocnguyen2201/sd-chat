@@ -1,4 +1,5 @@
 import React, { use, useEffect, useState } from 'react';
+import { StatusBar } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
@@ -42,6 +43,7 @@ export default function Home() {
     }, [message]);
  
   return (
+    
     <Box className="flex-1 bg-background-900 h-[100vh]">
         <Box className="absolute lg:w-[700px] lg:h-[700px]">
 
