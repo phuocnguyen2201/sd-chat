@@ -19,9 +19,15 @@ export default function Tab2() {
   const [ userId, setUserId ] = useState<string>('');
   const [ listUser, setListUser ] = useState<any>(null);
   const [ listChatRooms, setListChatRooms ] = useState<any>(null);
+
   const [ searchQuery, setSearchQuery ] = useState<string>('');
   const { user, profile, refreshProfile } = useUser();
+
   const [ pushNoficationUser, setPushNotificationUser ] = useState<any>(null);
+
+  const [ filteredChatRooms, setFilteredChatRooms ] = useState<any>([]);
+  const [ filteredUsers, setFilteredUsers ] = useState<any>([]);
+
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: true,
@@ -97,6 +103,39 @@ export default function Tab2() {
     refreshProfile();
   }, [profile]);
 
+  // Update filtered lists when search query, users, chat rooms or userId change
+  useEffect(() => {
+    // Users: exclude current user and optionally filter by displayname
+    if (listUser && Array.isArray(listUser)) {
+      if (searchQuery === '' || searchQuery.trim() === '') {
+        setFilteredUsers(listUser.filter((u: any) => u.id !== userId));
+      } else {
+        const q = searchQuery.toLowerCase();
+        setFilteredUsers(listUser.filter((u: any) => u.id !== userId && (u.displayname || '').toLowerCase().includes(q)));
+      }
+    } else {
+      setFilteredUsers([]);
+    }
+
+    // Chat rooms: filter by participant name or last message
+    if (listChatRooms && Array.isArray(listChatRooms)) {
+      if (searchQuery === '' || searchQuery.trim() === '') {
+        setFilteredChatRooms(listChatRooms);
+      } else {
+        const q = searchQuery.toLowerCase();
+        setFilteredChatRooms(listChatRooms.filter((room: any) => {
+          const p0 = room.conversation_participants?.[0]?.profiles?.displayname || '';
+          const p1 = room.conversation_participants?.[1]?.profiles?.displayname || '';
+          const participantName = (room.conversation_participants?.[1]?.profiles?.id == userId) ? p0 : p1;
+          const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : '';
+          return participantName.toLowerCase().includes(q) || (lastMsg || '').toLowerCase().includes(q);
+        }));
+      }
+    } else {
+      setFilteredChatRooms([]);
+    }
+  }, [searchQuery, listUser, listChatRooms, userId]);
+
   return (
     <Box className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
       {/* Header */}
@@ -118,10 +157,105 @@ export default function Tab2() {
       </Box>
 
       {/* Users Horizontal Scroll */}
-        <Box className="bg-white border-b border-gray-100 py-3">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      {searchQuery == '' ? (
+        <Box>
+          <Box className="bg-white border-b border-gray-100 py-3">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <HStack space="md" className="px-4">
+              {filteredUsers && filteredUsers.map((user: any, index: number) => (
+                <Pressable className="pr-4"
+                  key={`${user.id}-${index}` || `user-${index}`}
+                  onPress={async () => {
+
+                    const existing = await conversationAPI.verifyDMConversation(user.id);
+                    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    let conversationId: string;
+
+                    if (existing.data?.conversationId && guidRegex.test(existing.data.conversationId)) {
+                      // Use existing conversation
+                      conversationId = existing.data.conversationId;
+                    } else {
+                      // Create new conversation
+                      const newConversation = await conversationAPI.getOrCreateDM(user.id);
+                      
+                      if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
+                        conversationId = newConversation.data.conversationId;
+                      }
+                    }
+
+                    router.push({
+                      pathname: '../msg/[room_id]',
+                      params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
+                    });
+                  }}
+                  className="items-center"
+                >
+                  <Avatar size="lg" className="mb-2">
+                    <AvatarFallbackText>{(user.displayname || 'U').slice(0,2)}</AvatarFallbackText>
+                    <AvatarImage source={{ uri: user.avatar_url || undefined }} />
+                    <AvatarBadge className="bg-green-500" />
+                  </Avatar>
+                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
+                </Pressable>
+              ))}
+            </HStack>
+          </ScrollView>
+        </Box>
+      
+      {/* Conversations List */}
+      <Box>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <VStack space="xs" className="pb-6">
+            {filteredChatRooms && filteredChatRooms.length > 0 ? (
+              filteredChatRooms.map((room: any, index: number) => {
+                const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
+                const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
+                const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
+                const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                return (
+                  <Pressable
+                    key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
+                    onPress={() => {
+                      router.push({
+                        pathname: '../msg/[room_id]',
+                        params: { conversation_id: room.id, displayName: participantNames, userId: userId },
+                      });
+                    }}
+                    className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
+                  >
+                    <Box className="relative">
+                      <Avatar size="lg" className="mr-3">
+                        <AvatarFallbackText>{(room.conversation_participants[1]?.profiles.displayname || 'U').slice(0,2)}</AvatarFallbackText>
+                        <AvatarImage source={{ uri: participantAvatar || undefined }} />
+                      </Avatar>
+                      <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+                    </Box>
+
+                    <Box className="flex-1">
+                      <HStack className="justify-between items-center mb-1">
+                        <Text className="font-semibold text-typography-900 text-base">{participantNames}</Text>
+                        <Text className="text-xs text-gray-500">{time}</Text>
+                      </HStack>
+                      <Text className="text-sm text-gray-600" numberOfLines={1}>{lastMsg}</Text>
+                    </Box>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <Box className="items-center mt-12">
+                <Text className="text-gray-400 text-center">No conversations yet.</Text>
+                <Text className="text-gray-400 text-center">Start chatting by selecting a user above!</Text>
+              </Box>
+            )}
+          </VStack>
+        </ScrollView>
+      </Box>
+        </Box>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <HStack space="md" className="px-4">
-            {listUser && listUser.map((user: any, index: number) => (
+            {filteredUsers && filteredUsers.map((user: any, index: number) => (
               <Pressable className="pr-4"
                 key={`${user.id}-${index}` || `user-${index}`}
                 onPress={async () => {
@@ -157,58 +291,10 @@ export default function Tab2() {
                 <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
               </Pressable>
             ))}
-            
           </HStack>
-          </ScrollView>
-        </Box>
+        </ScrollView>
+        )}
       
-      {/* Conversations List */}
-      <ScrollView className="flex-1 bg-background-50">
-        <VStack space="xs" className="pb-6">
-          {listChatRooms && listChatRooms.length > 0 ? (
-            listChatRooms.map((room: any, index: number) => {
-
-              const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
-              const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
-              const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
-              const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-              return (
-                <Pressable
-                  key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
-                  onPress={() => {
-                    router.push({
-                      pathname: '../msg/[room_id]',
-                      params: { conversation_id: room.id, displayName: participantNames, userId: userId },
-                    });
-                  }}
-                  className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
-                >
-                  <Box className="relative">
-                    <Avatar size="lg" className="mr-3">
-                      <AvatarFallbackText>{(room.conversation_participants[1]?.profiles.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                      <AvatarImage source={{ uri: participantAvatar || undefined }} />
-                    </Avatar>
-                    <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
-                  </Box>
-
-                  <Box className="flex-1">
-                    <HStack className="justify-between items-center mb-1">
-                      <Text className="font-semibold text-typography-900 text-base">{participantNames}</Text>
-                      <Text className="text-xs text-gray-500">{time}</Text>
-                    </HStack>
-                    <Text className="text-sm text-gray-600" numberOfLines={1}>{lastMsg}</Text>
-                  </Box>
-                </Pressable>
-              );
-            })
-          ) : (
-            <Box className="items-center mt-12">
-              <Text className="text-gray-400 text-center">No conversations yet.</Text>
-              <Text className="text-gray-400 text-center">Start chatting by selecting a user above!</Text>
-            </Box>
-          )}
-        </VStack>
-      </ScrollView>
     </Box>
   );
 }
