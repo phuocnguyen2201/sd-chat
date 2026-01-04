@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Fab, FabIcon } from '@/components/ui/fab';
 import { MoonIcon, SunIcon } from '@/components/ui/icon';
 import { UserProvider } from '@/utility/session/UserContext';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -48,7 +49,7 @@ function RootLayoutNav() {
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
       <GluestackUIProvider mode={colorMode}>
         <UserProvider>
@@ -68,6 +69,6 @@ function RootLayoutNav() {
           </ThemeProvider>
         </UserProvider>
       </GluestackUIProvider>
-    </>
+    </GestureHandlerRootView>
   );
 }

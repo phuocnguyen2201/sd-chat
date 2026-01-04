@@ -18,12 +18,7 @@
        "android": {
         "buildType": "apk"
       },
-      "distribution": "internal",
-       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://1.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "2",
-        "EXPO_PUBLIC_SUPABASE_SERVICE_KEY": "3"
-      }
+      "distribution": "internal"
     }
   },
   "submit": {

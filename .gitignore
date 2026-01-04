@@ -38,3 +38,8 @@ yarn-error.*
 .env
 
 android/
+ios/
+
+eas.json
+
+*.apk

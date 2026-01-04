@@ -41,6 +41,13 @@ export default function Home() {
         setShowAlertDialog(true);
       }
     }, [message]);
+    useEffect(() => {
+      if (user) {
+        router.replace({
+          pathname: '/tabs/(tabs)/Chat',
+        });
+      }
+    }, [user]);
  
   return (
     

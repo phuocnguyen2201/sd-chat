@@ -162,8 +162,8 @@ export default function Tab2() {
       </Box>
 
       {/* Users Horizontal Scroll */}
-      {(
-        <Box>
+      
+        <Box className='flex-1'>
           <Box className="bg-white border-b border-gray-100 py-3">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <HStack space="md" className="px-4">
@@ -174,7 +174,7 @@ export default function Tab2() {
 
                     const existing = await conversationAPI.verifyDMConversation(user.id);
                     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                    let conversationId: string;
+                    let conversationId: string = '';
 
                     if (existing.data?.conversationId && guidRegex.test(existing.data.conversationId)) {
                       // Use existing conversation
@@ -207,8 +207,8 @@ export default function Tab2() {
         </Box>
       
       {/* Conversations List */}
-      <Box>
-        <ScrollView showsVerticalScrollIndicator={true}>
+      <Box className='flex-1'>
+        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ flexGrow: 1 }}>
           <VStack space="xs" className="pb-6">
             {filteredChatRooms && filteredChatRooms.length > 0 ? (
               filteredChatRooms.map((room: any, index: number) => {
@@ -253,10 +253,10 @@ export default function Tab2() {
               </Box>
             )}
           </VStack>
-        </ScrollView>
-      </Box>
+          </ScrollView>
         </Box>
-      )}
+      </Box>
+      
       
     </Box>
   );
