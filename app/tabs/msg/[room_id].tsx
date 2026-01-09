@@ -31,10 +31,10 @@ type Message = {
 }
 
 export default function ChatScreen() {
-  const { conversation_id, displayName, public_key, conversationKey, userId } = useLocalSearchParams() as { 
-    conversation_id?: string, displayName?: string, public_key?: string, conversationKey?: string, userId?: string 
+  const { conversation_id, displayName, conversationKey, userId } = useLocalSearchParams() as { 
+    conversation_id?: string, displayName?: string, conversationKey?: string, userId?: string 
   };
-  const [senderWrappedKey, setsenderWrappedKey] = useState<any>(null);
+
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -95,21 +95,6 @@ export default function ChatScreen() {
     }, 50);
   }, [messages.length]);
 
-  useEffect(() => {
-    getWrappedKey();
-  },[])
-
-  async function getWrappedKey() {
-    const { data, error } = await supabase
-      .from('conversation_participants')
-      .select('wrapped_key, key_nonce')
-      .eq('conversation_id', conversation_id)
-      .eq('user_id', user?.id);
-    if (error) console.log('Error getting wrapped key',error);
-
-    setsenderWrappedKey(data);
-  }
-
   async function handleSend() {
     if (!newMessage.trim() || !conversation_id) return;
     setLoading(true);
@@ -120,9 +105,6 @@ export default function ChatScreen() {
     } catch (e) {
       sender = null;
     }
-    //unwrapped
-
-    //const conversationKey = await 
 
     const encryptedMSG = await MessageEncryption.encryptMessage(
       newMessage, 

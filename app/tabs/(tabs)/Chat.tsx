@@ -183,12 +183,50 @@ export default function Tab2() {
                     if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
                       // Use existing conversation
                       conversationId = existing.data?.conversation_id ?? '';
+
+                      const verifyWrappedKey_OtherRecipient = await conversationAPI.getWrappedKeyRecipient(conversationId, userId);
+                      
+                      if(verifyWrappedKey_OtherRecipient?.data?.[0] 
+                        && verifyWrappedKey_OtherRecipient?.data?.[0].wrapped_key == null 
+                        && verifyWrappedKey_OtherRecipient?.data?.[0].key_nonce == null
+                        && verifyWrappedKey_OtherRecipient?.data?.[0].other_party_pub_key == null){
+                        
+                        const publicKey = MessageEncryption.base64ToBytes(user.public_key);
+                        
+                        const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
+
+                        const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].wrapped_key);
+                        const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].key_nonce);
+                        const conversationKey = await MessageEncryption.unwrapConversationKey(
+                          wrapped,
+                          key_nonce,
+                          publicKey
+                        );
+
+                        const wrappedKeyCurrentuser = await MessageEncryption.wrapConversationKey(
+                          conversationKey,
+                          publicKey
+                        );
+
+                        if (wrappedKeyCurrentuser) {
+                          
+                          await conversationAPI.storeConversationKey(
+                            conversationId,
+                            userId,
+                            MessageEncryption.bytesToBase64(wrappedKeyCurrentuser.wrappedKey),
+                            MessageEncryption.bytesToBase64(wrappedKeyCurrentuser.nonce),
+                            MessageEncryption.bytesToBase64(publicKey)
+                          );
+                        }
+                        ConversationKeyManager.setConversationKey(conversationId, conversationKey);
+                        }
                     } else {
                       // Create new conversation
 
                       const newConversation = await conversationAPI.getOrCreateDM(user.id);
                       
-                      if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
+                      if (newConversation.data?.conversationId 
+                        && guidRegex.test(newConversation.data.conversationId)) {
                         conversationId = newConversation.data.conversationId;
                         
                         // Check if both users have valid public keys
@@ -201,7 +239,7 @@ export default function Tab2() {
 
                         // Validate key sizes
                         const recipientKeyBytes = MessageEncryption.base64ToBytes(user.public_key);
-                        //const currnetUserKeyBytes = MessageEncryption.base64ToBytes(profile.public_key)
+
                         
                         if (recipientKeyBytes.length !== 32) {
                           console.error('Invalid key sizes:', { 
@@ -242,7 +280,6 @@ export default function Tab2() {
                       pathname: '../msg/[room_id]',
                       params: { conversation_id: conversationId, 
                         displayName: user.displayname,
-                        public_key: user.public_key,
                         conversationKey: conversationKey,
                         userId: user.id },
                     });
@@ -274,10 +311,15 @@ export default function Tab2() {
                 return (
                   <Pressable
                     key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
-                    onPress={() => {
+                    onPress={ async() => {
+                      const conversationKey = await ConversationKeyManager.get(room.id);
                       router.push({
                         pathname: '../msg/[room_id]',
-                        params: { conversation_id: room.id, displayName: participantNames, userId: userId },
+                        params: { 
+                          conversation_id: room.id, 
+                          displayName: participantNames, 
+                          conversationKey: conversationKey, 
+                          userId: userId },
                       });
                     }}
                     className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"

@@ -172,7 +172,11 @@ static async wrapConversationKey(
 
   // 3. Derive wrapping key (simplified - in production use proper HKDF)
   // For now, use the shared secret directly as the wrapping key
-  const wrapKey = sharedSecret;
+  const wrapKey = await this.hkdfSha512(
+        sharedSecret,
+        new TextEncoder().encode('conversation-key-wrap'),
+        32
+      );
 
   // 4. Encrypt (wrap) the conversation key using ChaCha20-Poly1305
   const nonce = nacl.randomBytes(12); // ChaCha20 nonce size
@@ -217,7 +221,6 @@ static async unwrapConversationKey(
   // 3. Unwrap conversation key
   const cipher = new ChaCha20Poly1305(unwrapKey);
   const conversationKey = cipher.open(nonce, wrappedKey);
-  console.log('Coversation Key',conversationKey)
 
   if (!conversationKey) {
     throw new Error('Key unwrapping failed');
@@ -283,20 +286,5 @@ static async hkdfSha512(
     }
     
     return bytes;
-  }
-
-  /**
-   * Generate a secure random string (for testing/dev)
-   */
-  static generateRandomString(length: number = 16): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const randomBytesArr = Crypto.getRandomBytes(length);
-    let result = '';
-    
-    for (let i = 0; i < length; i++) {
-      result += chars[randomBytesArr[i] % chars.length];
-    }
-    
-    return result;
   }
 }

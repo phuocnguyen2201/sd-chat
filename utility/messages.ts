@@ -348,6 +348,34 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async getWrappedKeyRecipient(conversationId: string, currentUser: string): Promise<ApiResponse<Array<any>>>{
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('wrapped_key, key_nonce, other_party_pub_key')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', currentUser)
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+   async getWrappedKeyCurrent(conversationId: string, currentUser: string): Promise<ApiResponse<Array<any>>>{
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('wrapped_key, key_nonce')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', currentUser)
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
 

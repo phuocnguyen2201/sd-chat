@@ -61,11 +61,11 @@ export default function Home() {
     const signUpAsync = async () => {
       const public_key = await getPublicKey(); 
       const msg = await authAPI.signUp(email, password, public_key);
-      if(msg?.error){
+      if (msg?.error){
         setMessage(msg.error.message);
         MessageEncryption.deletePrivateKey();
       }
-      else if(msg.data?.user){
+      else if (msg.data?.user){
         setMessage('Registration successful! Please check your email to verify your account.');
       }
     }
