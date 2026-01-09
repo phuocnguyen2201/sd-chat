@@ -3,6 +3,7 @@ import { supabase } from './connection';
 import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { get } from 'node:http';
 
 // 1. Authentication with displayname
 
@@ -10,17 +11,12 @@ export const authAPI = {
   async signUp(
     email: string, 
     password: string,
-    username: string
+    public_key: string
   ): Promise<ApiResponse<{ user: any }>> {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password,
-        options: {
-          data: {
-            username
-          }
-        }
+        password
       })
       
     if (authError) throw authError
@@ -31,7 +27,8 @@ export const authAPI = {
       .from('profiles')
       .insert({
         id: authData.user.id, // Use the same ID from auth
-        username: username|| '',
+        public_key: public_key,
+        username: email?.split('@')[0] as string || '',
         created_at: new Date().toISOString()
       })
     if (profileError) throw profileError
@@ -92,6 +89,7 @@ export const authAPI = {
         username: user?.user_metadata?.username || '',
         displayname: profileData?.displayname || null,
         avatar_url: profileData?.avatar_url || null,
+        public_key: profileData?.public_key || null,
         created_at: user?.created_at || ''
       }
 
@@ -117,10 +115,43 @@ export const authAPI = {
         if (!user) {
             throw new Error('User not authenticated')
         }
+
+      const { data: dataConversation, error } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id)
+
+      if (error) throw error;
+      const conversation_id = dataConversation?.map(item => item.conversation_id) || [];
+
       const supabaseAdmin = createClient(
         process.env.EXPO_PUBLIC_SUPABASE_URL!,
         process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY! // NOT the anon key
       )
+      for (const conversa_id of conversation_id) {
+      const { error: deleteMessages } = await supabaseAdmin
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversa_id)
+
+      if (deleteMessages) throw deleteMessages;
+      const { error: deleteConversation_participant } = await supabaseAdmin
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversa_id)
+      
+      if (deleteConversation_participant) throw deleteConversation_participant;
+      const { error: deleteConversation } = await supabaseAdmin
+        .from('conversations')
+        .delete()
+        .eq('id', conversa_id)
+
+      if (deleteConversation) throw deleteConversation;
+      }
+
+
+
+
       const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
       if (deleteError) throw deleteError
 
@@ -178,7 +209,7 @@ export const profileAPI = {
         .update(updates)
         .eq('id', updates.id)
         .select()
-        .single()
+        .maybeSingle()
       
       if (error) throw error
 
@@ -204,7 +235,6 @@ export const profileAPI = {
     }
   }
 }
-
 // 3. Conversations
 export const conversationAPI = {
   async getOrCreateDM(otherUserId: string): Promise<ApiResponse<{ conversationId: string }>> {
@@ -300,8 +330,28 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async storeConversationKey(conversationId: string, userId: string, wrappedKey: string, nonce: string, other_Public_Key: string): Promise<ApiResponse<void>> {
+    try {
+      // Implementation depends on how you want to store the key
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .update({
+          wrapped_key: wrappedKey,
+          key_nonce: nonce,
+          other_party_pub_key: other_Public_Key
+        }).eq('conversation_id', conversationId)
+        .eq('user_id', userId)
+      
+      if (error) throw error
+      return { data: data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
+
+
 
 // 4. Messages
 export const messageAPI = {

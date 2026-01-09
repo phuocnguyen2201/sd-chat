@@ -3,24 +3,21 @@ import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField, InputSlot } from '@/components/ui/input';
-import { Button, ButtonText } from '@/components/ui/button';
 import { useRouter, useLocalSearchParams, Link } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
-import { Avatar, AvatarFallbackText } from '@/components/ui/avatar';
-import { Heading } from '@/components/ui/heading';
 import { supabase } from '@/utility/connection';
 import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert } from 'react-native';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { MediaType } from 'expo-image-picker';
 import { storageAPIs } from '@/utility/handleStorage';
 import ZoomImage from '@/components/ZoomImage';
 import { LinkText } from '@/components/ui/link';
 import { ArrowBigDown } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import { useUser } from '@/utility/session/UserContext';
+import { MessageEncryption } from '../../../utility/securedMessage/secured';
 type Message = {
   id: string;
   conversation_id: string;
@@ -31,9 +28,11 @@ type Message = {
 }
 
 export default function ChatScreen() {
-  const { conversation_id, displayName, userId } = useLocalSearchParams() as { conversation_id?: string, displayName?: string, userId?: string };
-
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { conversation_id, displayName, public_key , userId } = useLocalSearchParams() as { 
+    conversation_id?: string, displayName?: string, public_key?: string, userId?: string 
+  };
+  const [senderWrappedKey, setsenderWrappedKey] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,6 +92,21 @@ export default function ChatScreen() {
     }, 50);
   }, [messages.length]);
 
+  useEffect(() => {
+    getWrappedKey();
+  },[])
+
+  async function getWrappedKey() {
+    const { data, error } = await supabase
+      .from('conversation_participants')
+      .select('wrapped_key, key_nonce')
+      .eq('conversation_id', conversation_id)
+      .eq('user_id', user?.id);
+    if (error) console.log('Error getting wrapped key',error);
+
+    setsenderWrappedKey(data);
+  }
+
   async function handleSend() {
     if (!newMessage.trim() || !conversation_id) return;
     setLoading(true);
@@ -103,10 +117,26 @@ export default function ChatScreen() {
     } catch (e) {
       sender = null;
     }
+    //unwrapped
+
+    const conversationKey = await MessageEncryption.unwrapConversationKey(
+      MessageEncryption.base64ToBytes(senderWrappedKey[0].wrapped_key), 
+      MessageEncryption.base64ToBytes(senderWrappedKey[0].key_nonce), 
+      MessageEncryption.base64ToBytes(public_key??''));
+
+    const encryptedMSG = await MessageEncryption.encryptMessage(newMessage, conversationKey);
+    console.log(encryptedMSG.ciphertext);
+
 
     const { data, error } = await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: sender, content: newMessage }])
+      .insert([{ conversation_id: conversation_id, 
+        sender_id: sender, 
+        content: encryptedMSG.ciphertext, 
+        nonce: encryptedMSG.nonce, 
+        key_nonce: encryptedMSG.keyNonce,
+        wrapped_key: encryptedMSG.wrappedKey
+      }])
       .select()
       .single();
 
@@ -210,7 +240,7 @@ export default function ChatScreen() {
                         alt='image'
                       /></Pressable>
                      : (m.message_type.includes('file') && m.content.includes('/storage/v1/object/sign/chat-files/')) ?
-                        <Link href={`${m.content}`} target="_blank" rel="noopener noreferrer">
+                        <Link href={`${m.content}` as "/"} target="_blank" rel="noopener noreferrer">
                             <LinkText className='text-black text-xl'>Download file</LinkText>
                             <Icon as={ArrowBigDown} size="lg" className="mt-0.5 text-info-600 text-black" />
                         </Link>

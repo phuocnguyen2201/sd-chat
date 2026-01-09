@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Divider } from '@/components/ui/divider';
 import { useUser } from '@/utility/session/UserContext';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 export default function Home() {
   const [email, setEmail] = useState<string>('');
@@ -35,19 +36,45 @@ export default function Home() {
         return !showState;
       });
     };
+    const getPublicKey = async () => {
+      const masterKey = await MessageEncryption.generateKeyPair();
+      return masterKey.publicKey;
+    }
+    const signInAsync = async () => {
+      const msg = await authAPI.signIn(email, password);
+      if(msg?.error){
+        setMessage(msg.error.message);
+      }
+      else if(msg.data?.user) {
+        const data = await authAPI.getProfileUser( msg.data.user.id);
+        if (!data?.data?.displayname) {
+          router.replace('/CompleteProfile');
+        }
+        else{
+          router.replace({
+            pathname: '/tabs/(tabs)/Chat',
+          })
+        }
+      }
+    }
+
+    const signUpAsync = async () => {
+      const public_key = await getPublicKey(); 
+      const msg = await authAPI.signUp(email, password, public_key);
+      if(msg?.error){
+        setMessage(msg.error.message);
+        MessageEncryption.deletePrivateKey();
+      }
+      else if(msg.data?.user){
+        setMessage('Registration successful! Please check your email to verify your account.');
+      }
+    }
 
     useEffect(() => {
       if (message) {
         setShowAlertDialog(true);
       }
     }, [message]);
-    useEffect(() => {
-      if (user) {
-        router.replace({
-          pathname: '/tabs/(tabs)/Chat',
-        });
-      }
-    }, [user]);
  
   return (
     
@@ -110,38 +137,13 @@ export default function Home() {
            
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={async () => {
-                      
-                        const msg = await authAPI.signIn(email, password);
-                        if(msg?.error){
-                          setMessage(msg.error.message);
-                        }
-                        else if(msg.data?.user) {
-                          const data = await authAPI.getProfileUser( msg.data.user.id);
-                          if (!data?.data?.displayname) {
-                            router.replace('/CompleteProfile');
-                          }
-                          else{
-                            router.replace({
-                              pathname: '/tabs/(tabs)/Chat',
-                            })
-                          }
-                        }
-                      }}>
+                    onPress={async () => { await signInAsync(); }}>
                 <ButtonText>Login</ButtonText>
               </Button></VStack>
                 <Divider className="my-0.5 mb-4" />
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={async () => {
-                        const msg = await authAPI.signUp(email, password,'');
-                        if(msg?.error){
-                          setMessage(msg.error.message);
-                        }
-                        else if(msg.data?.user){
-                          setMessage('Registration successful! Please check your email to verify your account.');
-                        }
-                      }}>
+                    onPress={ () => { signUpAsync();}}>
                 <ButtonText>Register</ButtonText>
               </Button></VStack>
                             

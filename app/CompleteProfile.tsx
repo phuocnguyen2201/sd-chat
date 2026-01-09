@@ -28,6 +28,7 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { useUser } from '@/utility/session/UserContext';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 export default function CompleteProfile() {
 
@@ -72,7 +73,27 @@ export default function CompleteProfile() {
         });
       }});
     }   
-  
+    const updateProfile = async () => {
+      const profile: Partial<Pick<UserProfile, 'id'| 'displayname'>> = {
+        id: user?.id as string,
+        displayname: displayName
+      };
+
+      const response = await profileAPI.updateProfile(profile);
+      
+      if (response.error) {
+        console.error('Error creating profile:', response.error);
+        return;
+      }
+      else {
+        router.replace({
+          pathname: '/tabs/(tabs)/Chat',
+        });
+      }
+    };
+    useEffect(() => {
+      refreshProfile();
+    },[])
 
   return (
     <Box className="flex-1 bg-background-900 h-[100vh]">
@@ -112,25 +133,7 @@ export default function CompleteProfile() {
            
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={async () => {
-                      const profile: Partial<Pick<UserProfile, 'id' | 'username' | 'displayname'>> = {
-                        id: user?.id as string,
-                        username: user?.email?.split('@')[0] as string || '',
-                        displayname: displayName
-                      };
-
-                      const response = await profileAPI.updateProfile(profile);
-                      await refreshProfile();
-                      if (response.error) {
-                        console.error('Error creating profile:', response.error);
-                        return;
-                      }
-                      else {
-                        router.replace({
-                          pathname: '/tabs/(tabs)/Chat',
-                        });
-                      }
-                    }}>
+                    onPress={updateProfile}>
                 <ButtonText>Save</ButtonText>
               </Button></VStack>
 

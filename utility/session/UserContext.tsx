@@ -23,18 +23,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Fetch user profile from database
-  const fetchProfile = async (): Promise<void> => {
+  const fetchProfile = async (): Promise<Profile | null> => {
       try {
         const { data: user, error } = await supabase.auth.getUser()
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.user?.id)
-          .single()
-  
-        if (error || profileError) throw error
-
-        setProfile(profileData);
+          .eq('id', user.user?.id).limit(1)
+        //console.log(profileData[0])
+        if (error || profileError) throw console.log("Error in fetch profile",profileError)
+       // console.log(profileData[0])
+        const profile = profileData[0];
+        setProfile(profile);
+        return profile;
 
       } catch (error) {
          return Promise.reject(error);
@@ -44,7 +45,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   // Refresh profile data
   const refreshProfile = async (): Promise<void> => {
     if (user) {
-      await fetchProfile;
+      await fetchProfile();
     }
   };
 
@@ -80,20 +81,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     const checkSession = async (): Promise<void> => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile();
-      
-          // Check if profile is complete
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          setProfile(profileData);
 
-          if (!profileData?.displayname) {
+          const fetchedProfile = await fetchProfile()
+          // Check if profile is complete
+          if (!fetchedProfile?.displayname) {
             router.replace('/CompleteProfile');
           }
           else {
@@ -116,7 +110,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       async (event, session) => {
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile;
+          await fetchProfile();
         } else {
           setUser(null);
           setProfile(null);

@@ -37,6 +37,7 @@ import { useUser } from '@/utility/session/UserContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ref } from 'node:process';
 import { emitKeypressEvents } from 'node:readline';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 
 export default function Settings() {
@@ -125,9 +126,11 @@ export default function Settings() {
 
   async function handleDeleteAccount(): Promise<void> { 
     try {
-        const avatar = await storageAPIs.deleteAvatarFromSupabase();
+        if (profile?.avatar_url)
+          await storageAPIs.deleteAvatarFromSupabase(user?.id || '');
+        await MessageEncryption.deletePrivateKey();
         const success = await authAPI.deleteAccount();
-        if (avatar.success && success) {
+        if (success) {
           
           Alert.alert('Success', 'Account deleted successfully');
         } else {

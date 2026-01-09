@@ -87,7 +87,7 @@ export const storageAPIs = {
   try {
     const response = await fetch(imageUri);
     const arrayBuffer = await response.arrayBuffer();
-    await storageAPIs.deleteAvatarFromSupabase(); // Delete existing avatar if any
+    await storageAPIs.deleteAvatarFromSupabase(userId); // Delete existing avatar if any
 
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKETS.AVATARS)
@@ -112,9 +112,10 @@ export const storageAPIs = {
   }
   },
   async deleteAvatarFromSupabase(
+  userId: string
 ) {
           try {
-            const { data: profileUser, error: profileError } = await authAPI.getProfileUser();
+            const { data: profileUser, error: profileError } = await authAPI.getProfileUser(userId);
             // Check for existing avatar and delete it
             //console.log('User data for avatar deletion:', user);
             if (!profileUser) {

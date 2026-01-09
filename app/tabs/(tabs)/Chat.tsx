@@ -6,13 +6,15 @@ import { HStack } from '@/components/ui/hstack';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
-import { conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
+import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView, StatusBar } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
 import * as Notifications from 'expo-notifications';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
+
 
 export default function Tab2() {
 
@@ -64,15 +66,13 @@ export default function Tab2() {
     }
   };
 
-  const statusBar = () => {
-    return <StatusBar barStyle="light-content" />;
-  };
-
   useEffect(() => {
+
     handlePushNotification();
     fetchChatRooms();
     fetchUsers();
     fetchUserProfile();
+
 
     const subscription = realtimeAPI.subscribeToConversations(userId, (newConversation) => {
       setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
@@ -89,7 +89,10 @@ export default function Tab2() {
      // console.log('message', response.notification.request.content.body);
       router.push({
         pathname: '../msg/[room_id]',
-        params: { conversation_id: response.notification.request.content.data.conversation_id as string, displayName: response.notification.request.content.data.displayname as string, userId: userId },
+        params: { conversation_id: response.notification.request.content.data.conversation_id as string, 
+          displayName: response.notification.request.content.data.displayname as string,
+          userId: userId
+           },
       });
     });
 
@@ -101,10 +104,9 @@ export default function Tab2() {
   }, []);
   
   useEffect(() => {
-    if(profile?.avatar_url || profile?.displayname) {
+    if (!profile?.avatar_url || !profile?.displayname || !profile?.public_key) {
       refreshProfile();
     }
-    refreshProfile();
   }, [profile]);
 
   // Update filtered lists when search query, users, chat rooms or userId change
@@ -175,22 +177,68 @@ export default function Tab2() {
                     const existing = await conversationAPI.verifyDMConversation(user.id);
                     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     let conversationId: string = '';
-
-                    if (existing.data?.conversationId && guidRegex.test(existing.data.conversationId)) {
+                    
+                    if (existing.data?.conversationId && guidRegex.test(existing.data?.conversationId[0]?.conversation_id)) {
                       // Use existing conversation
-                      conversationId = existing.data.conversationId;
+                      conversationId = existing.data?.conversationId[0]?.conversation_id;
                     } else {
                       // Create new conversation
+                      console.log('Do they still get in')
                       const newConversation = await conversationAPI.getOrCreateDM(user.id);
                       
                       if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
                         conversationId = newConversation.data.conversationId;
-                      }
-                    }
+                        
+                        // Check if both users have valid public keys
+                        if (!user.public_key || !profile?.public_key) {
+                          console.error('Missing public keys:', { userKey: !!user.public_key, profileKey: !!profile?.public_key });
+                          alert('Encryption keys not found. Please complete your profile setup.');
 
+                          return;
+                        }
+
+                        // Validate key sizes
+                        const recipientKeyBytes = MessageEncryption.base64ToBytes(user.public_key);
+                        //const currnetUserKeyBytes = MessageEncryption.base64ToBytes(profile.public_key)
+                        
+                        if (recipientKeyBytes.length !== 32) {
+                          console.error('Invalid key sizes:', { 
+                            recipient: recipientKeyBytes.length, 
+                                                  
+                          });
+                          alert('Invalid encryption keys detected. Please contact support.');
+                          return;
+                        }
+                        
+                        // Prepare encryption keys for the new conversation
+                        const conversationKey = await MessageEncryption.createConversationKey();
+
+                        // Wrap the conversation key for both participants
+                        const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
+                          conversationKey,
+                          recipientKeyBytes
+                        );
+
+                        if (wrappedKeyDataRecipient) {
+                          // Save the wrapped key and nonce to the database
+                          await conversationAPI.storeConversationKey(
+                            conversationId,
+                            user.id,
+                            MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.wrappedKey),
+                            MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.nonce),
+                            profile?.public_key
+                          );
+                        }
+
+                    }
+                  }
+                  
                     router.push({
                       pathname: '../msg/[room_id]',
-                      params: { conversation_id: conversationId, displayName: user.displayname, userId: userId },
+                      params: { conversation_id: conversationId, 
+                        displayName: user.displayname,
+                        public_key: user.public_key,
+                        userId: user.id },
                     });
                   }}
                 >
@@ -216,7 +264,7 @@ export default function Tab2() {
                 const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
                 const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
                 const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-
+                
                 return (
                   <Pressable
                     key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
