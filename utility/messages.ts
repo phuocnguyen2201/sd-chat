@@ -249,7 +249,7 @@ export const conversationAPI = {
       return { data: null, error: error as Error }
     }
   },
-  async verifyDMConversation(otherUserId: string): Promise<ApiResponse<{ conversationId: string | null }>> {
+  async verifyDMConversation(otherUserId: string): Promise<ApiResponse<{ conversation_id: string | null }>> {
     try {
       const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
 const { data, error } = await supabase.rpc('get_conversation_between_users', {
@@ -257,7 +257,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         _user_b: user?.id || ''
       })
       if (error) throw error
-      return { data: { conversationId: data }, error: null }
+      return { data: data?.[0] , error: null }
     }
     catch (error) {
       return { data: null, error: error as Error }

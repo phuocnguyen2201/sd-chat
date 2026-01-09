@@ -24,12 +24,15 @@ type Message = {
   sender_id: string | null;
   message_type: string;
   content: string;
+  nonce: string;
+  wrapped_key: string;
+  key_nonce: string;
   created_at: string;
 }
 
 export default function ChatScreen() {
-  const { conversation_id, displayName, public_key , userId } = useLocalSearchParams() as { 
-    conversation_id?: string, displayName?: string, public_key?: string, userId?: string 
+  const { conversation_id, displayName, public_key, conversationKey, userId } = useLocalSearchParams() as { 
+    conversation_id?: string, displayName?: string, public_key?: string, conversationKey?: string, userId?: string 
   };
   const [senderWrappedKey, setsenderWrappedKey] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
@@ -119,12 +122,12 @@ export default function ChatScreen() {
     }
     //unwrapped
 
-    const conversationKey = await MessageEncryption.unwrapConversationKey(
-      MessageEncryption.base64ToBytes(senderWrappedKey[0].wrapped_key), 
-      MessageEncryption.base64ToBytes(senderWrappedKey[0].key_nonce), 
-      MessageEncryption.base64ToBytes(public_key??''));
+    //const conversationKey = await 
 
-    const encryptedMSG = await MessageEncryption.encryptMessage(newMessage, conversationKey);
+    const encryptedMSG = await MessageEncryption.encryptMessage(
+      newMessage, 
+      MessageEncryption.base64ToBytes(conversationKey ?? ''));
+
     console.log(encryptedMSG.ciphertext);
 
 
@@ -249,7 +252,13 @@ export default function ChatScreen() {
                           isCurrentUser ? 'text-white font-semibold' : 'text-black'
                         }`}
                       >
-                      {m.content}
+                      { 
+                      MessageEncryption.decryptMessage({
+                            ciphertext: m.content,
+                            nonce: m.nonce,
+                            wrappedKey: m.wrapped_key,
+                            keyNonce: m.key_nonce,
+                          },MessageEncryption.base64ToBytes(conversationKey??''))}
                     </Text>}
                    
                   </Box>

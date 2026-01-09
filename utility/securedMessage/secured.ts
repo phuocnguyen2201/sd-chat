@@ -217,6 +217,7 @@ static async unwrapConversationKey(
   // 3. Unwrap conversation key
   const cipher = new ChaCha20Poly1305(unwrapKey);
   const conversationKey = cipher.open(nonce, wrappedKey);
+  console.log('Coversation Key',conversationKey)
 
   if (!conversationKey) {
     throw new Error('Key unwrapping failed');

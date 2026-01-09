@@ -14,6 +14,7 @@ import { useUser } from '@/utility/session/UserContext';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
 import * as Notifications from 'expo-notifications';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement'
 
 
 export default function Tab2() {
@@ -178,12 +179,13 @@ export default function Tab2() {
                     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     let conversationId: string = '';
                     
-                    if (existing.data?.conversationId && guidRegex.test(existing.data?.conversationId[0]?.conversation_id)) {
+
+                    if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
                       // Use existing conversation
-                      conversationId = existing.data?.conversationId[0]?.conversation_id;
+                      conversationId = existing.data?.conversation_id ?? '';
                     } else {
                       // Create new conversation
-                      console.log('Do they still get in')
+
                       const newConversation = await conversationAPI.getOrCreateDM(user.id);
                       
                       if (newConversation.data?.conversationId && guidRegex.test(newConversation.data.conversationId)) {
@@ -212,6 +214,7 @@ export default function Tab2() {
                         
                         // Prepare encryption keys for the new conversation
                         const conversationKey = await MessageEncryption.createConversationKey();
+                        
 
                         // Wrap the conversation key for both participants
                         const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
@@ -229,15 +232,18 @@ export default function Tab2() {
                             profile?.public_key
                           );
                         }
+                        ConversationKeyManager.setConversationKey(conversationId, conversationKey);
 
                     }
                   }
+                  const conversationKey = await ConversationKeyManager.get(conversationId);
                   
                     router.push({
                       pathname: '../msg/[room_id]',
                       params: { conversation_id: conversationId, 
                         displayName: user.displayname,
                         public_key: user.public_key,
+                        conversationKey: conversationKey,
                         userId: user.id },
                     });
                   }}
