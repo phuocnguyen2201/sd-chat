@@ -52,6 +52,24 @@ export default function Tab2() {
       setUserId(user.id);
     }
   }
+  const getConversationKeyForOtherParticipants = async (public_key: string, conversationId: string): Promise<string> => {
+  const publicKey = MessageEncryption.base64ToBytes(public_key);
+                        
+    const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
+
+    const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].wrapped_key);
+    const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].key_nonce);
+      
+    const conversationKey = await MessageEncryption.unwrapConversationKey(
+      wrapped,
+      key_nonce,
+      publicKey
+    );
+      
+    ConversationKeyManager.setConversationKey(conversationId, conversationKey);
+    return MessageEncryption.bytesToBase64(conversationKey);
+  }
+
   const handlePushNotification = async () => {
 
     if(profile?.fcm_token) {
@@ -63,7 +81,6 @@ export default function Tab2() {
     //console.log('Push Notification Token:', token);
     if (token) {
       await usePushNotifications.savePushTokenToDatabase(token);
-      //console.log('Push token saved to database');
     }
   };
 
@@ -86,8 +103,6 @@ export default function Tab2() {
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      //console.log('Notification response received:', response.notification.request.content.data);
-     // console.log('message', response.notification.request.content.body);
       router.push({
         pathname: '../msg/[room_id]',
         params: { conversation_id: response.notification.request.content.data.conversation_id as string, 
@@ -170,12 +185,12 @@ export default function Tab2() {
           <Box className="bg-white border-b border-gray-100 py-3">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <HStack space="md" className="px-4">
-              {filteredUsers && filteredUsers.map((user: any, index: number) => (
+              {filteredUsers && filteredUsers.map((users: any, index: number) => (
                 <Pressable className="pr-4 items-center"
-                  key={`${user.id}-${index}` || `user-${index}`}
+                  key={`${users.id}-${index}` || `user-${index}`}
                   onPress={async () => {
 
-                    const existing = await conversationAPI.verifyDMConversation(user.id);
+                    const existing = await conversationAPI.verifyDMConversation(users.id);
                     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     let conversationId: string = '';
                     
@@ -183,62 +198,27 @@ export default function Tab2() {
                     if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
                       // Use existing conversation
                       conversationId = existing.data?.conversation_id ?? '';
-
-                      const verifyWrappedKey_OtherRecipient = await conversationAPI.getWrappedKeyRecipient(conversationId, userId);
-                      
-                      if(verifyWrappedKey_OtherRecipient?.data?.[0] 
-                        && verifyWrappedKey_OtherRecipient?.data?.[0].wrapped_key == null 
-                        && verifyWrappedKey_OtherRecipient?.data?.[0].key_nonce == null
-                        && verifyWrappedKey_OtherRecipient?.data?.[0].other_party_pub_key == null){
-                        
-                        const publicKey = MessageEncryption.base64ToBytes(user.public_key);
-                        
-                        const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
-
-                        const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].wrapped_key);
-                        const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].key_nonce);
-                        const conversationKey = await MessageEncryption.unwrapConversationKey(
-                          wrapped,
-                          key_nonce,
-                          publicKey
-                        );
-
-                        const wrappedKeyCurrentuser = await MessageEncryption.wrapConversationKey(
-                          conversationKey,
-                          publicKey
-                        );
-
-                        if (wrappedKeyCurrentuser) {
-                          
-                          await conversationAPI.storeConversationKey(
-                            conversationId,
-                            userId,
-                            MessageEncryption.bytesToBase64(wrappedKeyCurrentuser.wrappedKey),
-                            MessageEncryption.bytesToBase64(wrappedKeyCurrentuser.nonce),
-                            MessageEncryption.bytesToBase64(publicKey)
-                          );
-                        }
-                        ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-                        }
+                      await getConversationKeyForOtherParticipants(users.public_key, conversationId)
+                    
                     } else {
                       // Create new conversation
 
-                      const newConversation = await conversationAPI.getOrCreateDM(user.id);
+                      const newConversation = await conversationAPI.getOrCreateDM(users.id);
                       
                       if (newConversation.data?.conversationId 
                         && guidRegex.test(newConversation.data.conversationId)) {
                         conversationId = newConversation.data.conversationId;
                         
                         // Check if both users have valid public keys
-                        if (!user.public_key || !profile?.public_key) {
-                          console.error('Missing public keys:', { userKey: !!user.public_key, profileKey: !!profile?.public_key });
+                        if (!users.public_key || !profile?.public_key) {
+                          console.error('Missing public keys:', { userKey: !!users.public_key, profileKey: !!profile?.public_key });
                           alert('Encryption keys not found. Please complete your profile setup.');
 
                           return;
                         }
 
                         // Validate key sizes
-                        const recipientKeyBytes = MessageEncryption.base64ToBytes(user.public_key);
+                        const recipientKeyBytes = MessageEncryption.base64ToBytes(users.public_key);
 
                         
                         if (recipientKeyBytes.length !== 32) {
@@ -264,7 +244,7 @@ export default function Tab2() {
                           // Save the wrapped key and nonce to the database
                           await conversationAPI.storeConversationKey(
                             conversationId,
-                            user.id,
+                            users.id,
                             MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.wrappedKey),
                             MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.nonce),
                             profile?.public_key
@@ -274,23 +254,26 @@ export default function Tab2() {
 
                     }
                   }
-                  const conversationKey = await ConversationKeyManager.get(conversationId);
+                  const conversationKey = 
+                  await ConversationKeyManager.get(conversationId)!=null?
+                  await ConversationKeyManager.get(conversationId):
+                  await getConversationKeyForOtherParticipants(users.public_key, conversationId);
                   
                     router.push({
                       pathname: '../msg/[room_id]',
                       params: { conversation_id: conversationId, 
-                        displayName: user.displayname,
+                        displayName: users.displayname,
                         conversationKey: conversationKey,
-                        userId: user.id },
+                        userId: user?.id },
                     });
                   }}
                 >
                   <Avatar size="lg" className="mb-2">
-                    <AvatarFallbackText>{(user.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                    <AvatarImage source={{ uri: user.avatar_url || undefined }} />
+                    <AvatarFallbackText>{(users.displayname || 'U').slice(0,2)}</AvatarFallbackText>
+                    <AvatarImage source={{ uri: users.avatar_url || undefined }} />
                     <AvatarBadge className="bg-green-500" />
                   </Avatar>
-                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{user.displayname}</Text>
+                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{users.displayname}</Text>
                 </Pressable>
               ))}
             </HStack>
@@ -312,7 +295,10 @@ export default function Tab2() {
                   <Pressable
                     key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
                     onPress={ async() => {
-                      const conversationKey = await ConversationKeyManager.get(room.id);
+                      let conversationKey = await ConversationKeyManager.get(room.id); 
+                      if(!conversationAPI)
+                          conversationKey = await getConversationKeyForOtherParticipants(room.other_party_pub_key, room.id);
+
                       router.push({
                         pathname: '../msg/[room_id]',
                         params: { 

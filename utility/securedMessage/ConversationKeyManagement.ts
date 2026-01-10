@@ -18,14 +18,13 @@ export class ConversationKeyManager {
     );
   }
 
-
-static async makeKey(conversationId: string) {
-  const hash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    conversationId
-  );
-  return `ck_${hash}`;
-}
+  static async makeKey(conversationId: string) {
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      conversationId
+    );
+    return `ck_${hash}`;
+  }
 
   static clear(conversationId?: string) {
     if (conversationId) {

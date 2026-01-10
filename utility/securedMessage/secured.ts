@@ -90,6 +90,7 @@ export class MessageEncryption {
 
       // Create cipher
       if (conversationKey.length !== this.KEY_SIZE) {
+        console.log('Conversation Key length', conversationKey.length)
         throw new Error('Invalid conversation key length');
         }
       const cipherKey = new ChaCha20Poly1305(conversationKey);

@@ -110,8 +110,6 @@ export default function ChatScreen() {
       newMessage, 
       MessageEncryption.base64ToBytes(conversationKey ?? ''));
 
-    console.log(encryptedMSG.ciphertext);
-
 
     const { data, error } = await supabase
       .from('messages')
