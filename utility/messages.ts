@@ -271,7 +271,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         .select(`
           *,
           conversation_participants!inner(
-            profiles(id, username, displayname, avatar_url)
+            profiles(id, username, displayname, avatar_url, public_key)
           ),
           messages(
             id,

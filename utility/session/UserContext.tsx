@@ -87,6 +87,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
           const fetchedProfile = await fetchProfile()
           // Check if profile is complete
+
           if (!fetchedProfile?.displayname) {
             router.replace('/CompleteProfile');
           }

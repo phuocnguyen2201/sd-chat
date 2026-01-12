@@ -26,8 +26,6 @@ export default function Tab2() {
   const [ searchQuery, setSearchQuery ] = useState<string>('');
   const { user, profile, refreshProfile } = useUser();
 
-  const [ pushNoficationUser, setPushNotificationUser ] = useState<any>(null);
-
   const [ filteredChatRooms, setFilteredChatRooms ] = useState<any>([]);
   const [ filteredUsers, setFilteredUsers ] = useState<any>([]);
 
@@ -52,8 +50,15 @@ export default function Tab2() {
       setUserId(user.id);
     }
   }
-  const getConversationKeyForOtherParticipants = async (public_key: string, conversationId: string): Promise<string> => {
-  const publicKey = MessageEncryption.base64ToBytes(public_key);
+  const getConversationKeyForOtherParticipants = async (public_key: string, conversationId: string): Promise<Uint8Array> => {
+    // Check cache first
+    const cached = await ConversationKeyManager.getKey(conversationId);
+    if (cached) {
+      return cached;
+    }
+
+    // Convert public key once
+    const publicKey = MessageEncryption.base64ToBytes(public_key);
                         
     const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
 
@@ -66,8 +71,9 @@ export default function Tab2() {
       publicKey
     );
       
-    ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-    return MessageEncryption.bytesToBase64(conversationKey);
+    // Store in cache and secure storage
+    await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
+    return conversationKey;
   }
 
   const handlePushNotification = async () => {
@@ -193,16 +199,15 @@ export default function Tab2() {
                     const existing = await conversationAPI.verifyDMConversation(users.id);
                     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     let conversationId: string = '';
-                    
 
                     if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
                       // Use existing conversation
                       conversationId = existing.data?.conversation_id ?? '';
-                      await getConversationKeyForOtherParticipants(users.public_key, conversationId)
+                      // Fetch and cache the key
+                      await getConversationKeyForOtherParticipants(users.public_key, conversationId);
                     
                     } else {
                       // Create new conversation
-
                       const newConversation = await conversationAPI.getOrCreateDM(users.id);
                       
                       if (newConversation.data?.conversationId 
@@ -213,28 +218,24 @@ export default function Tab2() {
                         if (!users.public_key || !profile?.public_key) {
                           console.error('Missing public keys:', { userKey: !!users.public_key, profileKey: !!profile?.public_key });
                           alert('Encryption keys not found. Please complete your profile setup.');
-
                           return;
                         }
 
                         // Validate key sizes
                         const recipientKeyBytes = MessageEncryption.base64ToBytes(users.public_key);
-
                         
                         if (recipientKeyBytes.length !== 32) {
                           console.error('Invalid key sizes:', { 
                             recipient: recipientKeyBytes.length, 
-                                                  
                           });
                           alert('Invalid encryption keys detected. Please contact support.');
                           return;
                         }
                         
-                        // Prepare encryption keys for the new conversation
+                        // Create and store the conversation key
                         const conversationKey = await MessageEncryption.createConversationKey();
                         
-
-                        // Wrap the conversation key for both participants
+                        // Wrap the conversation key for the recipient
                         const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
                           conversationKey,
                           recipientKeyBytes
@@ -250,20 +251,26 @@ export default function Tab2() {
                             profile?.public_key
                           );
                         }
-                        ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-
+                        // Store in cache and secure storage
+                        await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
+                      } else {
+                        console.error('Failed to create or retrieve conversation');
+                        return;
+                      }
                     }
-                  }
-                  const conversationKey = 
-                  await ConversationKeyManager.get(conversationId)!=null?
-                  await ConversationKeyManager.get(conversationId):
-                  await getConversationKeyForOtherParticipants(users.public_key, conversationId);
+                  
+                    // Get key from cache/storage (will use cache if already set)
+                    const keyBytes = await ConversationKeyManager.getKey(conversationId);
+                    if (!keyBytes) {
+                      console.error('Failed to retrieve conversation key');
+                      return;
+                    }
                   
                     router.push({
                       pathname: '../msg/[room_id]',
                       params: { conversation_id: conversationId, 
                         displayName: users.displayname,
-                        conversationKey: conversationKey,
+                        conversationKey: MessageEncryption.bytesToBase64(keyBytes),
                         userId: user?.id },
                     });
                   }}
@@ -288,23 +295,28 @@ export default function Tab2() {
               filteredChatRooms.map((room: any, index: number) => {
                 const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
                 const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
+                const otherPublicKey = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.public_key : room.conversation_participants[1]?.profiles.public_key;
                 const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
                 const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                
+               
                 return (
                   <Pressable
                     key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
                     onPress={ async() => {
-                      let conversationKey = await ConversationKeyManager.get(room.id); 
-                      if(!conversationAPI)
-                          conversationKey = await getConversationKeyForOtherParticipants(room.other_party_pub_key, room.id);
-
+                      // Try to get from cache first
+                      let conversationKeyBytes = await ConversationKeyManager.getKey(room.id);
+                      
+                      // If not in cache, fetch and unwrap
+                      if (!conversationKeyBytes) {
+                        conversationKeyBytes = await getConversationKeyForOtherParticipants(otherPublicKey, room.id);
+                      }
+                      
                       router.push({
                         pathname: '../msg/[room_id]',
                         params: { 
                           conversation_id: room.id, 
                           displayName: participantNames, 
-                          conversationKey: conversationKey, 
+                          conversationKey: MessageEncryption.bytesToBase64(conversationKeyBytes), 
                           userId: userId },
                       });
                     }}
