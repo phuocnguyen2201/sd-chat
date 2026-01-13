@@ -47,14 +47,19 @@ export default function CompleteProfile() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then((data) => {
-          if(data.msg?.success)
-            setAvatar(data.msg?.avatar_url || '');
-        })
-        .finally(async () => {
-          setShowActionsheet(false);
-          setLoading(false);
+        storageAPIs.resizedImage(result.uri).then((data) => {
+
+          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '')
+          .then((data) => {
+            if(data.msg?.success)
+              setAvatar(data.msg?.avatar_url || '');
+          })
+          .finally(async () => {
+            setShowActionsheet(false);
+            setLoading(false);
+          });
         });
+       
       }});
   }
 
@@ -63,14 +68,18 @@ export default function CompleteProfile() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then((data) => {
-          if(data.msg?.success)
-            setAvatar(data.msg?.avatar_url || '');
+        storageAPIs.resizedImage(result.uri).then((data) => {
+          
+          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '').then((data) => {
+            if(data.msg?.success)
+              setAvatar(data.msg?.avatar_url || '');
+          })
+          .finally(async () => {
+            setShowActionsheet(false);
+            setLoading(false);
+          });
         })
-        .finally(async () => {
-          setShowActionsheet(false);
-          setLoading(false);
-        });
+
       }});
     }   
     const updateProfile = async () => {

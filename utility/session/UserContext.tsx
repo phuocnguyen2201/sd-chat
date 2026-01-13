@@ -80,9 +80,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     // Check initial session ONCE
     const checkSession = async (): Promise<void> => {
       try {
+        console.log(
+          'start'
+        )
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
+          console.log('did it start?')
           setUser(session.user);
 
           const fetchedProfile = await fetchProfile()

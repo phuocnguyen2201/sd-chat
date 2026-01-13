@@ -190,7 +190,7 @@ export default function Tab2() {
         <Box className='flex-1'>
           <Box className="bg-white border-b border-gray-100 py-3">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <HStack space="md" className="px-4">
+              <HStack space="md" className="mr-4">
               {filteredUsers && filteredUsers.map((users: any, index: number) => (
                 <Pressable className="pr-4 items-center"
                   key={`${users.id}-${index}` || `user-${index}`}
@@ -277,7 +277,7 @@ export default function Tab2() {
                 >
                   <Avatar size="lg" className="mb-2">
                     <AvatarFallbackText>{(users.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                    <AvatarImage source={{ uri: users.avatar_url || undefined }} />
+                    <AvatarImage source={{ uri: users.avatar_url || undefined }} style={{ width:40, height:40}} />
                     <AvatarBadge className="bg-green-500" />
                   </Avatar>
                   <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{users.displayname}</Text>

@@ -146,33 +146,46 @@ export default function Settings() {
     }
   }
 
-  async function pickImage() {
-    const result = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
-    if (result != null)
-    { 
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '')
-      .then(() => {
+  function pickImage() {
+    handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
+      if (result != null)
+      {
         setLoading(true);
-      }).finally(() => {
-        setLoading(false);
-      });
-    }
-    setShowActionsheet(false);
+        storageAPIs.resizedImage(result.uri).then((data) => {
+
+          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '')
+          .then((data) => {
+            if(data.msg?.success)
+              setAvatar(data.msg?.avatar_url || '');
+          })
+          .finally(async () => {
+            setShowActionsheet(false);
+            setLoading(false);
+          });
+        });
+       
+      }});
   }
 
-  async function takePicture() {
-    const result =  await handleDeviceFilePath.takePicture();
-    if (result != null)
-    { 
-      storageAPIs.uploadAvatarToSupabase(result.uri, result.fileName, user?.id || '').then(() => {
+  function takePicture() {
+    handleDeviceFilePath.takePicture().then((result) => {
+      if (result != null)
+      {
         setLoading(true);
-      }).finally(() => {
-        setLoading(false);
+        storageAPIs.resizedImage(result.uri).then((data) => {
+          
+          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '').then((data) => {
+            if(data.msg?.success)
+              setAvatar(data.msg?.avatar_url || '');
+          })
+          .finally(async () => {
+            setShowActionsheet(false);
+            setLoading(false);
+          });
+        })
 
-      });
-    }
-    setShowActionsheet(false);
-  }
+      }});
+    } 
   return (
     <ScrollView className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
       <Box className="p-6">

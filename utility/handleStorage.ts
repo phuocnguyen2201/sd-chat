@@ -4,6 +4,8 @@ import { authAPI, profileAPI } from './messages';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImageManipulator from 'expo-image-manipulator'
+import { resourceUsage } from 'node:process';
 export const STORAGE_BUCKETS = {
   MESSAGES: 'storage-msg',
   FILES: 'chat-files',
@@ -110,6 +112,21 @@ export const storageAPIs = {
     console.warn('Avatar upload error:', e);
     return { msg: { success: false, avatar_url: null}, error: 'Failed to upload avatar' };
   }
+  },
+  async resizedImage(uri: string){
+    const resized = await ImageManipulator.manipulateAsync(
+      uri,
+      [
+        {
+          resize: {width: 128}
+        }
+      ],
+      {
+        compress: 0.7,
+        format:ImageManipulator.SaveFormat.JPEG
+      }
+    )
+    return resized
   },
   async deleteAvatarFromSupabase(
   userId: string
