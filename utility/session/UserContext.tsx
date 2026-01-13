@@ -48,6 +48,20 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       await fetchProfile();
     }
   };
+  
+  // init session/
+  const initSession = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      setUser(session.user);
+      await fetchProfile();
+    }
+
+    setLoading(false);
+  };
 
   // Logout function
   const logout = async (): Promise<void> => {
@@ -80,13 +94,11 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     // Check initial session ONCE
     const checkSession = async (): Promise<void> => {
       try {
-        console.log(
-          'start'
-        )
+
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
-          console.log('did it start?')
+
           setUser(session.user);
 
           const fetchedProfile = await fetchProfile()
@@ -110,6 +122,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     checkSession();
 
+
+  }, []);
+
+  useEffect(() => {
+
+    initSession();
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -127,7 +145,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [])
   
   const value: UserContextType = {
     user,
