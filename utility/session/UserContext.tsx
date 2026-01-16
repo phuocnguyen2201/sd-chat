@@ -49,19 +49,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   };
   
-  // init session/
-  const initSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (session?.user) {
-      setUser(session.user);
-      await fetchProfile();
-    }
-
-    setLoading(false);
-  };
 
   // Logout function
   const logout = async (): Promise<void> => {
@@ -90,8 +77,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     AsyncStorage.setItem('profile', JSON.stringify(profile)).catch((err)=>{ console.warn('Failed to remove profile:', err)})
   }, [profile]);
 
-  useEffect(() => {
-    // Check initial session ONCE
     const checkSession = async (): Promise<void> => {
       try {
 
@@ -108,7 +93,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             router.replace('/CompleteProfile');
           }
           else {
-            router.push({
+            router.replace({
               pathname: '/tabs/(tabs)/Chat'
             });
           }
@@ -119,11 +104,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         setLoading(false);
       }
     };
-
-    //checkSession();
-
-
-  }, []);
 
   useEffect(() => {
 
@@ -143,7 +123,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             router.replace('/CompleteProfile');
           }
           else {
-            router.push({
+            router.replace({
               pathname: '/tabs/(tabs)/Chat'
             });
           }

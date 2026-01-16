@@ -137,13 +137,13 @@ export default function Home() {
            
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={async () => { await signInAsync(); }}>
+                    onPress={ () => { signInAsync(); }}>
                 <ButtonText>Login</ButtonText>
               </Button></VStack>
                 <Divider className="my-0.5 mb-4" />
               <VStack>
                 <Button className="p-0" size='xl'  
-                    onPress={ () => { signUpAsync();}}>
+                    onPress={ () => { signUpAsync(); }}>
                 <ButtonText>Register</ButtonText>
               </Button></VStack>
                             
