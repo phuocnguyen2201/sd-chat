@@ -120,20 +120,33 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       }
     };
 
-    checkSession();
+    //checkSession();
 
 
   }, []);
 
   useEffect(() => {
 
-    initSession();
+    //initSession();
     // Listen for auth changes
+    setLoading(true);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session?.user) {
+        //console.log("Event", event)
+        //console.log('Session', session)
+        if (session?.user && event) {
           setUser(session.user);
-          await fetchProfile();
+          const fetchedProfile = await fetchProfile()
+          // Check if profile is complete
+
+          if (!fetchedProfile?.displayname) {
+            router.replace('/CompleteProfile');
+          }
+          else {
+            router.push({
+              pathname: '/tabs/(tabs)/Chat'
+            });
+          }
         } else {
           setUser(null);
           setProfile(null);
