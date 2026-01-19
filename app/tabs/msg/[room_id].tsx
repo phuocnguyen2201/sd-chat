@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, use } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
-import { Input, InputField, InputSlot } from '@/components/ui/input';
-import { useRouter, useLocalSearchParams, Link } from 'expo-router';
+import { Input, InputField } from '@/components/ui/input';
+import { useLocalSearchParams, Link } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
@@ -18,6 +18,8 @@ import { ArrowBigDown } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import { useUser } from '@/utility/session/UserContext';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
+import { Picker } from "emoji-mart-native";
+
 type Message = {
   id: string;
   conversation_id: string;
@@ -38,6 +40,8 @@ export default function ChatScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
@@ -250,6 +254,16 @@ export default function ChatScreen() {
 
         {/* Input Bar - Fixed above keyboard */}
         <Box className="absolute left-0 right-0 bottom-5 p-3 bg-white border-t border-gray-200">
+          { showPicker && 
+            (
+              <Picker
+              onSelect={(emo) =>{
+                setNewMessage((prev) => prev + emo.native);
+              }} 
+                showPreview={false}
+              />
+            )
+          }
           <HStack space="sm" className="items-center">
             {/* Image Upload Button */}
             <Pressable
@@ -276,6 +290,11 @@ export default function ChatScreen() {
                 placeholderTextColor="#9CA3AF"
               />
             </Input>
+
+            <Pressable onPress={() => setShowPicker(!showPicker)}>
+              <Text style={{ fontSize: 20 }}>😀</Text>
+            </Pressable>
+            
             <Pressable
               onPress={handleSend}
               disabled={!newMessage.trim() || loading}
