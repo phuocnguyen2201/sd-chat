@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { supabase } from '../../utility/connection';
 import { User, Profile, UserContextType } from '../types/user';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FastForward } from 'lucide-react-native';
 
 // Create context with default values
 const UserContext = createContext<UserContextType>({
@@ -21,6 +22,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User>(null);
   const [profile, setProfile] = useState<Profile>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const didRedirect = useRef(false)
 
   // Fetch user profile from database
   const fetchProfile = async (): Promise<Profile | null> => {
@@ -77,60 +79,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     AsyncStorage.setItem('profile', JSON.stringify(profile)).catch((err)=>{ console.warn('Failed to remove profile:', err)})
   }, [profile]);
 
-    const checkSession = async (): Promise<void> => {
-      try {
-
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-
-          setUser(session.user);
-
-          const fetchedProfile = await fetchProfile()
-          // Check if profile is complete
-
-          if (!fetchedProfile?.displayname) {
-            router.replace('/CompleteProfile');
-          }
-          else {
-            router.replace({
-              pathname: '/tabs/(tabs)/Chat'
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
 
   useEffect(() => {
-
-    //initSession();
     // Listen for auth changes
     setLoading(true);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        //console.log("Event", event)
-        //console.log('Session', session)
-        if (session?.user && event) {
-          setUser(session.user);
-          const fetchedProfile = await fetchProfile()
-          // Check if profile is complete
 
-          if (!fetchedProfile?.displayname) {
-            router.replace('/CompleteProfile');
-          }
-          else {
-            router.replace({
-              pathname: '/tabs/(tabs)/Chat'
-            });
-          }
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
+        if (session?.user && event)
+          setUser(session.user);
+
         setLoading(false);
       }
     );
@@ -139,6 +97,24 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       subscription.unsubscribe();
     };
   }, [])
+
+  useEffect(() => {
+  if (loading || !user || didRedirect.current) return
+  //One-time navigation guard
+    didRedirect.current = true;
+
+    const run = async () => {
+      const fetchedProfile = await fetchProfile()
+
+      if (!fetchedProfile?.displayname) {
+        router.replace('/CompleteProfile')
+      } else {
+        router.replace('/tabs/(tabs)/Chat')
+      }
+    }
+
+    run()
+  }, [user, loading])
   
   const value: UserContextType = {
     user,

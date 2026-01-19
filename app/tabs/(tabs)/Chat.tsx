@@ -29,6 +29,8 @@ export default function Tab2() {
   const [ filteredChatRooms, setFilteredChatRooms ] = useState<any>([]);
   const [ filteredUsers, setFilteredUsers ] = useState<any>([]);
 
+  const [ newChat, setNewChat] = useState<string>('')
+
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: true,
@@ -37,14 +39,17 @@ export default function Tab2() {
       shouldShowList: true,
     }),
   });
+
   const fetchUsers = async () => {
     const { data } = await profileAPI.getAllProfiles();
     setListUser(data || []);
   };
+
   const fetchChatRooms = async () => {
     const { data } = await conversationAPI.getConversations();
     setListChatRooms(data || []);
   };
+
   const fetchUserProfile = async () => {
     if(user) {
       setUserId(user.id);
@@ -124,12 +129,14 @@ export default function Tab2() {
       responseListener.remove();
     }
   }, []);
-  
+
+  //refresh list chat if new conversation has been created.
   useEffect(() => {
-    if (!profile?.avatar_url || !profile?.displayname || !profile?.public_key) {
-      refreshProfile();
-    }
-  }, [profile]);
+    
+    if(newChat != '')
+      fetchChatRooms();
+
+  },[newChat])
 
   // Update filtered lists when search query, users, chat rooms or userId change
   useEffect(() => {
@@ -209,6 +216,7 @@ export default function Tab2() {
                     } else {
                       // Create new conversation
                       const newConversation = await conversationAPI.getOrCreateDM(users.id);
+                      setNewChat(newConversation.data?.conversationId??'')
                       
                       if (newConversation.data?.conversationId 
                         && guidRegex.test(newConversation.data.conversationId)) {
@@ -280,7 +288,7 @@ export default function Tab2() {
                     <AvatarImage source={{ uri: users.avatar_url || undefined }} style={{ width:40, height:40}} />
                     <AvatarBadge className="bg-green-500" />
                   </Avatar>
-                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{users.displayname}</Text>
+                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{users.displayname || 'U'}</Text>
                 </Pressable>
               ))}
             </HStack>
@@ -297,6 +305,7 @@ export default function Tab2() {
                 const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
                 const otherPublicKey = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.public_key : room.conversation_participants[1]?.profiles.public_key;
                 const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
+                const msg_type = room.messages[0]?.message_type?? 'Text';
                 const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                
                 return (
@@ -335,7 +344,7 @@ export default function Tab2() {
                         <Text className="font-semibold text-typography-900 text-base">{participantNames}</Text>
                         <Text className="text-xs text-gray-500">{time}</Text>
                       </HStack>
-                      <Text className="text-sm text-gray-600" numberOfLines={1}>{lastMsg}</Text>
+                      <Text className="text-sm text-gray-600" numberOfLines={1}>{ msg_type == 'image'?'Image': msg_type == 'file'? 'Download':lastMsg}</Text>
                     </Box>
                   </Pressable>
                 );

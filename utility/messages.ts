@@ -276,6 +276,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
           messages(
             id,
             content,
+            message_type,
             created_at,
             sender_id
           )
