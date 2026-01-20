@@ -19,6 +19,15 @@ import { Icon } from '@/components/ui/icon';
 import { useUser } from '@/utility/session/UserContext';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
 import { Picker } from "emoji-mart-native";
+import { EmojiReaction } from '@/components/EmojiReaction';
+import { reactionAPI } from '@/utility/messages';
+import {
+  Popover,
+  PopoverBackdrop,
+  PopoverArrow,
+  PopoverBody,
+  PopoverContent,
+} from '@/components/ui/popover';
 
 type Message = {
   id: string;
@@ -29,7 +38,15 @@ type Message = {
   nonce: string;
   wrapped_key: string;
   key_nonce: string;
+  reactions: Array<Reaction>;
   created_at: string;
+}
+type Reaction = {
+  id: string,
+  sender_id: string,
+  sender_username: string,
+  emoji: string,
+  message_id: string
 }
 
 export default function ChatScreen() {
@@ -41,11 +58,25 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showPicker, setShowPicker] = useState(false);
+  const [showReaction, setShowReaction] = useState(false);
+  const [activeMessage, setActiveMessage] = useState<string>('');
+  const [handleDisplayTotalReaction, setHandleDisplayTotalReaction] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
   const { user, profile } = useUser();
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+   
+    setShowReaction(false);
+    const verify = await reactionAPI.verifyReaction(user?.id??'', messageId);
+    if(!verify.data)
+      await reactionAPI.insertReaction(user?.id?? '', profile?.displayname?? '', emoji, messageId);
+    else
+      await reactionAPI.updateReaction(user?.id?? '', emoji, messageId);
+    
+  };
 
   useEffect(() => {
     if (!conversation_id || !displayName) return;
@@ -54,10 +85,7 @@ export default function ChatScreen() {
 
       async function loadMessages() {
         const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conversation_id)
-          .order('created_at', { ascending: true }).limit(50);
+          .rpc('get_messages_with_reactions',{convo_id: conversation_id}).limit(30);
         
         if (error) {
           console.warn('Error loading messages', error);
@@ -180,6 +208,7 @@ export default function ChatScreen() {
   useEffect(() => {
     navigation.setOptions({ headerTitle: displayName});
   }, [navigation]);
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
@@ -203,8 +232,18 @@ export default function ChatScreen() {
 
             {messages.map((m) => {
               const isCurrentUser = m.sender_id === userId;
+              //console.log(m.reactions)
               return (
-                
+              <Pressable key={m.id} onLongPress={() => {
+                setShowReaction(true)
+                setActiveMessage(m.id)
+              }}>
+                {/* active message want to reaction*/}
+                {showReaction && (activeMessage == m.id) &&
+                  (<EmojiReaction 
+                    messageId={m.id} 
+                    onSelect={ handleReaction }/>
+                  )}
                 <Box
                   key={m.id}
                   className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
@@ -231,22 +270,61 @@ export default function ChatScreen() {
                             <LinkText className='text-black text-xl'>Download file</LinkText>
                             <Icon as={ArrowBigDown} size="lg" className="mt-0.5 text-info-600 text-black" />
                         </Link>
-                      : <Text
-                        className={`text-lg ${
-                          isCurrentUser ? 'text-white font-semibold' : 'text-black'
-                        }`}
-                      >
-                      { 
-                      MessageEncryption.decryptMessage({
-                            ciphertext: m.content,
-                            nonce: m.nonce,
-                            wrappedKey: m.wrapped_key,
-                            keyNonce: m.key_nonce,
-                          },MessageEncryption.base64ToBytes(conversationKey??''))}
-                    </Text>}
+                      : 
+             
+                        <Text
+                          className={`text-lg ${
+                            isCurrentUser ? 'text-white font-semibold' : 'text-black'
+                          }`}
+                        >
+                        { 
+                        MessageEncryption.decryptMessage({
+                          ciphertext: m.content,
+                          nonce: m.nonce,
+                          wrappedKey: m.wrapped_key,
+                          keyNonce: m.key_nonce,
+                        },MessageEncryption.base64ToBytes(conversationKey??''))}
+                        </Text>
+                      }
                    
                   </Box>
+                  
                 </Box>
+                <Box className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                    {m.reactions.map((r) => (
+                      <Box key={r.id}>
+                        
+                          <Popover
+                            isOpen={activeMessage === m.id}
+                            onClose={() => setActiveMessage('')}
+                            onOpen={() => setActiveMessage(m.id)}
+                            placement="top"
+                            size="md"
+                            trigger={(triggerProps) => {
+                              return (
+                                <Pressable {...triggerProps}>
+                                  <Text>{r.emoji}</Text>
+                                </Pressable>
+                                
+                              );
+                            }}
+                          > 
+                          <PopoverBackdrop />
+                            <PopoverContent>
+                              <PopoverArrow />
+                              <PopoverBody>
+                                <Text className="text-typography-900">
+                                  {r.sender_username}
+                                </Text>
+                              </PopoverBody>
+                            </PopoverContent>
+                           
+                          </Popover>
+                      </Box>
+                      
+                    
+                  ))}</Box>
+                </Pressable>
               );
             })}
           </VStack>

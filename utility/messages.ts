@@ -1,6 +1,6 @@
 
 import { supabase } from './connection';
-import { ApiResponse, Conversation, Database, Message, UserProfile } from './types/supabse';
+import { ApiResponse, Conversation, Database, Message, Reaction, UserProfile } from './types/supabse';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { get } from 'node:http';
@@ -452,7 +452,77 @@ export const messageAPI = {
   }
 }
 
-// 5. Real-time Subscriptions
+// 5. Reactions
+export const reactionAPI = {
+  async verifyReaction(sender_id: string, msg_id: string){
+    try {
+      const {data, error} = await supabase
+      .from('reactions')
+      .select('id')
+      .eq('sender_id',sender_id)
+      .eq('message_id',msg_id)
+
+      
+      if (error) throw error
+      return { data: data.length>0? true: false, error: null }
+    }
+    catch(error){
+      return { data: null, error: error as Error }
+    }
+  },
+  async insertReaction(sender_id: string, sender_username: string, emoji: string, message_id: string): Promise<ApiResponse<Reaction>>{
+    try {
+      const {data, error} = await supabase
+      .from('reactions')
+      .insert({
+        sender_id: sender_id,
+        sender_username: sender_username,
+        emoji: emoji,
+        message_id: message_id
+      })
+      .select()
+      .single();
+
+      if (error) throw error
+      return { data, error: null }
+    }
+    catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async updateReaction(sender_id: string, emoji: string, message_id: string): Promise<ApiResponse<Reaction>>{
+    try {
+       const {data, error} = await supabase
+      .from('reactions')
+      .update({
+        emoji: emoji,
+      })
+      .eq('sender_id',sender_id)
+      .eq('message_id',message_id)
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async removeReaction(sender_id: string, message_id: string): Promise<ApiResponse<Reaction>>{
+    try {
+       const {data, error} = await supabase
+      .from('reactions')
+      .delete()
+      .eq('sender_id', sender_id)
+      .eq('id', message_id)
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  }
+}
+
+// 6. Real-time Subscriptions
 export const realtimeAPI = {
   subscribeToMessages(
     conversationId: string,

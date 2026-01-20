@@ -159,6 +159,14 @@ export interface Message {
   read_by: string[]
 }
 
+export interface Reaction {
+  id: string
+  sender_id: string
+  sender_username: string
+  emoji: string
+  message_id: string
+}
+
 export interface ApiResponse<T> {
   data: T | null
   error: Error | null
