@@ -28,6 +28,7 @@ import {
   PopoverBody,
   PopoverContent,
 } from '@/components/ui/popover';
+import { underDampedSpringCalculations } from 'react-native-reanimated/lib/typescript/animation/spring';
 
 type Message = {
   id: string;
@@ -290,8 +291,9 @@ export default function ChatScreen() {
                   </Box>
                   
                 </Box>
+                {/*Reaction loading*/}
                 <Box className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                    {m.reactions.map((r) => (
+                    {m && m.reactions && m.reactions.map((r) => (
                       <Box key={r.id}>
                         
                           <Popover
@@ -318,7 +320,6 @@ export default function ChatScreen() {
                                 </Text>
                               </PopoverBody>
                             </PopoverContent>
-                           
                           </Popover>
                       </Box>
                       
