@@ -6,9 +6,9 @@ import { HStack } from '@/components/ui/hstack';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
-import { authAPI, conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
+import { conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
-import { Pressable, ScrollView, StatusBar } from 'react-native';
+import { Pressable, ScrollView } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useUser } from '@/utility/session/UserContext';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
@@ -55,6 +55,7 @@ export default function Tab2() {
       setUserId(user.id);
     }
   }
+
   const getConversationKeyForOtherParticipants = async (public_key: string, conversationId: string): Promise<Uint8Array> => {
     // Check cache first
     const cached = await ConversationKeyManager.getKey(conversationId);
@@ -102,25 +103,34 @@ export default function Tab2() {
     fetchUsers();
     fetchUserProfile();
 
-
     const subscription = realtimeAPI.subscribeToConversations(userId, (newConversation) => {
       setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
     });
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-
       fetchChatRooms();
-
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      router.push({
-        pathname: '../msg/[room_id]',
-        params: { conversation_id: response.notification.request.content.data.conversation_id as string, 
-          displayName: response.notification.request.content.data.displayname as string,
-          userId: userId
-           },
+      const conversation_id = response.notification.request.content.data.conversation_id as string;
+      getConversationKeyForOtherParticipants(
+        response.notification.request.content.data.public_key as string,
+        conversation_id
+      ).then((data) => {
+            if(data){
+              //console.log('Notification conversation key retrieved successfully', data);
+              router.push({
+                pathname: '../msg/[room_id]',
+                params: { conversation_id: conversation_id, 
+                displayName: response.notification.request.content.data.displayname as string,
+                userId: userId,
+                conversationKey: MessageEncryption.bytesToBase64(data)
+              },
+          });
+        }
       });
+
+      
     });
 
     return () => {
@@ -359,8 +369,6 @@ export default function Tab2() {
           </ScrollView>
         </Box>
       </Box>
-      
-      
     </Box>
   );
 }

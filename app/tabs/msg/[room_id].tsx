@@ -28,7 +28,7 @@ import {
   PopoverBody,
   PopoverContent,
 } from '@/components/ui/popover';
-import { underDampedSpringCalculations } from 'react-native-reanimated/lib/typescript/animation/spring';
+import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 
 type Message = {
   id: string;
@@ -61,7 +61,6 @@ export default function ChatScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [showReaction, setShowReaction] = useState(false);
   const [activeMessage, setActiveMessage] = useState<string>('');
-  const [handleDisplayTotalReaction, setHandleDisplayTotalReaction] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -138,11 +137,13 @@ export default function ChatScreen() {
     } catch (e) {
       sender = null;
     }
+    const converKey = MessageEncryption.base64ToBytes(conversationKey?? '');
 
     const encryptedMSG = await MessageEncryption.encryptMessage(
       newMessage, 
-      MessageEncryption.base64ToBytes(conversationKey ?? ''));
-
+      converKey!
+    );
+      
 
     const { data, error } = await supabase
       .from('messages')
@@ -279,12 +280,15 @@ export default function ChatScreen() {
                           }`}
                         >
                         { 
-                        MessageEncryption.decryptMessage({
-                          ciphertext: m.content,
-                          nonce: m.nonce,
-                          wrappedKey: m.wrapped_key,
-                          keyNonce: m.key_nonce,
-                        },MessageEncryption.base64ToBytes(conversationKey??''))}
+                        
+                          MessageEncryption.decryptMessage({
+                            ciphertext: m.content,
+                            nonce: m.nonce,
+                            wrappedKey: m.wrapped_key,
+                            keyNonce: m.key_nonce,
+                          }, MessageEncryption.base64ToBytes(conversationKey??''))
+                        
+                        }
                         </Text>
                       }
                    

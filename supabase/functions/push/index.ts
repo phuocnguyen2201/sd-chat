@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
     const content = record?.content || "No content";
     const sender_name = await supabaseClient
       .from("profiles")
-      .select("displayname")
+      .select("displayname, public_key")
       .eq("id", record?.sender_id)
       .single();
     const receivedPerson = await supabaseClient
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
         sound: 'default',
         title: sender_name.data?.displayname || 'New Message',
         body: content || 'You have a new message',
-        data: { conversation_id: record?.conversation_id, displayname: sender_name.data?.displayname}
+        data: { conversation_id: record?.conversation_id, displayname: sender_name.data?.displayname, public_key: sender_name.data?.public_key },
       }),
     }).then(res => res.json());
 

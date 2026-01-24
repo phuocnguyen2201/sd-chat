@@ -87,12 +87,10 @@ export class MessageEncryption {
       if (keyNonceBytes.length !== this.NONCE_SIZE) {
         throw new Error('Invalid key nonce size');
     }
-
       // Create cipher
-      if (conversationKey.length !== this.KEY_SIZE) {
-        console.log('Conversation Key length', conversationKey.length)
+      if (!conversationKey || conversationKey.length !== this.KEY_SIZE) {
         throw new Error('Invalid conversation key length');
-        }
+      }
       const cipherKey = new ChaCha20Poly1305(conversationKey);
         
         // Decrypt the message key
