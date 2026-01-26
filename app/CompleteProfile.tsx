@@ -27,12 +27,12 @@ import {
   ActionsheetDragIndicatorWrapper,
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
-import { useUser } from '@/utility/session/UserContext';
+import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 export default function CompleteProfile() {
 
-  const { user, profile, refreshProfile } = useUser();
+  const { user, profile, refreshProfile } = useSession();
 
   const [displayName, setDisplayName] = useState<string>('');
 

@@ -33,10 +33,8 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
-import { useUser } from '@/utility/session/UserContext';
+import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ref } from 'node:process';
-import { emitKeypressEvents } from 'node:readline';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 
@@ -57,7 +55,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, refreshProfile } = useUser();
+  const { user, profile, refreshProfile } = useSession();
 
   useEffect(() => {
     if (profile?.avatar_url && profile?.displayname) {

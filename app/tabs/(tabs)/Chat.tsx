@@ -1,4 +1,3 @@
-
 import { Avatar, AvatarBadge, AvatarFallbackText, AvatarImage } from '@/components/ui/avatar';
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -6,147 +5,144 @@ import { HStack } from '@/components/ui/hstack';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
-import { conversationAPI, profileAPI, realtimeAPI }  from '@/utility/messages';
+import { conversationAPI, profileAPI, realtimeAPI } from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable, ScrollView, Alert } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
-import { useUser } from '@/utility/session/UserContext';
-import { usePushNotifications } from '@/utility/push-notification/push-Notification';
-import * as Notifications from 'expo-notifications';
+import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
-import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement'
+import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement';
+import * as Notifications from 'expo-notifications';
 
+/**
+ * Chat Tab Screen
+ * 
+ * Displays list of conversations and users.
+ * Uses SessionProvider for conversation key management.
+ * No push notification logic - handled by Bootstrap.
+ */
+export default function Chat() {
+  const { user, profile, setCurrentConversation } = useSession();
+  const userId = user?.id ?? '';
 
-export default function Tab2() {
-
-  const [ userId, setUserId ] = useState<string>('');
-  const [ listUser, setListUser ] = useState<any>(null);
-  const [ listChatRooms, setListChatRooms ] = useState<any>(null);
-
-  const [ searchQuery, setSearchQuery ] = useState<string>('');
-  const { user, profile, refreshProfile } = useUser();
-
-  const [ filteredChatRooms, setFilteredChatRooms ] = useState<any>([]);
-  const [ filteredUsers, setFilteredUsers ] = useState<any>([]);
-
-  const [ newChat, setNewChat] = useState<string>('')
-
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+  const [listUser, setListUser] = useState<any>(null);
+  const [listChatRooms, setListChatRooms] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filteredChatRooms, setFilteredChatRooms] = useState<any>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any>([]);
+  const [newChat, setNewChat] = useState<string>('');
 
   const fetchUsers = async () => {
-    const { data } = await profileAPI.getAllProfiles();
-    setListUser(data || []);
+    try {
+      const { data } = await profileAPI.getAllProfiles();
+      setListUser(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
   };
 
   const fetchChatRooms = async () => {
-    const { data } = await conversationAPI.getConversations();
-    setListChatRooms(data || []);
-  };
-
-  const fetchUserProfile = async () => {
-    if(user) {
-      setUserId(user.id);
-    }
-  }
-
-  const getConversationKeyForOtherParticipants = async (public_key: string, conversationId: string): Promise<Uint8Array> => {
-    // Check cache first
-    const cached = await ConversationKeyManager.getKey(conversationId);
-    if (cached) {
-      return cached;
-    }
-
-    // Convert public key once
-    const publicKey = MessageEncryption.base64ToBytes(public_key);
-                        
-    const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
-
-    const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].wrapped_key);
-    const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data?.[0].key_nonce);
-      
-    const conversationKey = await MessageEncryption.unwrapConversationKey(
-      wrapped,
-      key_nonce,
-      publicKey
-    );
-      
-    // Store in cache and secure storage
-    await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-    return conversationKey;
-  }
-
-  const handlePushNotification = async () => {
-
-    if(profile?.fcm_token) {
-      //console.log('Push token already exists:', profile.fcm_token);
-      return;
-    }
-
-    const token = await usePushNotifications.registerForPushNotificationsAsync();
-    //console.log('Push Notification Token:', token);
-    if (token) {
-      await usePushNotifications.savePushTokenToDatabase(token);
+    try {
+      const { data } = await conversationAPI.getConversations();
+      setListChatRooms(data || []);
+    } catch (error) {
+      console.error('Error fetching chat rooms:', error);
     }
   };
 
+  const getConversationKeyForOtherParticipants = async (
+    public_key: string,
+    conversationId: string
+  ): Promise<Uint8Array | null> => {
+    try {
+      // Check cache first
+      const cached = await ConversationKeyManager.getKey(conversationId);
+      if (cached) {
+        return cached;
+      }
+
+      // Convert public key
+      const publicKey = MessageEncryption.base64ToBytes(public_key);
+
+      const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
+
+      if (!getWrappedKey.data?.[0]?.wrapped_key || !getWrappedKey.data?.[0]?.key_nonce) {
+        console.error('Missing wrapped key data');
+        return null;
+      }
+
+      const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data[0].wrapped_key);
+      const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data[0].key_nonce);
+
+      const conversationKey = await MessageEncryption.unwrapConversationKey(
+        wrapped,
+        key_nonce,
+        publicKey
+      );
+
+      // Store in cache and secure storage
+      await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
+      return conversationKey;
+    } catch (error) {
+      console.error('Error getting conversation key:', error);
+      return null;
+    }
+  };
+
+  useEffect(() => {    
+    const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+        //console.log('Notification received in Chat tab:', notification.request.content.data);
+      fetchChatRooms();
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
+      const conversationId = data?.conversation_id as string;
+      const displayName = data?.displayname as string;
+      const public_key = data?.public_key as string;
+
+      if (conversationId && user?.id) {
+        router.push({
+          pathname: '/tabs/msg/[room_id]',
+          params: {
+            conversation_id: conversationId,
+            displayName: displayName || 'Chat',
+            public_key: public_key || '',
+          },
+        });
+      }
+    });
+
+    return () => {
+        notificationListener.remove();
+        responseListener.remove();
+    }
+
+
+    }, []);
+
+  // Load data on mount
   useEffect(() => {
+    if (!userId) return;
 
-    handlePushNotification();
     fetchChatRooms();
     fetchUsers();
-    fetchUserProfile();
 
     const subscription = realtimeAPI.subscribeToConversations(userId, (newConversation) => {
       setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
     });
 
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      fetchChatRooms();
-    });
-
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      const conversation_id = response.notification.request.content.data.conversation_id as string;
-      getConversationKeyForOtherParticipants(
-        response.notification.request.content.data.public_key as string,
-        conversation_id
-      ).then((data) => {
-            if(data){
-              //console.log('Notification conversation key retrieved successfully', data);
-              router.push({
-                pathname: '../msg/[room_id]',
-                params: { conversation_id: conversation_id, 
-                displayName: response.notification.request.content.data.displayname as string,
-                userId: userId,
-                conversationKey: MessageEncryption.bytesToBase64(data)
-              },
-          });
-        }
-      });
-
-      
-    });
-
     return () => {
       subscription.unsubscribe();
-      notificationListener.remove();
-      responseListener.remove();
-    }
-  }, []);
+    };
+  }, [userId]);
 
-  //refresh list chat if new conversation has been created.
+  // Refresh list chat if new conversation has been created
   useEffect(() => {
-    
-    if(newChat != '')
-      fetchChatRooms();
-
-  },[newChat])
+    if (newChat !== '') {
+      //fetchChatRooms();
+    }
+  }, [newChat]);
 
   // Update filtered lists when search query, users, chat rooms or userId change
   useEffect(() => {
@@ -156,7 +152,11 @@ export default function Tab2() {
         setFilteredUsers(listUser.filter((u: any) => u.id !== userId));
       } else {
         const q = searchQuery.toLowerCase();
-        setFilteredUsers(listUser.filter((u: any) => u.id !== userId && (u.displayname || '').toLowerCase().includes(q)));
+        setFilteredUsers(
+          listUser.filter(
+            (u: any) => u.id !== userId && (u.displayname || '').toLowerCase().includes(q)
+          )
+        );
       }
     } else {
       setFilteredUsers([]);
@@ -168,26 +168,188 @@ export default function Tab2() {
         setFilteredChatRooms(listChatRooms);
       } else {
         const q = searchQuery.toLowerCase();
-        setFilteredChatRooms(listChatRooms.filter((room: any) => {
-          const p0 = room.conversation_participants?.[0]?.profiles?.displayname || '';
-          const p1 = room.conversation_participants?.[1]?.profiles?.displayname || '';
-          const participantName = (room.conversation_participants?.[1]?.profiles?.id == userId) ? p0 : p1;
-          const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : '';
-          return participantName.toLowerCase().includes(q) || (lastMsg || '').toLowerCase().includes(q);
-        }));
+        setFilteredChatRooms(
+          listChatRooms.filter((room: any) => {
+            const p0 = room.conversation_participants?.[0]?.profiles?.displayname || '';
+            const p1 = room.conversation_participants?.[1]?.profiles?.displayname || '';
+            const participantName =
+              room.conversation_participants?.[1]?.profiles?.id == userId ? p0 : p1;
+            const lastMsg =
+              room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : '';
+            return (
+              participantName.toLowerCase().includes(q) ||
+              (lastMsg || '').toLowerCase().includes(q)
+            );
+          })
+        );
       }
     } else {
       setFilteredChatRooms([]);
     }
   }, [searchQuery, listUser, listChatRooms, userId]);
 
+  const handleUserPress = async (users: any) => {
+    if (!userId || !profile) {
+      Alert.alert('Error', 'User session not available');
+      return;
+    }
+
+    try {
+      const existing = await conversationAPI.verifyDMConversation(users.id);
+      const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let conversationId: string = '';
+
+      //console.log('Existing conversation check:', existing);
+      if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
+        // Use existing conversation
+        conversationId = existing.data.conversation_id;
+        // Fetch and cache the key
+        const key = await getConversationKeyForOtherParticipants(users.public_key, conversationId);
+        if (key) {
+          await setCurrentConversation(conversationId, key);
+        }
+      } else {
+        // Create new conversation
+        const newConversation = await conversationAPI.getOrCreateDM(users.id);
+        //setNewChat(newConversation.data?.conversationId ?? '');
+
+        if (
+          newConversation.data?.conversationId &&
+          guidRegex.test(newConversation.data.conversationId)
+        ) {
+          conversationId = newConversation.data.conversationId;
+
+          // Check if both users have valid public keys
+          if (!users.public_key || !profile.public_key) {
+            Alert.alert(
+              'Error',
+              'Encryption keys not found. Please complete your profile setup.'
+            );
+            return;
+          }
+
+          // Validate key sizes
+          const recipientKeyBytes = MessageEncryption.base64ToBytes(users.public_key);
+
+          if (recipientKeyBytes.length !== 32) {
+            Alert.alert('Error', 'Invalid encryption keys detected. Please contact support.');
+            return;
+          }
+
+          // Create and store the conversation key
+          const conversationKey = await MessageEncryption.createConversationKey();
+
+          // Wrap the conversation key for the recipient
+          const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
+            conversationKey,
+            recipientKeyBytes
+          );
+
+          if (wrappedKeyDataRecipient) {
+            // Save the wrapped key and nonce to the database
+            await conversationAPI.storeConversationKey(
+              conversationId,
+              users.id,
+              MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.wrappedKey),
+              MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.nonce),
+              profile.public_key
+            );
+          }
+          // Store in cache and secure storage via SessionProvider
+          await setCurrentConversation(conversationId, conversationKey);
+        } else {
+          Alert.alert('Error', 'Failed to create or retrieve conversation');
+          return;
+        }
+      }
+
+      // Navigate to chat room (key is now in session context)
+      router.push({
+        pathname: '../msg/[room_id]',
+        params: {
+          conversation_id: conversationId,
+          displayName: users.displayname || 'User',
+        },
+      });
+    } catch (error) {
+      console.error('Error handling user press:', error);
+      Alert.alert('Error', 'Failed to start conversation');
+    }
+  };
+
+  const handleConversationPress = async (room: any) => {
+    if (!userId) {
+      Alert.alert('Error', 'User session not available');
+      return;
+    }
+
+    try {
+
+      const otherPublicKey =
+        room.conversation_participants?.[1]?.profiles?.id == userId
+          ? room.conversation_participants?.[0]?.profiles?.public_key
+          : room.conversation_participants?.[1]?.profiles?.public_key;
+
+      if (!otherPublicKey) {
+        Alert.alert('Error', 'Unable to load conversation key');
+        return;
+      }
+
+      // Try to get from cache first
+      let conversationKeyBytes = await ConversationKeyManager.getKey(room.id);
+
+      // If not in cache, fetch and unwrap
+      if (!conversationKeyBytes) {
+        conversationKeyBytes = await getConversationKeyForOtherParticipants(
+          otherPublicKey,
+          room.id
+        );
+
+      }
+      //console.log('Failed here');
+      if (!conversationKeyBytes) {
+        Alert.alert('Error', 'Failed to retrieve conversation key');
+        return;
+      }
+
+      // Set in session context
+      await setCurrentConversation(room.id, conversationKeyBytes);
+
+      const participantNames =
+        room.conversation_participants?.[1]?.profiles?.id == userId
+          ? room.conversation_participants?.[0]?.profiles?.displayname
+          : room.conversation_participants?.[1]?.profiles?.displayname;
+
+      // Navigate to chat room (key is now in session context)
+      router.push({
+        pathname: '../msg/[room_id]',
+        params: {
+          conversation_id: room.id,
+          displayName: participantNames || 'Chat',
+        },
+      });
+    } catch (error) {
+      console.error('Error handling conversation press:', error);
+      Alert.alert('Error', 'Failed to open conversation');
+    }
+  };
+
+  if (!userId) {
+    return (
+      <Box className="flex-1 bg-white items-center justify-center">
+        <Text className="text-gray-400">Please log in to view chats</Text>
+      </Box>
+    );
+  }
+
   return (
-    
     <Box className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
       {/* Header */}
       <Box className="bg-white border-b border-gray-200 pt-4 px-4 pb-3">
         <HStack className="justify-between items-center mb-4">
-          <Heading size="xl" className="font-bold text-typography-900">Chats</Heading>
+          <Heading size="xl" className="font-bold text-typography-900">
+            Chats
+          </Heading>
         </HStack>
 
         {/* Search Bar */}
@@ -203,169 +365,111 @@ export default function Tab2() {
       </Box>
 
       {/* Users Horizontal Scroll */}
-      
-        <Box className='flex-1'>
-          <Box className="bg-white border-b border-gray-100 py-3">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <HStack space="md" className="mr-4">
-              {filteredUsers && filteredUsers.map((users: any, index: number) => (
-                <Pressable className="pr-4 items-center"
-                  key={`${users.id}-${index}` || `user-${index}`}
-                  onPress={async () => {
-
-                    const existing = await conversationAPI.verifyDMConversation(users.id);
-                    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                    let conversationId: string = '';
-
-                    if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
-                      // Use existing conversation
-                      conversationId = existing.data?.conversation_id ?? '';
-                      // Fetch and cache the key
-                      await getConversationKeyForOtherParticipants(users.public_key, conversationId);
-                    
-                    } else {
-                      // Create new conversation
-                      const newConversation = await conversationAPI.getOrCreateDM(users.id);
-                      setNewChat(newConversation.data?.conversationId??'')
-                      
-                      if (newConversation.data?.conversationId 
-                        && guidRegex.test(newConversation.data.conversationId)) {
-                        conversationId = newConversation.data.conversationId;
-                        
-                        // Check if both users have valid public keys
-                        if (!users.public_key || !profile?.public_key) {
-                          console.error('Missing public keys:', { userKey: !!users.public_key, profileKey: !!profile?.public_key });
-                          alert('Encryption keys not found. Please complete your profile setup.');
-                          return;
-                        }
-
-                        // Validate key sizes
-                        const recipientKeyBytes = MessageEncryption.base64ToBytes(users.public_key);
-                        
-                        if (recipientKeyBytes.length !== 32) {
-                          console.error('Invalid key sizes:', { 
-                            recipient: recipientKeyBytes.length, 
-                          });
-                          alert('Invalid encryption keys detected. Please contact support.');
-                          return;
-                        }
-                        
-                        // Create and store the conversation key
-                        const conversationKey = await MessageEncryption.createConversationKey();
-                        
-                        // Wrap the conversation key for the recipient
-                        const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
-                          conversationKey,
-                          recipientKeyBytes
-                        );
-
-                        if (wrappedKeyDataRecipient) {
-                          // Save the wrapped key and nonce to the database
-                          await conversationAPI.storeConversationKey(
-                            conversationId,
-                            users.id,
-                            MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.wrappedKey),
-                            MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.nonce),
-                            profile?.public_key
-                          );
-                        }
-                        // Store in cache and secure storage
-                        await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-                      } else {
-                        console.error('Failed to create or retrieve conversation');
-                        return;
-                      }
-                    }
-                  
-                    // Get key from cache/storage (will use cache if already set)
-                    const keyBytes = await ConversationKeyManager.getKey(conversationId);
-                    if (!keyBytes) {
-                      console.error('Failed to retrieve conversation key');
-                      return;
-                    }
-                  
-                    router.push({
-                      pathname: '../msg/[room_id]',
-                      params: { conversation_id: conversationId, 
-                        displayName: users.displayname,
-                        conversationKey: MessageEncryption.bytesToBase64(keyBytes),
-                        userId: user?.id },
-                    });
-                  }}
-                >
-                  <Avatar size="lg" className="mb-2">
-                    <AvatarFallbackText>{(users.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                    <AvatarImage source={{ uri: users.avatar_url || undefined }} style={{ width:40, height:40}} />
-                    <AvatarBadge className="bg-green-500" />
-                  </Avatar>
-                  <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>{users.displayname || 'U'}</Text>
-                </Pressable>
-              ))}
+      <Box className="flex-1">
+        <Box className="bg-white border-b border-gray-100 py-3">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <HStack space="md" className="mr-4">
+              {filteredUsers &&
+                filteredUsers.map((users: any, index: number) => (
+                  <Pressable
+                    className="pr-4 items-center"
+                    key={`${users.id}-${index}` || `user-${index}`}
+                    onPress={() => handleUserPress(users)}
+                  >
+                    <Avatar size="lg" className="mb-2">
+                      <AvatarFallbackText>
+                        {(users.displayname || 'U').slice(0, 2)}
+                      </AvatarFallbackText>
+                      <AvatarImage
+                        source={{ uri: users.avatar_url || undefined }}
+                        style={{ width: 40, height: 40 }}
+                      />
+                      <AvatarBadge className="bg-green-500" />
+                    </Avatar>
+                    <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>
+                      {users.displayname || 'U'}
+                    </Text>
+                  </Pressable>
+                ))}
             </HStack>
           </ScrollView>
         </Box>
-      
-      {/* Conversations List */}
-      <Box className='flex-1'>
-        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ flexGrow: 1 }}>
-          <VStack space="xs" className="pb-6">
-            {filteredChatRooms && filteredChatRooms.length > 0 ? (
-              filteredChatRooms.map((room: any, index: number) => {
-                const participantNames = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.displayname : room.conversation_participants[1]?.profiles.displayname;
-                const participantAvatar = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.avatar_url : room.conversation_participants[1]?.profiles.avatar_url;
-                const otherPublicKey = room.conversation_participants[1]?.profiles.id == userId ? room.conversation_participants[0]?.profiles.public_key : room.conversation_participants[1]?.profiles.public_key;
-                const lastMsg = room.messages?.length > 0 ? room.messages[room.messages.length - 1].content : 'No messages yet';
-                const msg_type = room.messages[0]?.message_type?? 'Text';
-                const time = room.updated_at ? new Date(room.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-               
-                return (
-                  <Pressable
-                    key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
-                    onPress={ async() => {
-                      // Try to get from cache first
-                      let conversationKeyBytes = await ConversationKeyManager.getKey(room.id);
-                      
-                      // If not in cache, fetch and unwrap
-                      if (!conversationKeyBytes) {
-                        conversationKeyBytes = await getConversationKeyForOtherParticipants(otherPublicKey, room.id);
-                      }
-                      
-                      router.push({
-                        pathname: '../msg/[room_id]',
-                        params: { 
-                          conversation_id: room.id, 
-                          displayName: participantNames, 
-                          conversationKey: MessageEncryption.bytesToBase64(conversationKeyBytes), 
-                          userId: userId },
-                      });
-                    }}
-                    className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
-                  >
-                    <Box className="relative">
-                      <Avatar size="lg" className="mr-3">
-                        <AvatarFallbackText>{(room.conversation_participants[1]?.profiles.displayname || 'U').slice(0,2)}</AvatarFallbackText>
-                        <AvatarImage source={{ uri: participantAvatar || undefined }} />
-                      </Avatar>
-                      <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
-                    </Box>
 
-                    <Box className="flex-1">
-                      <HStack className="justify-between items-center mb-1">
-                        <Text className="font-semibold text-typography-900 text-base">{participantNames}</Text>
-                        <Text className="text-xs text-gray-500">{time}</Text>
-                      </HStack>
-                      <Text className="text-sm text-gray-600" numberOfLines={1}>{ msg_type == 'image'?'Image': msg_type == 'file'? 'Download':lastMsg}</Text>
-                    </Box>
-                  </Pressable>
-                );
-              })
-            ) : (
-              <Box className="items-center mt-12">
-                <Text className="text-gray-400 text-center">No conversations yet.</Text>
-                <Text className="text-gray-400 text-center">Start chatting by selecting a user above!</Text>
-              </Box>
-            )}
-          </VStack>
+        {/* Conversations List */}
+        <Box className="flex-1">
+          <ScrollView
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            <VStack space="xs" className="pb-6">
+              {filteredChatRooms && filteredChatRooms.length > 0 ? (
+                filteredChatRooms.map((room: any, index: number) => {
+                  const participantNames =
+                    room.conversation_participants?.[1]?.profiles?.id == userId
+                      ? room.conversation_participants?.[0]?.profiles?.displayname
+                      : room.conversation_participants?.[1]?.profiles?.displayname;
+                  const participantAvatar =
+                    room.conversation_participants?.[1]?.profiles?.id == userId
+                      ? room.conversation_participants?.[0]?.profiles?.avatar_url
+                      : room.conversation_participants?.[1]?.profiles?.avatar_url;
+                  const lastMsg =
+                    room.messages?.length > 0
+                      ? room.messages[room.messages.length - 1].content
+                      : 'No messages yet';
+                  const msg_type = room.messages?.[0]?.message_type ?? 'Text';
+                  const time = room.updated_at
+                    ? new Date(room.updated_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '';
+
+                  return (
+                    <Pressable
+                      key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
+                      onPress={() => handleConversationPress(room)}
+                      className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
+                    >
+                      <Box className="relative">
+                        <Avatar size="lg" className="mr-3">
+                          <AvatarFallbackText>
+                            {(room.conversation_participants?.[1]?.profiles?.displayname || 'U').slice(
+                              0,
+                              2
+                            )}
+                          </AvatarFallbackText>
+                          <AvatarImage source={{ uri: participantAvatar || undefined }} />
+                        </Avatar>
+                        <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+                      </Box>
+
+                      <Box className="flex-1">
+                        <HStack className="justify-between items-center mb-1">
+                          <Text className="font-semibold text-typography-900 text-base">
+                            {participantNames}
+                          </Text>
+                          <Text className="text-xs text-gray-500">{time}</Text>
+                        </HStack>
+                        <Text className="text-sm text-gray-600" numberOfLines={1}>
+                          {msg_type == 'image'
+                            ? 'Image'
+                            : msg_type == 'file'
+                            ? 'Download'
+                            : lastMsg}
+                        </Text>
+                      </Box>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <Box className="items-center mt-12">
+                  <Text className="text-gray-400 text-center">No conversations yet.</Text>
+                  <Text className="text-gray-400 text-center">
+                    Start chatting by selecting a user above!
+                  </Text>
+                </Box>
+              )}
+            </VStack>
           </ScrollView>
         </Box>
       </Box>

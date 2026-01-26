@@ -10,11 +10,11 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from '@/components/useColorScheme';
-import { Slot, usePathname } from 'expo-router';
+import { Slot, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Fab, FabIcon } from '@/components/ui/fab';
 import { MoonIcon, SunIcon } from '@/components/ui/icon';
-import { UserProvider } from '@/utility/session/UserContext';
+import { SessionProvider } from '@/utility/session/SessionProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export {
@@ -30,7 +30,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  const [styleLoaded, setStyleLoaded] = useState(false);
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
@@ -41,21 +40,26 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+  
   return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
   const pathname = usePathname();
+  const segments = useSegments();
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
+
+  // Show theme toggle only on login screen
+  const showThemeToggle = pathname === '/login' || (pathname === '/' && segments.length < 1);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
       <GluestackUIProvider mode={colorMode}>
-        <UserProvider>
+        <SessionProvider>
           <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
             <Slot />
-            {pathname === '/' && (
+            {showThemeToggle && (
               <Fab
                 onPress={() =>
                   setColorMode(colorMode === 'dark' ? 'light' : 'dark')
@@ -67,7 +71,7 @@ function RootLayoutNav() {
               </Fab>
             )}
           </ThemeProvider>
-        </UserProvider>
+        </SessionProvider>
       </GluestackUIProvider>
     </GestureHandlerRootView>
   );
