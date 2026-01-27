@@ -296,16 +296,11 @@ export default function Chat() {
       }
 
       // Try to get from cache first
-      let conversationKeyBytes = await ConversationKeyManager.getKey(room.id);
-
-      // If not in cache, fetch and unwrap
-      if (!conversationKeyBytes) {
-        conversationKeyBytes = await getConversationKeyForOtherParticipants(
-          otherPublicKey,
-          room.id
-        );
-
-      }
+      const conversationKeyBytes = await getConversationKeyForOtherParticipants(
+        otherPublicKey,
+        room.id
+      );
+      
       //console.log('Failed here');
       if (!conversationKeyBytes) {
         Alert.alert('Error', 'Failed to retrieve conversation key');

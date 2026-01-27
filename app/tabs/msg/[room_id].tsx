@@ -20,7 +20,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
 import { Picker } from 'emoji-mart-native';
 import { EmojiReaction } from '@/components/EmojiReaction';
-import { conversationAPI, reactionAPI } from '@/utility/messages';
+import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
   Popover,
   PopoverBackdrop,
@@ -28,7 +28,7 @@ import {
   PopoverBody,
   PopoverContent,
 } from '@/components/ui/popover';
-import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
+import MessageActionBottomSheet from '@/components/MessageActionBottomSheet';
 
 type Message = {
   id: string;
@@ -83,6 +83,7 @@ export default function ChatScreen() {
   const [activeMessage, setActiveMessage] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [openRecipients, setOpenRecipients] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
@@ -220,6 +221,48 @@ export default function ChatScreen() {
       }
     }, 50);
   }, [messages.length]);
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!messageId) {
+      Alert.alert('Error', 'Message ID not available');
+      return;
+    }
+
+    try {
+      const result = await messageAPI.deleteMessage(messageId);
+      if (!result) {
+        Alert.alert('Error', 'Failed to delete message');
+        return;
+      }
+      // Close actionsheet
+      setActiveMessage('');
+
+    } catch (error) {
+      console.error('Error in handleDeleteMessage:', error);
+      Alert.alert('Error', 'Failed to delete message');
+    }
+  }
+
+  const handleForwardMessage = async (messageId: string, recipientId: string) => {
+    if (!messageId || !recipientId) {
+      Alert.alert('Error', 'Message ID or Recipient ID not available');
+      return;
+    }
+    try {
+      // Fetch the message to forward
+      const messageToForward = messages.find((msg) => msg.id === messageId);
+      if (!messageToForward) {
+        Alert.alert('Error', 'Message not found');
+        return;
+      }
+
+      // Insert the message for the recipient
+
+    } catch (error) {
+      console.error('Error in handleForwardMessage:', error);
+      Alert.alert('Error', 'Failed to forward message');
+    }
+  }
 
   const handleReaction = async (messageId: string, emoji: string) => {
     if (!userId || !profile) {
@@ -500,14 +543,33 @@ export default function ChatScreen() {
                               </PopoverBody>
                             </PopoverContent>
                           </Popover>
+                         
                         </Box>
+                        
                       ))}
                   </Box>
                 </Pressable>
               );
             })}
           </VStack>
+          
         </ScrollView>
+
+        {/* Message Action Menu - Outside ScrollView so it can overlay */}
+        {messages.map((m) => {
+          const isCurrentUser = m.sender_id === userId;
+          return (
+            <MessageActionBottomSheet 
+              key={`action-${m.id}`}
+              isOpen={(activeMessage === m.id && isCurrentUser) ? true : false} 
+              onClose={() => setActiveMessage('')} 
+              onEdit={() => {/*not yet implemented*/}} 
+              onForward={() => {handleForwardMessage(m.id, 'recipient-id-placeholder')}} 
+              onDelete={async () => {await handleDeleteMessage(m.id)}} 
+            />
+          );
+        })}
+       
 
         {/* Input Bar - Fixed above keyboard */}
         <Box className="absolute left-0 right-0 bottom-5 p-3 bg-white border-t border-gray-200">

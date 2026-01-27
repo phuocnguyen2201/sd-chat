@@ -1,9 +1,7 @@
 
-import { supabase } from './connection';
+import { supabase, supabaseAdmin } from './connection';
 import { ApiResponse, Conversation, Database, Message, Reaction, UserProfile } from './types/supabse';
-import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { get } from 'node:http';
 
 // 1. Authentication with displayname
 
@@ -124,10 +122,7 @@ export const authAPI = {
       if (error) throw error;
       const conversation_id = dataConversation?.map(item => item.conversation_id) || [];
 
-      const supabaseAdmin = createClient(
-        process.env.EXPO_PUBLIC_SUPABASE_URL!,
-        process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY! // NOT the anon key
-      )
+
       for (const conversa_id of conversation_id) {
       const { error: deleteMessages } = await supabaseAdmin
         .from('messages')
@@ -443,6 +438,19 @@ export const messageAPI = {
         p_conversation_id: conversationId,
         p_user_id: userId
       })
+      
+      if (error) throw error
+      return { data: null, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async deleteMessage(messageId: string): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
       
       if (error) throw error
       return { data: null, error: null }
