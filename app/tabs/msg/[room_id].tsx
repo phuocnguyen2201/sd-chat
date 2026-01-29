@@ -29,6 +29,18 @@ import {
   PopoverContent,
 } from '@/components/ui/popover';
 import MessageActionBottomSheet from '@/components/MessageActionBottomSheet';
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogCloseButton,
+  AlertDialogBody,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
+import { Button, ButtonText } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
+import { MessageAction } from '@/components/MessageAction';
 
 type Message = {
   id: string;
@@ -84,6 +96,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [openRecipients, setOpenRecipients] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
@@ -195,6 +208,19 @@ export default function ChatScreen() {
           setMessages((prev) => [...prev, newMsg]);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversation_id}`,
+        },
+        (payload) => {
+          const deletedMsg = payload.old as Message;
+          setMessages((prev) => prev.filter((msg) => msg.id !== deletedMsg.id));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -221,7 +247,7 @@ export default function ChatScreen() {
       }
     }, 50);
   }, [messages.length]);
-
+  
   const handleDeleteMessage = async (messageId: string) => {
     if (!messageId) {
       Alert.alert('Error', 'Message ID not available');
@@ -270,7 +296,6 @@ export default function ChatScreen() {
       return;
     }
 
-    setShowReaction(false);
     try {
       const verify = await reactionAPI.verifyReaction(userId, messageId);
       if (!verify.data) {
@@ -281,6 +306,10 @@ export default function ChatScreen() {
     } catch (error) {
       console.error('Error handling reaction:', error);
       Alert.alert('Error', 'Failed to add reaction');
+    }
+    finally {
+      setActiveMessage('');
+      setShowReaction(false);
     }
   };
 
@@ -293,6 +322,7 @@ export default function ChatScreen() {
     }
 
     setLoading(true);
+
     try {
       const encryptedMSG = await MessageEncryption.encryptMessage(newMessage, conversationKey);
 
@@ -318,6 +348,7 @@ export default function ChatScreen() {
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setLoading(false);
+      setShowPicker(false);
     }
   }
 
@@ -449,7 +480,15 @@ export default function ChatScreen() {
                 >
                   {/* active message want to reaction*/}
                   {showReaction && activeMessage == m.id && (
-                    <EmojiReaction messageId={m.id} onSelect={handleReaction} />
+                    <Box>
+                      <MessageAction 
+                        messageId={m.id} 
+                        onReaction={handleReaction}
+                        onDelete={() => handleDeleteMessage(m.id)} />
+
+                      {/* Message Action Menu - Outside ScrollView so it can overlay */}
+                    </Box>
+                    
                   )}
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
@@ -520,7 +559,7 @@ export default function ChatScreen() {
                     {m &&
                       m.reactions &&
                       m.reactions.map((r) => (
-                        <Box key={r.id}>
+                        <Box key={r.id} className='z-40 mx-1'>
                           <Popover
                             isOpen={activeMessage === m.id}
                             onClose={() => setActiveMessage('')}
@@ -543,7 +582,7 @@ export default function ChatScreen() {
                               </PopoverBody>
                             </PopoverContent>
                           </Popover>
-                         
+                          
                         </Box>
                         
                       ))}
@@ -552,24 +591,43 @@ export default function ChatScreen() {
               );
             })}
           </VStack>
-          
+
+
         </ScrollView>
 
-        {/* Message Action Menu - Outside ScrollView so it can overlay */}
-        {messages.map((m) => {
-          const isCurrentUser = m.sender_id === userId;
-          return (
-            <MessageActionBottomSheet 
-              key={`action-${m.id}`}
-              isOpen={(activeMessage === m.id && isCurrentUser) ? true : false} 
-              onClose={() => setActiveMessage('')} 
-              onEdit={() => {/*not yet implemented*/}} 
-              onForward={() => {handleForwardMessage(m.id, 'recipient-id-placeholder')}} 
-              onDelete={async () => {await handleDeleteMessage(m.id)}} 
-            />
-          );
-        })}
-       
+        {/* Delete Confirmation Dialog - Rendered globally to avoid blocking other interactions */}
+        <AlertDialog isOpen={messageToDelete !== null} onClose={() => setMessageToDelete(null)} size="md">
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <Heading className="text-typography-950 font-semibold" size="md">
+                <Text>Notification</Text>
+              </Heading>
+            </AlertDialogHeader>
+            <AlertDialogBody className="mt-3 mb-4">
+              <Text size="sm">
+                Delete the message cannot be undone. Are you sure you want to delete the message?
+              </Text>
+            </AlertDialogBody>
+            <AlertDialogFooter className="">
+              <Button
+                variant="outline"
+                action="secondary"
+                onPress={() => setMessageToDelete(null)}
+                size="sm"
+              >
+                <ButtonText>Cancel</ButtonText>
+              </Button>
+              <Button size="sm" onPress={() => {
+                if (messageToDelete) {
+                  handleDeleteMessage(messageToDelete);
+                  setMessageToDelete(null);
+                }
+              }}>
+                <ButtonText>Okay</ButtonText>
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Input Bar - Fixed above keyboard */}
         <Box className="absolute left-0 right-0 bottom-5 p-3 bg-white border-t border-gray-200">
