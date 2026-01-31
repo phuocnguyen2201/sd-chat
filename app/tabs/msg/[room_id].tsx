@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, use } from 'react';
 import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
@@ -19,7 +19,6 @@ import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
 import { Picker } from 'emoji-mart-native';
-import { EmojiReaction } from '@/components/EmojiReaction';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
   Popover,
@@ -28,7 +27,6 @@ import {
   PopoverBody,
   PopoverContent,
 } from '@/components/ui/popover';
-import MessageActionBottomSheet from '@/components/MessageActionBottomSheet';
 import {
   AlertDialog,
   AlertDialogBackdrop,
@@ -38,9 +36,13 @@ import {
   AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
+import {
+  ForwardIcon
+} from 'lucide-react-native';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
+import ForwardMessage from '@/components/ForwardMessage';
 
 type Message = {
   id: string;
@@ -90,14 +92,22 @@ export default function ChatScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+
   const [showPicker, setShowPicker] = useState(false);
   const [showReaction, setShowReaction] = useState(false);
+
   const [activeMessage, setActiveMessage] = useState<string>('');
+  const [activeReaction, setActiveReaction] = useState<string>('');
   const [loading, setLoading] = useState(false);
+
   const [modalVisible, setModalVisible] = useState(false);
-  const [openRecipients, setOpenRecipients] = useState(false);
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
+
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
+
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
   const router = useRouter();
@@ -247,7 +257,15 @@ export default function ChatScreen() {
       }
     }, 50);
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!messageToDelete || !conversation_id) return;
+    if(conversation_id && messages && messages.length && messageToDelete) {
+      //Ignore it the purpoe is to redener the messageToDelete.
+    }
+  }, [messages, messageToDelete, conversation_id]);
   
+  //Handle delete message
   const handleDeleteMessage = async (messageId: string) => {
     if (!messageId) {
       Alert.alert('Error', 'Message ID not available');
@@ -260,29 +278,57 @@ export default function ChatScreen() {
         Alert.alert('Error', 'Failed to delete message');
         return;
       }
-      // Close actionsheet
-      setActiveMessage('');
 
     } catch (error) {
       console.error('Error in handleDeleteMessage:', error);
       Alert.alert('Error', 'Failed to delete message');
     }
+    finally {
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      setMessageToDelete(null);
+      setActiveMessage('');
+      setShowReaction(false);
+      setShowDeleteDialog(false);
+    }
   }
 
-  const handleForwardMessage = async (messageId: string, recipientId: string) => {
-    if (!messageId || !recipientId) {
-      Alert.alert('Error', 'Message ID or Recipient ID not available');
+  //Handle forward message
+  const handleForwardMessage = async (message: string, recipientId: Array<string>) => {
+    if (!message || !recipientId) {
+      Alert.alert('Error', 'Message or Recipient ID not available');
       return;
     }
     try {
-      // Fetch the message to forward
-      const messageToForward = messages.find((msg) => msg.id === messageId);
-      if (!messageToForward) {
-        Alert.alert('Error', 'Message not found');
-        return;
-      }
+      recipientId && recipientId.map(async (recipient) => {
+        // get the conversation ID
+      const conversation = await conversationAPI.verifyDMConversation(recipient!);
+      
+      if (conversation !== null && conversation.data?.conversation_id) {
 
-      // Insert the message for the recipient
+        // Find the right conversation key
+        const forwardPartyKey = await getConversationKey(conversation.data.conversation_id);
+
+        // Encrypt and send the forwarded message
+        const encryptedMessage = MessageEncryption.encryptMessage(message, forwardPartyKey!);
+
+        const { error } = await supabase.from('messages').insert([
+          {
+            conversation_id: conversation?.data?.conversation_id as string || '',
+            sender_id: userId,
+            content: encryptedMessage.ciphertext,
+            nonce: encryptedMessage.nonce,
+            key_nonce: encryptedMessage.keyNonce,
+            wrapped_key: encryptedMessage.wrappedKey,
+            message_type: 'forward',
+          },
+        ]);
+
+        if (error) {
+          console.warn('Error forwarding message', error);
+          Alert.alert('Error', 'Failed to forward message to some recipients');
+        }
+      }
+      });
 
     } catch (error) {
       console.error('Error in handleForwardMessage:', error);
@@ -290,6 +336,7 @@ export default function ChatScreen() {
     }
   }
 
+  //Handle reaction
   const handleReaction = async (messageId: string, emoji: string) => {
     if (!userId || !profile) {
       Alert.alert('Error', 'User session not available');
@@ -310,9 +357,11 @@ export default function ChatScreen() {
     finally {
       setActiveMessage('');
       setShowReaction(false);
+
     }
   };
 
+  // Handle send message
   async function handleSend() {
     if (!newMessage.trim() || !conversation_id || !conversationKey || !userId) {
       if (!conversationKey) {
@@ -352,6 +401,7 @@ export default function ChatScreen() {
     }
   }
 
+  // Handle image picking and uploading
   async function pickImage() {
     if (!conversation_id || !userId) {
       Alert.alert('Error', 'Session not available');
@@ -478,15 +528,21 @@ export default function ChatScreen() {
                     setActiveMessage(m.id);
                   }}
                 >
-                  {/* active message want to reaction*/}
+                  {/* active message want to reaction or delete */}
                   {showReaction && activeMessage == m.id && (
                     <Box>
+
                       <MessageAction 
                         messageId={m.id} 
                         onReaction={handleReaction}
-                        onDelete={() => handleDeleteMessage(m.id)} />
+                        onForward={() => {
+                          setShowForwardDialog(true)
+                        }}
+                        onDelete={() => { 
+                          setShowDeleteDialog(true)
+                          setMessageToDelete(m.id);
 
-                      {/* Message Action Menu - Outside ScrollView so it can overlay */}
+                        }} />
                     </Box>
                     
                   )}
@@ -533,7 +589,28 @@ export default function ChatScreen() {
                             className="mt-0.5 text-info-600 text-black"
                           />
                         </Link>
-                      ) : (
+                      ) : m.message_type.includes('forward') ? (
+                        <Box>
+                          <Icon as={ForwardIcon} size="md" className="text-gray-700" />
+                          <Text
+                            className={`text-lg ${
+                              isCurrentUser ? 'text-white font-semibold' : 'text-black'
+                            }`}
+                          >
+                            {MessageEncryption.decryptMessage(
+                              {
+                                ciphertext: m.content,
+                                nonce: m.nonce,
+                                wrappedKey: m.wrapped_key,
+                                keyNonce: m.key_nonce,
+                              },
+                              conversationKey
+                            )}
+                          </Text>
+                        </Box>
+                          
+                        )
+                      : (
                         <Text
                           className={`text-lg ${
                             isCurrentUser ? 'text-white font-semibold' : 'text-black'
@@ -561,9 +638,9 @@ export default function ChatScreen() {
                       m.reactions.map((r) => (
                         <Box key={r.id} className='z-40 mx-1'>
                           <Popover
-                            isOpen={activeMessage === m.id}
-                            onClose={() => setActiveMessage('')}
-                            onOpen={() => setActiveMessage(m.id)}
+                            isOpen={activeReaction === m.id}
+                            onClose={() => setActiveReaction('')}
+                            onOpen={() => setActiveReaction(m.id)}
                             placement="top"
                             size="md"
                             trigger={(triggerProps) => {
@@ -596,7 +673,7 @@ export default function ChatScreen() {
         </ScrollView>
 
         {/* Delete Confirmation Dialog - Rendered globally to avoid blocking other interactions */}
-        <AlertDialog isOpen={messageToDelete !== null} onClose={() => setMessageToDelete(null)} size="md">
+        <AlertDialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} size="md">
           <AlertDialogContent>
             <AlertDialogHeader>
               <Heading className="text-typography-950 font-semibold" size="md">
@@ -608,11 +685,14 @@ export default function ChatScreen() {
                 Delete the message cannot be undone. Are you sure you want to delete the message?
               </Text>
             </AlertDialogBody>
-            <AlertDialogFooter className="">
+            <AlertDialogFooter>
               <Button
                 variant="outline"
                 action="secondary"
-                onPress={() => setMessageToDelete(null)}
+                onPress={() => {
+                    setShowDeleteDialog(false)
+                    setShowReaction(false);
+                  }}
                 size="sm"
               >
                 <ButtonText>Cancel</ButtonText>
@@ -620,7 +700,6 @@ export default function ChatScreen() {
               <Button size="sm" onPress={() => {
                 if (messageToDelete) {
                   handleDeleteMessage(messageToDelete);
-                  setMessageToDelete(null);
                 }
               }}>
                 <ButtonText>Okay</ButtonText>
@@ -628,7 +707,30 @@ export default function ChatScreen() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
+              {/*Forward message*/}
+        <ForwardMessage
+          isOpen={showForwardDialog}
+          onClose={() => {
+            setShowForwardDialog(false)
+            setShowReaction(false);
+          }}
+          onForward={(message, recipientIds) => {
+            handleForwardMessage(message, recipientIds);
+          }}
+          messagePreview={
+            messages.find((msg) => msg.id === activeMessage)
+              ? MessageEncryption.decryptMessage(
+                  {
+                    ciphertext: messages.find((msg) => msg.id === activeMessage)?.content || '',
+                    nonce: messages.find((msg) => msg.id === activeMessage)?.nonce || '',
+                    wrappedKey: messages.find((msg) => msg.id === activeMessage)?.wrapped_key || '',
+                    keyNonce: messages.find((msg) => msg.id === activeMessage)?.key_nonce || '',
+                  },
+                  conversationKey
+                )
+              : ''
+          }
+        /> 
         {/* Input Bar - Fixed above keyboard */}
         <Box className="absolute left-0 right-0 bottom-5 p-3 bg-white border-t border-gray-200">
           {showPicker && (

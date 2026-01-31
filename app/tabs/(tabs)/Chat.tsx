@@ -108,6 +108,7 @@ export default function Chat() {
             conversation_id: conversationId,
             displayName: displayName || 'Chat',
             public_key: public_key || '',
+            room_id: conversationId,
           },
         });
       }
