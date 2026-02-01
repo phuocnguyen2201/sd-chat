@@ -13,6 +13,10 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement';
 import * as Notifications from 'expo-notifications';
+import { ArrowBigDown, PlusCircleIcon } from 'lucide-react-native';
+import { Icon } from '@/components/ui/icon';
+import CreateGroupChat from '@/components/CreateGroupChat';
+import { create } from 'node:domain';
 
 /**
  * Chat Tab Screen
@@ -32,6 +36,8 @@ export default function Chat() {
   const [filteredUsers, setFilteredUsers] = useState<any>([]);
   const [newChat, setNewChat] = useState<string>('');
 
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+
   const fetchUsers = async () => {
     try {
       const { data } = await profileAPI.getAllProfiles();
@@ -47,6 +53,41 @@ export default function Chat() {
       setListChatRooms(data || []);
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
+    }
+  };
+
+  const createGroupChat = async (name: string, recipientIds: string[]) => {
+    try {
+      const { data, error } = await conversationAPI.createGroupConversation(name , userId, recipientIds);
+
+      if (error) {
+        throw new Error(error.message || 'Failed to create group chat');
+      }
+
+      // Navigate to the new group chat
+      if (!data || !data.conversation_id) {
+        throw new Error('Invalid conversation data received');
+      }
+
+      const conversationKey = await MessageEncryption.createConversationKey();
+
+      // Store the conversation key for the current user
+      await ConversationKeyManager.setConversationKey(data.conversation_id, conversationKey);
+      await setCurrentConversation(data.conversation_id, conversationKey);
+
+      
+      router.push({
+        pathname: '../msg/[room_id]',
+        params: {
+          conversation_id: data.conversation_id,
+          displayName: name || 'Group Chat',
+        },
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error creating group chat:', error);
+      return null;
     }
   };
 
@@ -346,7 +387,27 @@ export default function Chat() {
           <Heading size="xl" className="font-bold text-typography-900">
             Chats
           </Heading>
+          <Pressable 
+            onPress={() => setShowCreateGroupModal(true)}>
+            <Icon
+              as={PlusCircleIcon}
+              size="lg"
+              className="mt-0.5 text-info-600 text-black"/>
+          </Pressable>
         </HStack>
+
+        {/* Create group modal */}
+        {showCreateGroupModal && (
+          <CreateGroupChat
+            isOpen={showCreateGroupModal}
+            onClose={() => setShowCreateGroupModal(false)}
+            onCreate={async (name, recipientIds) => {
+              // After creating group chat, refresh chat rooms
+              //console.log('Creating group chat with name:', name, 'and recipients:', recipientIds);
+              createGroupChat(name, recipientIds);
+            }}
+          />
+        )}
 
         {/* Search Bar */}
         <Input className="rounded-full bg-gray-100 border-0">

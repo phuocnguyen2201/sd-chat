@@ -221,6 +221,21 @@ export default function ChatScreen() {
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversation_id}`,
+        },
+        (payload) => {
+          const updatedMsg = payload.new as Message;
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'DELETE',
           schema: 'public',
           table: 'messages',
@@ -374,30 +389,56 @@ export default function ChatScreen() {
 
     try {
       const encryptedMSG = await MessageEncryption.encryptMessage(newMessage, conversationKey);
+      // Check if editing or new message
+      if(activeMessage !== '') {
+        //console.log('Editing message:', activeMessage);
+        const { error } = await supabase
+        .from('messages')
+        .update({ 
+          content: encryptedMSG.ciphertext, 
+          nonce: encryptedMSG.nonce, 
+          key_nonce: encryptedMSG.keyNonce, 
+          wrapped_key: encryptedMSG.wrappedKey })
+        .eq('id', activeMessage)
+        .eq('sender_id', userId);
+        
 
-      const { error } = await supabase.from('messages').insert([
-        {
-          conversation_id: conversation_id,
-          sender_id: userId,
-          content: encryptedMSG.ciphertext,
-          nonce: encryptedMSG.nonce,
-          key_nonce: encryptedMSG.keyNonce,
-          wrapped_key: encryptedMSG.wrappedKey,
-        },
-      ]);
-
-      if (error) {
-        console.warn('Error sending message', error);
-        Alert.alert('Error', 'Failed to send message');
-      } else {
-        setNewMessage('');
+        if (error) {
+          console.warn('Error editing message', error);
+          Alert.alert('Error', 'Failed to edit message');
+        } else {
+          setNewMessage('');
+        }
       }
+      else {
+        const { error } = await supabase.from('messages').insert([
+          {
+            conversation_id: conversation_id,
+            sender_id: userId,
+            content: encryptedMSG.ciphertext,
+            nonce: encryptedMSG.nonce,
+            key_nonce: encryptedMSG.keyNonce,
+            wrapped_key: encryptedMSG.wrappedKey,
+          },
+        ]);
+
+          if (error) {
+          console.warn('Error sending message', error);
+          Alert.alert('Error', 'Failed to send message');
+        } else {
+          setNewMessage('');
+        }
+    }
+       
+
+      
     } catch (error) {
       console.error('Error in handleSend:', error);
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setLoading(false);
       setShowPicker(false);
+      setActiveMessage('');
     }
   }
 
@@ -535,6 +576,19 @@ export default function ChatScreen() {
                       <MessageAction 
                         messageId={m.id} 
                         onReaction={handleReaction}
+                        onEdit={() => {
+                          setNewMessage(MessageEncryption.decryptMessage(
+                            {
+                              ciphertext: m.content,
+                              nonce: m.nonce,
+                              wrappedKey: m.wrapped_key,
+                              keyNonce: m.key_nonce,
+                            },
+                            conversationKey
+                          ));
+                          setActiveMessage(m.id);
+                          setShowReaction(false);
+                        }}
                         onForward={() => {
                           setShowForwardDialog(true)
                         }}
@@ -714,6 +768,7 @@ export default function ChatScreen() {
             setShowForwardDialog(false)
             setShowReaction(false);
           }}
+          
           onForward={(message, recipientIds) => {
             handleForwardMessage(message, recipientIds);
           }}

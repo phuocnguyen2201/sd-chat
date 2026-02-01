@@ -288,43 +288,22 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
 
   async createGroupConversation(
     name: string,
+    userId: string,
     participantIds: string[]
   ): Promise<ApiResponse<Conversation>> {
     try {
-      const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
-      if (!user) throw new Error('User not authenticated')
-      
       // Create conversation
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          name,
-          is_group: true,
-          created_by: user.id
-        })
-        .select()
-        .single()
+      const { data: conversation, error: convError } = 
+      await supabase.rpc('create_conversation_with_participants', {
+        p_name: name,
+        p_user_id: userId,
+        p_group_users: participantIds
+      })
       
-      if (convError) throw convError
-      
-      // Add participants
-      const participants = [
-        { conversation_id: conversation.id, user_id: user.id },
-        ...participantIds.map(id => ({ 
-          conversation_id: conversation.id, 
-          user_id: id 
-        }))
-      ]
-      
-      const { error: partError } = await supabase
-        .from('conversation_participants')
-        .insert(participants)
-      
-      if (partError) throw partError
-      
-      return { data: conversation, error: null }
+      if (convError) console.log('Conversation creation error:', convError)
+      return { data: conversation[0], error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   },
   async storeConversationKey(conversationId: string, userId: string, wrappedKey: string, nonce: string, other_Public_Key: string): Promise<ApiResponse<void>> {

@@ -138,6 +138,7 @@ export interface UserProfile {
 
 export interface Conversation {
   id: string
+  conversation_id: string | ''
   name: string | null
   is_group: boolean
   created_at: string
