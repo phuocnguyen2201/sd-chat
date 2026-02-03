@@ -203,6 +203,7 @@ export default function ChatScreen() {
 
     loadMessages();
 
+    // Set up real-time subscription for new messages with INSERT, UPDATE, DELETE
     const channel = supabase
       .channel(`public:messages:conversation_id=eq.${conversation_id}`)
       .on(

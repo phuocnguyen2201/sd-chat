@@ -124,7 +124,7 @@ export class MessageEncryption {
     const keyPair = nacl.box.keyPair();
 
     // Validate key sizes
-    if (keyPair.publicKey.length !== 32 || keyPair.secretKey.length !== 32) {
+    if (keyPair.publicKey.length !== this.KEY_SIZE || keyPair.secretKey.length !== this.KEY_SIZE) {
       throw new Error(`Invalid key pair generated: public=${keyPair.publicKey.length}, private=${keyPair.secretKey.length}`);
     }
 
@@ -138,16 +138,16 @@ export class MessageEncryption {
     };
   }
 
-static async wrapConversationKey(
-  conversationKey: Uint8Array,
-  recipientPublicKey: Uint8Array
-): Promise<{ wrappedKey: Uint8Array; nonce: Uint8Array } | null> {
-  //console.log('Wrapping conversation key');
-  // 1. Load sender private key
-  const prvKeyBase64 = await SecureStore.getItemAsync(this.USER_KEY_STORAGE);
-  if (!prvKeyBase64) {
-    console.error('No private key found');
-    return null;
+  static async wrapConversationKey(
+    conversationKey: Uint8Array,
+    recipientPublicKey: Uint8Array
+  ): Promise<{ wrappedKey: Uint8Array; nonce: Uint8Array } | null> {
+    //console.log('Wrapping conversation key');
+    // 1. Load sender private key
+    const prvKeyBase64 = await SecureStore.getItemAsync(this.USER_KEY_STORAGE);
+    if (!prvKeyBase64) {
+      console.error('No private key found');
+      return null;
   }
 
   const senderPrivateKey = this.base64ToBytes(prvKeyBase64);
@@ -155,15 +155,15 @@ static async wrapConversationKey(
   //console.log('Recipient public key length:', recipientPublicKey.length);
   
   // Validate key sizes
-  if (recipientPublicKey.length !== 32) {
+  if (recipientPublicKey.length !== this.KEY_SIZE) {
     console.error('Invalid recipient public key size:', recipientPublicKey.length, 'expected 32');
     console.error('Recipient public key (first 10 bytes):', recipientPublicKey.slice(0, 10));
-    throw new Error(`Invalid recipient public key size: ${recipientPublicKey.length}, expected 32`);
+    throw new Error(`Invalid recipient public key size: ${recipientPublicKey.length}, expected ${this.KEY_SIZE}`);
   }
-  if (senderPrivateKey.length !== 32) {
+  if (senderPrivateKey.length !== this.KEY_SIZE) {
     console.error('Invalid sender private key size:', senderPrivateKey.length, 'expected 32');
     console.error('Sender private key (first 10 bytes):', senderPrivateKey.slice(0, 10));
-    throw new Error(`Invalid sender private key size: ${senderPrivateKey.length}, expected 32`);
+    throw new Error(`Invalid sender private key size: ${senderPrivateKey.length}, expected ${this.KEY_SIZE}`);
   }
   
   // 2. Diffie–Hellman using tweetnacl
@@ -172,13 +172,13 @@ static async wrapConversationKey(
   // 3. Derive wrapping key (simplified - in production use proper HKDF)
   // For now, use the shared secret directly as the wrapping key
   const wrapKey = await this.hkdfSha512(
-        sharedSecret,
-        new TextEncoder().encode('conversation-key-wrap'),
-        32
-      );
+    sharedSecret,
+    new TextEncoder().encode('conversation-key-wrap'),
+    this.KEY_SIZE
+  );
 
   // 4. Encrypt (wrap) the conversation key using ChaCha20-Poly1305
-  const nonce = nacl.randomBytes(12); // ChaCha20 nonce size
+  const nonce = nacl.randomBytes(this.NONCE_SIZE); // ChaCha20 nonce size
 
   const cipher = new ChaCha20Poly1305(wrapKey);
   const wrappedKey = cipher.seal(nonce, conversationKey);
@@ -203,8 +203,8 @@ static async unwrapConversationKey(
 
   const privateKey = this.base64ToBytes(prvKeyBase64);
 
-  if (otherPartyPublicKey.length !== 32 || privateKey.length !== 32) {
-    throw new Error('Invalid key size');
+  if (otherPartyPublicKey.length !== this.KEY_SIZE || privateKey.length !== this.KEY_SIZE) {
+    throw new Error(`Invalid key size: otherParty=${otherPartyPublicKey.length}, privateKey=${privateKey.length}`);
   }
 
   // 1. ECDH
@@ -214,7 +214,7 @@ static async unwrapConversationKey(
   const unwrapKey = await this.hkdfSha512(
       sharedSecret,
       new TextEncoder().encode('conversation-key-wrap'),
-      32
+      this.KEY_SIZE
     );
 
   // 3. Unwrap conversation key
@@ -232,10 +232,12 @@ static async unwrapConversationKey(
 
   return conversationKey;
 }
+
+// HKDF-SHA512 implementation
 static async hkdfSha512(
   ikm: Uint8Array,
   info: Uint8Array,
-  length = 32
+  length = this.KEY_SIZE
 ): Promise<Uint8Array> {
   // Extract (no salt)
   const prk = nacl.hash(ikm);
@@ -285,5 +287,8 @@ static async hkdfSha512(
     }
     
     return bytes;
+  }
+  static async randomEpoch(): Promise<Uint8Array> {
+    return Crypto.getRandomBytes(1);
   }
 }

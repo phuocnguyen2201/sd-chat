@@ -13,10 +13,9 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement';
 import * as Notifications from 'expo-notifications';
-import { ArrowBigDown, PlusCircleIcon } from 'lucide-react-native';
+import { PlusCircleIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import CreateGroupChat from '@/components/CreateGroupChat';
-import { create } from 'node:domain';
 
 /**
  * Chat Tab Screen
@@ -56,31 +55,88 @@ export default function Chat() {
     }
   };
 
+  // Create a new group chat
   const createGroupChat = async (name: string, recipientIds: string[]) => {
     try {
+
+      // create group conversation ID
       const { data, error } = await conversationAPI.createGroupConversation(name , userId, recipientIds);
+
+      // Generate group conversation key
+      const conversationKey = await MessageEncryption.createConversationKey();
+
+      // Retrieve public keys for all recipients
+      const { data: publicKeys, error: storeKeyError } = await profileAPI.getParticipantsPublicKey(recipientIds);
+
+      // Get group creator public key
+      const groupCreatorPublicKey = profile?.public_key || publicKeys?.find((pk: any) => pk.id === userId)?.public_key || null;
+      
+      // Error handling
 
       if (error) {
         throw new Error(error.message || 'Failed to create group chat');
       }
 
-      // Navigate to the new group chat
       if (!data || !data.conversation_id) {
         throw new Error('Invalid conversation data received');
       }
 
-      const conversationKey = await MessageEncryption.createConversationKey();
+      if (storeKeyError) {
+        throw new Error(storeKeyError.message || 'Failed to retrieve public keys for recipients');
+      }
+
+      if (!publicKeys) {
+        throw new Error('No public keys found for the selected recipients');
+      }
+
+      if (!groupCreatorPublicKey) {
+        throw new Error('Group creator public key not found');
+      }
+
+      // Wrap and store the conversation key for each recipient
+      for (const pkEntry of publicKeys || []) {
+        const recipientId = pkEntry.id;
+        const public_key = pkEntry.public_key;
+
+        if (!public_key) {
+          console.warn(`Public key not found for user ${recipientId}, skipping key storage.`);
+          continue;
+        }
+
+        /*  Wrap the conversation key for each participant
+          for example:
+          Current user also the creator of the group chat:
+          - User A (creator): private_key_A + public_key_A
+          - User B: private_key_A + public_key_B
+          - User C: private_key_A + public_key_C
+        */ 
+
+        const wrappedKeyForEachParticipants = await MessageEncryption.wrapConversationKey(
+          conversationKey,
+          MessageEncryption.base64ToBytes(public_key || '')
+        );
+
+        if (wrappedKeyForEachParticipants) {
+          // Store the wrapped key and nonce to the database for current user
+          await conversationAPI.storeConversationKey(
+            data.conversation_id,
+            recipientId,
+            MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.wrappedKey),
+            MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.nonce),
+            recipientId === userId ? groupCreatorPublicKey : public_key,
+          );
+        }
+      }
 
       // Store the conversation key for the current user
       await ConversationKeyManager.setConversationKey(data.conversation_id, conversationKey);
-      await setCurrentConversation(data.conversation_id, conversationKey);
 
-      
       router.push({
         pathname: '../msg/[room_id]',
         params: {
           conversation_id: data.conversation_id,
           displayName: name || 'Group Chat',
+          conversationKey: MessageEncryption.bytesToBase64(conversationKey)
         },
       });
 
@@ -326,22 +382,32 @@ export default function Chat() {
     }
 
     try {
+      const isGroup = room.is_group || false;
+      const data = room.conversation_participants || [];
+      const groupChatName = room?.name??'';
+      const groupChatCreatorId = room?.created_by || '';
+      let otherPublicKey = null;
 
-      const otherPublicKey =
-        room.conversation_participants?.[1]?.profiles?.id == userId
-          ? room.conversation_participants?.[0]?.profiles?.public_key
-          : room.conversation_participants?.[1]?.profiles?.public_key;
+      if(isGroup) {
+        // For group chat, we may need to handle differently in future
+        otherPublicKey = data?.filter((participant: any) => participant.profiles?.id === groupChatCreatorId)?.[0]?.profiles?.public_key || null;
+      }
+      else{
+        otherPublicKey = 
+            data?.[1]?.profiles?.id == userId
+            ? data?.[0]?.profiles?.public_key
+            : data?.[1]?.profiles?.public_key;
+      }
+      const conversationKeyBytes = await getConversationKeyForOtherParticipants(
+          otherPublicKey,
+          room.id
+        );
 
+     //console.log('Other participant public key:', otherPublicKey);
       if (!otherPublicKey) {
         Alert.alert('Error', 'Unable to load conversation key');
         return;
       }
-
-      // Try to get from cache first
-      const conversationKeyBytes = await getConversationKeyForOtherParticipants(
-        otherPublicKey,
-        room.id
-      );
       
       //console.log('Failed here');
       if (!conversationKeyBytes) {
@@ -362,7 +428,7 @@ export default function Chat() {
         pathname: '../msg/[room_id]',
         params: {
           conversation_id: room.id,
-          displayName: participantNames || 'Chat',
+          displayName: groupChatName !='' ? groupChatName : participantNames || 'Chat',
         },
       });
     } catch (error) {
@@ -461,19 +527,32 @@ export default function Chat() {
             <VStack space="xs" className="pb-6">
               {filteredChatRooms && filteredChatRooms.length > 0 ? (
                 filteredChatRooms.map((room: any, index: number) => {
+
+                  // if group chat, show group name
+                  const groupChatName = room?.name??'';
+
+                  // Determine participant info
                   const participantNames =
                     room.conversation_participants?.[1]?.profiles?.id == userId
                       ? room.conversation_participants?.[0]?.profiles?.displayname
                       : room.conversation_participants?.[1]?.profiles?.displayname;
+
+                  // if group chat, show group avatar
                   const participantAvatar =
                     room.conversation_participants?.[1]?.profiles?.id == userId
                       ? room.conversation_participants?.[0]?.profiles?.avatar_url
                       : room.conversation_participants?.[1]?.profiles?.avatar_url;
+
+                  // Get last message info
                   const lastMsg =
                     room.messages?.length > 0
                       ? room.messages[room.messages.length - 1].content
                       : 'No messages yet';
+
+                  // Get message type
                   const msg_type = room.messages?.[0]?.message_type ?? 'Text';
+
+                  // Format time
                   const time = room.updated_at
                     ? new Date(room.updated_at).toLocaleTimeString([], {
                         hour: '2-digit',
@@ -490,7 +569,7 @@ export default function Chat() {
                       <Box className="relative">
                         <Avatar size="lg" className="mr-3">
                           <AvatarFallbackText>
-                            {(room.conversation_participants?.[1]?.profiles?.displayname || 'U').slice(
+                            {(groupChatName != ''? groupChatName : room.conversation_participants?.[1]?.profiles?.displayname || 'U').slice(
                               0,
                               2
                             )}
@@ -503,7 +582,7 @@ export default function Chat() {
                       <Box className="flex-1">
                         <HStack className="justify-between items-center mb-1">
                           <Text className="font-semibold text-typography-900 text-base">
-                            {participantNames}
+                            {groupChatName != '' ? groupChatName : participantNames}
                           </Text>
                           <Text className="text-xs text-gray-500">{time}</Text>
                         </HStack>

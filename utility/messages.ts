@@ -1,4 +1,5 @@
 
+import { error } from 'console';
 import { supabase, supabaseAdmin } from './connection';
 import { ApiResponse, Conversation, Database, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -228,6 +229,19 @@ export const profileAPI = {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async getParticipantsPublicKey(userId: string[]): Promise<ApiResponse<Array<{ id: string; public_key: string }>>> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, public_key')
+        .in('id', userId)
+      
+      if (error) throw error
+      return { data: data as Array<{ id: string; public_key: string }>, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
 // 3. Conversations
@@ -278,7 +292,21 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         `)
         .order('created_at', { foreignTable: 'messages', ascending: false })
         .limit(1, { foreignTable: 'messages' })
-      
+      /* return sample data
+
+        {conversation_participants: 
+          [{profiles: {id: 'user1', username: 'user1', displayname: 'User One', avatar_url: null, public_key: 'key1'}}, 
+           {profiles: {id: 'user2', username: 'user2', displayname: 'User Two', avatar_url: null, public_key: 'key2'}}], 
+            created_at: '2024-01-01T00:00:00.000Z', 
+            created_by: 'user1', 
+            id: 'conversation1', 
+            is_group: false, 
+            messages: [
+              {content: 'Hello, User Two!', created_at: '2024-01-01T00:05:00.000Z', id: 'message1', message_type: 'text', sender_id: 'user1'}
+          ], 
+         name: null,
+         epoch: 1}
+      */
       if (error) throw error
       return { data, error: null }
     } catch (error) {
@@ -315,7 +343,8 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
           wrapped_key: wrappedKey,
           key_nonce: nonce,
           other_party_pub_key: other_Public_Key
-        }).eq('conversation_id', conversationId)
+        })
+        .eq('conversation_id', conversationId)
         .eq('user_id', userId)
       
       if (error) throw error
