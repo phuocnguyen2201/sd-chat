@@ -1,6 +1,6 @@
 
 import { supabase } from './connection';
-import { authAPI, profileAPI } from './messages';
+import { authAPI, conversationAPI, profileAPI } from './messages';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -84,7 +84,8 @@ export const storageAPIs = {
   async uploadAvatarToSupabase(
   imageUri: string,
   fileName: string,
-  userId: string
+  userId: string,
+  groupOrIndividual: string = 'individual'
 ) {
   try {
     const response = await fetch(imageUri);
@@ -105,7 +106,10 @@ export const storageAPIs = {
     
     // Update user's avatar URL
     //console.log('New avatar URL:', publicUrl.signedUrl);
-    await profileAPI.updateProfile({ id: userId, avatar_url: publicUrl.signedUrl });
+    if(groupOrIndividual == 'individual')
+      await profileAPI.updateProfile({ id: userId, avatar_url: publicUrl.signedUrl });
+    else
+      await conversationAPI.updateGroupAvatarForGroupChat({id: userId, avatar_url: publicUrl.signedUrl})
 
     return { msg: { success: true, avatar_url: publicUrl.signedUrl}, message: 'Avatar uploaded and updated!' };
   } catch (e) {

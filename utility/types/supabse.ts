@@ -143,6 +143,7 @@ export interface Conversation {
   is_group: boolean
   created_at: string
   created_by: string
+  avatar_url: string
   participants: Array<{
     profiles: Pick<UserProfile, 'id' | 'username' | 'displayname'>
   }>

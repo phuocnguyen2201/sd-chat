@@ -15,6 +15,7 @@ export default function AppLayout() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false, headerTitle: 'Home' }} />
       <Stack.Screen name="msg/[room_id]" />
+      <Stack.Screen name="msg/ChatRoomEditing" options={{ title: 'Edit Chat Room' }} />
     </Stack>
   );
 }

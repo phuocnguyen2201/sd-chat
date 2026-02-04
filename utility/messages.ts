@@ -3,6 +3,7 @@ import { error } from 'console';
 import { supabase, supabaseAdmin } from './connection';
 import { ApiResponse, Conversation, Database, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ALWAYS_THIS_DEVICE_ONLY } from 'expo-secure-store';
 
 // 1. Authentication with displayname
 
@@ -380,6 +381,33 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async updateGroupAvatarForGroupChat(updates: Partial<Pick<Conversation, 'id' | 'avatar_url'>>): Promise<ApiResponse<boolean>>{
+    try {
+      const error = await supabase
+      .from('conversations')
+      .update({ avatar_url: updates.avatar_url })
+      .eq('conversation_id', updates.id)
+
+      if (error) throw error
+      return { data: true, error: null}
+    } catch (error) {
+      return { data: false, error: error as Error }
+    }
+  },
+  async getConversationById(select: Partial<Pick<Conversation, 'id'>>): Promise<ApiResponse<Conversation>>{
+    try {
+      const {data, error} = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('conversation_id',select.id)
+
+      if(error) throw error
+
+      return { data: data?.[0] as Conversation || [], error: null};
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
 
@@ -462,6 +490,20 @@ export const messageAPI = {
       
       if (error) throw error
       return { data: null, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async getFilesAndImagesOnly(select: Partial<Pick<Message, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
+    try {
+      const { data, error} = await supabase
+      .from('message')
+      .select('content, message_type')
+      .eq('conversation_id', select.conversation_id)
+      .in('message_type',['image','file'])
+
+      if (error) throw error
+      return { data: data as Message[] || [], error: null};
     } catch (error) {
       return { data: null, error: error as Error }
     }

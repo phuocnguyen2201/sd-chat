@@ -37,7 +37,8 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import {
-  ForwardIcon
+  ForwardIcon,
+  MoveRightIcon
 } from 'lucide-react-native';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
@@ -53,6 +54,7 @@ type Message = {
   nonce: string;
   wrapped_key: string;
   key_nonce: string;
+  displayname: string;
   reactions: Array<Reaction>;
   created_at: string;
 };
@@ -173,6 +175,25 @@ export default function ChatScreen() {
   useEffect(() => {
     if (displayName) {
       navigation.setOptions({ headerTitle: displayName });
+      // set button to edit chat room
+      navigation.setOptions({
+        headerRight: () => (
+          <Pressable
+            onPress={() => {
+              router.push({
+                pathname: '/tabs/msg/ChatRoomEditing',
+                params: {
+                  conversation_id: conversation_id,
+                  displayName: displayName,
+                },
+              });
+            }}
+            className="px-3 py-1 bg-blue-500 rounded-lg"
+          >
+            <Icon as={MoveRightIcon} size="md" className="text-white" />
+          </Pressable>
+        ),
+      }); 
     }
   }, [navigation, displayName]);
 
@@ -560,8 +581,14 @@ export default function ChatScreen() {
               </Box>
             )}
 
-            {messages.map((m) => {
+            {messages.map((m, index) => {
               const isCurrentUser = m.sender_id === userId;
+              // Check if the previous message is from the same sender
+              const previousMessage = index > 0 ? messages[index - 1] : null;
+              const isSameSenderAsPrevious = previousMessage && previousMessage.sender_id === m.sender_id;
+              // Only show username if it's not the current user and sender is different from previous message
+              const shouldShowUsername = !isCurrentUser && !isSameSenderAsPrevious;
+              //console.log('Rendering message from:', m.displayname);
               return (
                 <Pressable
                   key={m.id}
@@ -601,6 +628,14 @@ export default function ChatScreen() {
                     </Box>
                     
                   )}
+         
+                  
+                  {/*Display username*/}
+                  { shouldShowUsername ?  
+                    <Box className={'flex-row mb-2 justify-start'}> 
+                      <Text className="text-xs text-gray-500">{m.displayname}</Text>
+                    </Box>: null}
+                  
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
