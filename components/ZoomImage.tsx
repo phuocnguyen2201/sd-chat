@@ -1,9 +1,8 @@
 import { Box } from '@/components/ui/box';
 import React, { useEffect } from 'react';
 import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
 import { Button } from './ui/button';
-import { Modal } from 'react-native';
+import { Modal, View } from 'react-native';
 import ImageViewer from 'react-native-image-zoom-viewer';
 
 export default function ZoomImage({ image, visible, onClose }: { image: string; visible: boolean; onClose?: () => void }) {
@@ -18,11 +17,11 @@ export default function ZoomImage({ image, visible, onClose }: { image: string; 
                 onCancel={onClose}
                 backgroundColor="rgba(0,0,0,0.9)"
                 renderHeader={() => (
-                <Box className="absolute top-10 right-10 z-50">
+                <View style={{ position: 'absolute', top: 40, right: 40, zIndex: 50 }}>
                     <Button onPress={onClose} className="bg-gray-800 rounded-full p-2">
-                    <Text className="text-white text-lg font-bold">✕</Text>
+                        <Text className="text-white text-lg font-bold">✕</Text>
                     </Button>
-                </Box>
+                </View>
                 )}
             />
         </Modal>

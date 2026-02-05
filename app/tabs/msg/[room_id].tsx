@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, use } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
@@ -103,6 +103,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [activeImageUrl, setActiveImageUrl] = useState<string>('');
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
@@ -646,17 +647,12 @@ export default function ChatScreen() {
                           : 'bg-gray-300 rounded-bl-none'
                       }`}
                     >
-                      <ZoomImage
-                        image={avatarUrl}
-                        visible={modalVisible}
-                        onClose={() => setModalVisible(false)}
-                      />
                       {m.message_type.includes('image') &&
                       m.content.includes('/storage/v1/object/sign/storage-msg/') ? (
                         <Pressable
                           onPress={() => {
+                            setActiveImageUrl(m.content);
                             setModalVisible(true);
-                            setAvatarUrl(m.content);
                           }}
                         >
                           <Image
@@ -761,6 +757,13 @@ export default function ChatScreen() {
 
 
         </ScrollView>
+
+        {/* ZoomImage Modal - Rendered at top level */}
+        <ZoomImage
+          image={activeImageUrl}
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+        />
 
         {/* Delete Confirmation Dialog - Rendered globally to avoid blocking other interactions */}
         <AlertDialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} size="md">

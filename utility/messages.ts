@@ -387,7 +387,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       const error = await supabase
       .from('conversations')
       .update({ avatar_url: updates.avatar_url })
-      .eq('conversation_id', updates.id)
+      .eq('id', updates.id)
 
       if (error) throw error
       return { data: true, error: null}
@@ -400,7 +400,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       const {data, error} = await supabase
       .from('conversations')
       .select('*')
-      .eq('conversation_id',select.id)
+      .eq('id',select.id)
 
       if(error) throw error
 
@@ -497,8 +497,8 @@ export const messageAPI = {
   async getFilesAndImagesOnly(select: Partial<Pick<Message, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
     try {
       const { data, error} = await supabase
-      .from('message')
-      .select('content, message_type')
+      .from('messages')
+      .select('id ,content, message_type')
       .eq('conversation_id', select.conversation_id)
       .in('message_type',['image','file'])
 

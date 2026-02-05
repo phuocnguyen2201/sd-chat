@@ -1,6 +1,6 @@
 // chat room can edit room name and avatar and 2 panels to display images and files
 import React, { useEffect, useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
+import { TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import * as ImagePicker from 'expo-image-picker';
@@ -25,6 +25,9 @@ import { Icon } from '@/components/ui/icon';
 import {
   ArrowBigDown
 } from 'lucide-react-native';
+import { Card } from '@/components/ui/card';
+import { Heading } from '@/components/ui/heading';
+import ZoomImage from '@/components/ZoomImage';
 
 export default function ChatRoomEditing() {
   const router = useRouter();
@@ -38,6 +41,8 @@ export default function ChatRoomEditing() {
   const [name, setName] = useState(displayName || '');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [showActionSheet, setShowActionsheet] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [activeImageUrl, setActiveImageUrl] = useState<string>('');
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -73,7 +78,7 @@ export default function ChatRoomEditing() {
         {
           setLoading(true);
           storageAPIs.resizedImage(result.uri).then((data) => {
-            //last parameter to updateload ro group
+            //last parameter to updateload to group
             storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, conversation_id || '', 'group').then((data) => {
               if(data.msg?.success)
                 setAvatarUri(data.msg?.avatar_url || '');
@@ -91,18 +96,14 @@ export default function ChatRoomEditing() {
 
     if(!name) return;
 
-    const error = await supabase
+    const { data, error} = await supabase
     .from('conversations')
     .update({name: name})
-    .eq('conversation_id',conversation_id)
+    .eq('id', conversation_id)
 
-    if(error) throw error
+    if(error) throw error?.message
     router.back();
   };
-
-  if (loading) {
-    return <Text>Loading...</Text>;
-  }
 
   const loadConversation = async () => {
     const conversation = await conversationAPI.getConversationById({id: conversation_id});
@@ -119,15 +120,15 @@ export default function ChatRoomEditing() {
   }
 
   useEffect(() =>{
-    if( !avatarUri || !message) return;
 
-    loadConversation();
-    loadFilesAndImages();
   },[])
 
   useEffect(() =>{
-    if( !avatarUri ) return;
-  },[avatarUri])
+    if( avatarUri != null || message.length > 0) return;
+
+    loadConversation();
+    loadFilesAndImages();
+  },[avatarUri, message])
 
   return (
     <ScrollView className='bg-white' contentContainerStyle={{ padding: 16 }}>
@@ -151,6 +152,7 @@ export default function ChatRoomEditing() {
               className="border border-gray-300 rounded px-3 py-2"
             />
         </Box>
+
         <TouchableOpacity
           onPress={handleSave}
             className="bg-blue-500 rounded px-4 py-2 items-center"
@@ -158,40 +160,68 @@ export default function ChatRoomEditing() {
             <Text className="text-white">Save</Text>
         </TouchableOpacity>
 
-        <Box>
-            <Grid className="gap-4" _extra={{ className: 'grid-cols-10' }}>
-                {message.map((m, index) => {
-                    const msg_type = m.message_type;
-                    return(
-                        
-                        <GridItem
-                            className="bg-background-50 p-6 rounded-md"
-                            _extra={{ className: 'col-span-3' }}
-                        >   
-                            {msg_type == 'image'?
-                                <Image
-                                    source={{ uri: m.content }}
-                                    className="w-48 h-48 rounded-lg"
-                                    alt="image"
-                                />:
+        <Card size="md" variant="elevated" className="m-3">
+            <Heading size="md" className="mb-1">
+                Images & Files
+            </Heading>
+        </Card>
 
-                                (<Link
-                                    href={`${m.content}` as '/'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    >
-                                <LinkText className="text-black text-xl">Download file</LinkText>
-                                <Icon
-                                    as={ArrowBigDown}
-                                    size="lg"
-                                    className="mt-0.5 text-info-600 text-black"
-                                /></Link>)}
-                        </GridItem>
-                        
-                    )
-                })}
-            </Grid>
-        </Box>
+        <Grid
+            className="gap-4"
+            _extra={{
+                className: 'grid-cols-8',
+            }}
+        >
+
+        {message.map((m, index) => {
+            const msg_type = m.message_type;
+            return(
+                
+                <GridItem 
+                    id={`${m.id}-${index}`}
+                    className="bg-background-50 p-4 rounded-md text-center"
+                    _extra={{
+                    className: 'col-span-4',
+                    }}
+                >   
+                    {msg_type == 'image' ?
+                        <TouchableOpacity
+                            onPress={() => {
+                                setActiveImageUrl(m.content);
+                                setModalVisible(true);
+                            }}
+                        >
+                            <Image
+                                source={{ uri: m.content }}
+                                className="w-42 h-48 rounded-lg"
+                                alt="image"
+                            />
+                        </TouchableOpacity>
+                       : msg_type == 'file'?
+
+                        <Link
+                            href={`${m.content}` as '/'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            >
+                            <LinkText className="text-black text-xl">Download file</LinkText>
+                        <Icon
+                            as={ArrowBigDown}
+                            size="lg"
+                            className="mt-0.5 text-info-600 text-black"
+                        /></Link> : null}
+                </GridItem>
+                
+            )
+        })}
+        </Grid>
+
+        {/* ZoomImage Modal - Rendered at top level */}
+        <ZoomImage
+            image={activeImageUrl}
+            visible={modalVisible}
+            onClose={() => setModalVisible(false)}
+        />
 
         {/* <AlertDialogBackdrop /> */}
         <Actionsheet isOpen={showActionSheet} onClose={() => setShowActionsheet(false)}>

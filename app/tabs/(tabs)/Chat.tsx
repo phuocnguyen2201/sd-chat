@@ -531,6 +531,8 @@ export default function Chat() {
                   // if group chat, show group name
                   const groupChatName = room?.name??'';
 
+                  const groupAvatar = room?.avatar_url?? '';
+
                   // Determine participant info
                   const participantNames =
                     room.conversation_participants?.[1]?.profiles?.id == userId
@@ -574,7 +576,7 @@ export default function Chat() {
                               2
                             )}
                           </AvatarFallbackText>
-                          <AvatarImage source={{ uri: participantAvatar || undefined }} />
+                          <AvatarImage source={{ uri: groupChatName != ''? groupAvatar : participantAvatar || undefined }} />
                         </Avatar>
                         <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
                       </Box>
