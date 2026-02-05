@@ -1,7 +1,6 @@
 
-import { error } from 'console';
 import { supabase, supabaseAdmin } from './connection';
-import { ApiResponse, Conversation, Database, Message, Reaction, UserProfile } from './types/supabse';
+import { ApiResponse, Conversation, Files, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ALWAYS_THIS_DEVICE_ONLY } from 'expo-secure-store';
 
@@ -79,7 +78,7 @@ export const authAPI = {
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, files(*)')
         .eq('id', user?.id?? userId)
         .single()
 
@@ -90,7 +89,8 @@ export const authAPI = {
         displayname: profileData?.displayname || null,
         avatar_url: profileData?.avatar_url || null,
         public_key: profileData?.public_key || null,
-        created_at: user?.created_at || ''
+        created_at: user?.created_at || '',
+        files: profileData?.files?.[0] || []
       }
 
       return { data: userProfile, error: null }
@@ -240,6 +240,63 @@ export const profileAPI = {
       
       if (error) throw error
       return { data: data as Array<{ id: string; public_key: string }>, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async getImagesbyProfile(userId: string):Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files')
+      .select('*')
+      .eq('profile_id', userId)
+
+      if(error) throw error
+
+      return {data: data?.[0] as Files | null, error: null}
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async getImagesbyGroup(groupId: string):Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files')
+      .select('*')
+      .eq('conversation_id',groupId)
+
+      if(error) throw error
+
+      return {data: data?.[0] as Files | null, error:null}
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  }
+  ,
+  async removeAvatarsbyProfile(userId: string): Promise<ApiResponse<boolean>>{
+    try {
+      const error = await supabase
+      .from('files')
+      .delete()
+      .eq('profile_id',userId)
+
+      if(error) throw error
+
+      return {data: true, error:null}
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async removeAvatarsbyGroup(groupId: string): Promise<ApiResponse<boolean>>{
+    try {
+       const error = await supabase
+      .from('files')
+      .delete()
+      .eq('conversation_id',groupId)
+
+      if(error) throw error
+
+      return {data: true, error:null }
     } catch (error) {
       return { data: null, error: error as Error }
     }
@@ -504,6 +561,21 @@ export const messageAPI = {
 
       if (error) throw error
       return { data: data as Message[] || [], error: null};
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async upsertFileAndImage(insert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files')
+      .upsert(insert)
+      .select()
+      .single()
+      
+      if(error) console.log(error);
+
+      return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }

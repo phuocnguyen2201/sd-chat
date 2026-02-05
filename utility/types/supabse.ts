@@ -134,6 +134,22 @@ export interface UserProfile {
   avatar_url: string | null
   public_key: string | null
   created_at: string
+  files: Files | null
+}
+
+export interface Files{
+  id?: string | null
+  message_id?: string | null
+  profile_id?: string | null
+  conversation_id?: string | null
+  bucket_name: string 
+  filepath: string
+  token: string | null
+  filename: string
+  original_name: string
+  mime_type: string
+  file_size?: bigint | 0
+  created_at: string
 }
 
 export interface Conversation {

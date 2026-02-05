@@ -1,3 +1,5 @@
+import { Files } from "./supabse";
+
 export type User = {
   id: string;
   email?: string;
@@ -22,6 +24,7 @@ export type Profile = {
   bio?: string;
   created_at?: string;
   updated_at?: string;
+  files?: Files[];
   // Add other profile fields as needed
 } | null;
 

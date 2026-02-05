@@ -42,17 +42,15 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, files(*)')
         .eq('id', userId)
-        .limit(1)
 
       if (profileError) {
         console.error('Error fetching profile:', profileError);
         return null;
       }
-
-      setProfile(profileData[0]);
-      return profileData[0];
+      setProfile(profileData?.[0]);
+      return profileData?.[0] || [];
     } catch (error) {
       console.error('Error in fetchProfile:', error);
       return null;

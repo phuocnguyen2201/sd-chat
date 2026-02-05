@@ -32,7 +32,7 @@ import {
   ActionsheetDragIndicatorWrapper,
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
-import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
 import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
@@ -58,28 +58,41 @@ export default function Settings() {
   const { user, profile, refreshProfile } = useSession();
 
   useEffect(() => {
-    if (profile?.avatar_url && profile?.displayname) {
-      setAvatar(profile.avatar_url || '');  
-      setDisplayName(profile.displayname || '');
+    if (profile?.files?.[0]) {
+      utilityFunction.getImageOrFileStorageURL(profile.files[0]).then((data) => {
+        setAvatar(data || '')
+      })
     }
-    else{
-      authAPI.getProfileUser(user?.id || '').then((data) => {
-        if (data) {
-          setAvatar(data?.data?.avatar_url || '');
-          setDisplayName(data?.data?.displayname || '');
-        }
-      });
+    if(profile?.displayname){
+        setDisplayName(profile.displayname || '');
     }
 
     }, [profile]);
-  
+  useEffect(() => {
+    if(!avatar && !displayName) {
+      getProfile();
+    }
+  },[avatar, displayName])
+  const getProfile = async () =>{
+      const data = await authAPI.getProfileUser(user?.id ?? '');
+      if(data.data){
+        if(data.data.files) {        
+          const avaURL = await utilityFunction.getImageOrFileStorageURL(data.data?.files);
+          setAvatar(avaURL || '')
+        }
+
+        if(data.data.displayname) {
+          setDisplayName(data.data.displayname)
+        }
+
+      }
+  }
   async function updateProfile(): Promise<void> {
     setLoading(true);
     if (user?.id) {
       const response = profileAPI.updateProfile({
       id: user?.id,
       displayname: displayName,
-      avatar_url: avatar
     }).finally(() => {
       setLoading(false);
       setShowDisplayNameDialog(false);
