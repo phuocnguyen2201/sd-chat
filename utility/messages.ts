@@ -1,8 +1,10 @@
 
+import { equal } from 'node:assert';
 import { supabase, supabaseAdmin } from './connection';
 import { ApiResponse, Conversation, Files, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ALWAYS_THIS_DEVICE_ONLY } from 'expo-secure-store';
+import { STORAGE_BUCKETS } from './handleStorage';
 
 // 1. Authentication with displayname
 
@@ -78,7 +80,7 @@ export const authAPI = {
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*, files(*)')
+        .select('*, files_profiles(*)')
         .eq('id', user?.id?? userId)
         .single()
 
@@ -90,7 +92,7 @@ export const authAPI = {
         avatar_url: profileData?.avatar_url || null,
         public_key: profileData?.public_key || null,
         created_at: user?.created_at || '',
-        files: profileData?.files?.[0] || []
+        files_profiles: profileData?.files?.[0] || []
       }
 
       return { data: userProfile, error: null }
@@ -149,10 +151,11 @@ export const authAPI = {
 
 
 
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
-      if (deleteError) throw deleteError
 
-      const { error: profileError } = await supabase
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
+      if (deleteError) throw deleteError.message
+
+      const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .delete()
         .eq('id', user.id)  
@@ -247,9 +250,10 @@ export const profileAPI = {
   async getImagesbyProfile(userId: string):Promise<ApiResponse<Files>>{
     try {
       const {data, error} = await supabase
-      .from('files')
+      .from('files_profiles')
       .select('*')
       .eq('profile_id', userId)
+      .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
 
       if(error) throw error
 
@@ -261,13 +265,13 @@ export const profileAPI = {
     async getImagesbyGroup(groupId: string):Promise<ApiResponse<Files>>{
     try {
       const {data, error} = await supabase
-      .from('files')
+      .from('files_group')
       .select('*')
-      .eq('conversation_id',groupId)
-
+      .eq('conversation_id', groupId)
+      .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
       if(error) throw error
 
-      return {data: data?.[0] as Files | null, error:null}
+      return {data: data?.[0] as Files | null, error: null}
     } catch (error) {
       return { data: null, error: error as Error }
     }
@@ -452,16 +456,19 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       return { data: false, error: error as Error }
     }
   },
-  async getConversationById(select: Partial<Pick<Conversation, 'id'>>): Promise<ApiResponse<Conversation>>{
+  async getAvatarProfileForGroup(select: Partial<Pick<Conversation, 'id'>>): Promise<ApiResponse<Files>>{
     try {
+
+      //Avatar for group must be link to conversation_id only
       const {data, error} = await supabase
-      .from('conversations')
+      .from('files_group')
       .select('*')
-      .eq('id',select.id)
+      .eq('conversation_id', select.id)
+      .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
 
       if(error) throw error
 
-      return { data: data?.[0] as Conversation || [], error: null};
+      return { data: data?.[0] as Files || [], error: null};
     } catch (error) {
       return { data: null, error: error as Error }
     }
@@ -551,38 +558,133 @@ export const messageAPI = {
       return { data: null, error: error as Error }
     }
   },
-  async getFilesAndImagesOnly(select: Partial<Pick<Message, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
+
+}
+
+// 5. Files and images
+
+export const filesAPI = {
+  async getFilesAndImagesOnly(select: Partial<Pick<Files, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
     try {
       const { data, error} = await supabase
       .from('messages')
-      .select('id ,content, message_type')
+      .select(`*, files!inner(*)`)
       .eq('conversation_id', select.conversation_id)
       .in('message_type',['image','file'])
 
       if (error) throw error
-      return { data: data as Message[] || [], error: null};
+      return { data: data , error: null};
     } catch (error) {
       return { data: null, error: error as Error }
     }
   },
-  async upsertFileAndImage(insert: Files) : Promise<ApiResponse<Files>>{
+  async insertFilesMessages(insert: Files) : Promise<ApiResponse<Files>>{
     try {
       const {data, error} = await supabase
       .from('files')
-      .upsert(insert)
+      .insert(insert)
       .select()
       .single()
       
-      if(error) console.log(error);
+      if(error) throw error;
 
       return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }
-  }
+  },
+  async selectFileProfile(profile_id: string) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_profiles')
+      .select('*')
+      .eq('profile_id', profile_id)
+      .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
+      
+      if(error) console.log(error.message);
+
+      return { data: data?.[0], error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async insertFileProfile(upsert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_profiles')
+      .insert(upsert)
+      .select()
+      .single()
+      
+      if(error) console.log(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async updateFileProfile(update: Files): Promise<ApiResponse<Files>>{
+    try {
+        const {data, error} = await supabase
+      .from('files_profiles')
+      .update(update)
+      .eq('id', update.id)
+      
+      if(error) console.log(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async selectFileGroup(group_id: string) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .select('*')
+      .eq('conversation_id', group_id)
+      .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
+      
+      if(error) console.log(error.message);
+
+      return { data: data?.[0], error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async insertFileGroup(upsert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .insert(upsert)
+      .select()
+      .single()
+      
+      if(error) console.log(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async updateFileGroup(update: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .upsert(update)
+      .select()
+      .single()
+      
+      if(error) throw error;
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
 }
 
-// 5. Reactions
+// 6. Reactions
 export const reactionAPI = {
   async verifyReaction(sender_id: string, msg_id: string){
     try {
@@ -652,7 +754,7 @@ export const reactionAPI = {
   }
 }
 
-// 6. Real-time Subscriptions
+// 7. Real-time Subscriptions
 export const realtimeAPI = {
   subscribeToMessages(
     conversationId: string,
@@ -707,7 +809,7 @@ export const realtimeAPI = {
       .subscribe()
   }
 }
-// 6. Utility Functions
+// 8. Utility Functions
 export const channelsAndUsersAPI = {
   async getChannelsAndUsers(): Promise<ApiResponse<{ channels: Conversation[]; users: UserProfile[] }>> {
     try {

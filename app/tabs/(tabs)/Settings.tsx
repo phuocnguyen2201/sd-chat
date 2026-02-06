@@ -21,8 +21,8 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import * as ImagePicker from 'expo-image-picker';
-import { Icon, CloseIcon, CheckIcon } from '@/components/ui/icon';
-import { authAPI, profileAPI }  from '../../../utility/messages';
+import { Icon, CloseIcon } from '@/components/ui/icon';
+import { authAPI, profileAPI, filesAPI }  from '../../../utility/messages';
 import {
   Actionsheet,
   ActionsheetContent,
@@ -36,7 +36,7 @@ import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/ha
 import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
-
+import { Files } from '@/utility/types/supabse';
 
 export default function Settings() {
   const router = useRouter();
@@ -58,26 +58,24 @@ export default function Settings() {
   const { user, profile, refreshProfile } = useSession();
 
   useEffect(() => {
-    if (profile?.files?.[0]) {
-      utilityFunction.getImageOrFileStorageURL(profile.files[0]).then((data) => {
-        setAvatar(data || '')
-      })
-    }
-    if(profile?.displayname){
-        setDisplayName(profile.displayname || '');
-    }
-
-    }, [profile]);
-  useEffect(() => {
-    if(!avatar && !displayName) {
+    if(!avatar || !displayName) {
       getProfile();
     }
   },[avatar, displayName])
-  const getProfile = async () =>{
+
+  const getProfile = async () => {
+    
+    if (profile && profile.files_profiles && profile.files_profiles[0]) {
+      const avaURL = utilityFunction.buildFileUrl(profile.files_profiles[0])
+      setAvatar(avaURL)
+      setDisplayName(profile.displayname||'')
+    }
+    else{
       const data = await authAPI.getProfileUser(user?.id ?? '');
       if(data.data){
-        if(data.data.files) {        
-          const avaURL = await utilityFunction.getImageOrFileStorageURL(data.data?.files);
+        if(data.data.files_profiles) {        
+          const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles);
+
           setAvatar(avaURL || '')
         }
 
@@ -86,6 +84,8 @@ export default function Settings() {
         }
 
       }
+    }
+
   }
   async function updateProfile(): Promise<void> {
     setLoading(true);
@@ -162,12 +162,28 @@ export default function Settings() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.resizedImage(result.uri).then((data) => {
+        storageAPIs.resizedImage(result).then((data) => {
 
-          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '')
+          storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
           .then((data) => {
-            if(data.msg?.success)
+            if (data.msg?.success)
               setAvatar(data.msg?.avatar_url || '');
+
+            if (data.msg?.data) {
+              let avatar: Files = data.msg?.data;
+              avatar.profile_id = user?.id;
+
+              filesAPI.selectFileProfile(user?.id??'').then((data) => {
+                if(data && data.data && data.data.id){
+
+                  avatar.id = data.data.id;
+                  filesAPI.updateFileProfile(avatar);
+                }
+                else
+                  filesAPI.insertFileProfile(avatar);
+              })
+              
+            }
           })
           .finally(async () => {
             setShowActionsheet(false);
@@ -183,11 +199,28 @@ export default function Settings() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.resizedImage(result.uri).then((data) => {
+        storageAPIs.resizedImage(result).then((data) => {
           
-          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '').then((data) => {
+          storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
+          .then((data) => {
             if(data.msg?.success)
               setAvatar(data.msg?.avatar_url || '');
+
+             if (data.msg?.data) {
+              let avatar: Files = data.msg?.data;
+              avatar.profile_id = user?.id;
+
+              filesAPI.selectFileProfile(user?.id??'').then((data) => {
+                if(data && data.data && data.data.id){
+                  
+                  avatar.id = data.data.id;
+                  filesAPI.updateFileProfile(avatar);
+                }
+                else
+                  filesAPI.insertFileProfile(avatar)
+              })
+              
+            }
           })
           .finally(async () => {
             setShowActionsheet(false);

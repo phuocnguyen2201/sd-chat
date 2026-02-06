@@ -3,21 +3,20 @@ import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utility/connection';
-import { Session } from '@supabase/supabase-js';
 import { Box } from '@/components/ui/box';
 import { FormControl} from '@/components/ui/form-control';
 import { VStack } from '@/components/ui/vstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText } from '@/components/ui/button';
-import { authAPI, profileAPI } from '@/utility/messages';
+import { filesAPI, profileAPI } from '@/utility/messages';
 import { router } from 'expo-router';
 import { Divider } from '@/components/ui/divider';
-import { UserProfile } from '@/utility/types/supabse';
+import { Files, UserProfile } from '@/utility/types/supabse';
 import { Pressable } from 'react-native';
 import { Spinner } from '@/components/ui/spinner';
 
 import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
-import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
 import {
   Actionsheet,
   ActionsheetContent,
@@ -28,7 +27,6 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { useSession } from '@/utility/session/SessionProvider';
-import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 export default function CompleteProfile() {
 
@@ -47,12 +45,19 @@ export default function CompleteProfile() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.resizedImage(result.uri).then((data) => {
+        storageAPIs.resizedImage(result).then((data) => {
 
-          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '')
+          storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
           .then((data) => {
-            if(data.msg?.success)
+            if (data.msg?.success)
               setAvatar(data.msg?.avatar_url || '');
+
+            if (data.msg?.data) {
+              const avatar: Files = data.msg?.data;
+              avatar.profile_id = user?.id || '';
+              
+              filesAPI.insertFileProfile(avatar);
+            }
           })
           .finally(async () => {
             setShowActionsheet(false);
@@ -68,11 +73,20 @@ export default function CompleteProfile() {
       if (result != null)
       {
         setLoading(true);
-        storageAPIs.resizedImage(result.uri).then((data) => {
+        storageAPIs.resizedImage(result).then((data) => {
           
-          storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, user?.id || '').then((data) => {
+          storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
+          .then((data) => {
+
             if(data.msg?.success)
               setAvatar(data.msg?.avatar_url || '');
+
+            if(data.msg?.data) {
+              let avatar: Files = data.msg?.data;
+              avatar.profile_id = user?.id;
+              filesAPI.insertFileProfile(avatar);
+            }
+              
           })
           .finally(async () => {
             setShowActionsheet(false);
@@ -100,7 +114,13 @@ export default function CompleteProfile() {
         });
       }
     };
+
     useEffect(() => {
+      if(profile && profile.files_profiles) {
+        const avatar = utilityFunction.buildFileUrl(profile.files_profiles[0])
+        setAvatar(avatar)
+      }
+
       refreshProfile();
     },[])
 

@@ -1,12 +1,12 @@
 
 import { supabase } from './connection';
-import { authAPI, conversationAPI, messageAPI, profileAPI } from './messages';
+import { authAPI, conversationAPI, filesAPI, messageAPI, profileAPI } from './messages';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator'
 import { Files } from './types/supabse';
 import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
+import { DocumentPickerAsset } from 'expo-document-picker';
 
 export const STORAGE_BUCKETS = {
   MESSAGES: 'storage-msg',
@@ -16,22 +16,21 @@ export const STORAGE_BUCKETS = {
 
 export const storageAPIs = {
   async uploadImageToSupabase(
-  imageUri: string,
-  fileName: string,
+  image: ImagePicker.ImagePickerAsset,
   conversation_id: string,
   userId: string | null
 ) {
   try {
-    const response = await fetch(imageUri);
+    const response = await fetch(image.uri);
     const arrayBuffer = await response.arrayBuffer();
 
-    const fileToStore = `${Date.now()}-${fileName}`;
-    const filePath = `${STORAGE_BUCKETS.MESSAGES}/${fileToStore}`;
+    const fileToStore = `${Date.now()}-${image.fileName}`;
+    const filePath = `${STORAGE_BUCKETS.MESSAGES}/${conversation_id}/${fileToStore}`;
 
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKETS.MESSAGES)
       .upload(filePath, arrayBuffer, {
-        contentType: 'image/jpeg',
+        contentType: image.mimeType,
       });
 
     if (error) throw error;
@@ -45,9 +44,9 @@ export const storageAPIs = {
     const token = await utilityFunction.getToken(publicUrl.signedUrl);
 
     // Send message with image URL
-    const {data: newImage, error: errorImage}=await supabase
+    const {data: newImage, error: errorImage} = await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'image', content: fileName }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'image', content: image.fileName }])
       .select()
       .single();
     if(errorImage) throw errorImage
@@ -55,16 +54,17 @@ export const storageAPIs = {
     const fileData: Files = {
       filepath: filePath,
       filename: fileToStore,
-      mime_type: 'image/jpeg',
-      original_name: fileName,
+      mime_type: image.mimeType || 'unknown',
+      original_name: image.fileName|| 'image.jpg',
       token: token,
-      bucket_name: STORAGE_BUCKETS.FILES,
+      bucket_name: STORAGE_BUCKETS.MESSAGES,
       created_at: new Date().toISOString(),
-      message_id: newImage.id
+      message_id: newImage.id,
     }
 
+    await filesAPI.insertFilesMessages(fileData);
+    
     //Update to Files table
-    await messageAPI.upsertFileAndImage(fileData);
     return { success: true, message: 'Image uploaded and sent!' };
   } catch (e) {
     console.warn('Image upload error:', e);
@@ -72,17 +72,16 @@ export const storageAPIs = {
   }
 },
   async uploadFileToSupabase(
-  fileUri: string,
-  fileName: string,
+  file: DocumentPickerAsset,
   conversation_id: string,
   userId: string | null
 ) {
   try {
-    const response = await fetch(fileUri);
+    const response = await fetch(file.uri);
     const arrayBuffer = await response.arrayBuffer();
 
-    const fileToStore = `${Date.now()}-${fileName}`;
-    const filePath = `${STORAGE_BUCKETS.FILES}/${fileToStore}`;
+    const fileToStore = `${Date.now()}-${file.name}`;
+    const filePath = `${STORAGE_BUCKETS.FILES}/${conversation_id}/${fileToStore}`;
     
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKETS.FILES)
@@ -101,7 +100,7 @@ export const storageAPIs = {
     // Send message with file URL
     const {data: newFile, error: fileError } = await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'file', content: fileName }])
+      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'file', content: file.name }])
       .select()
       .single();
 
@@ -110,17 +109,15 @@ export const storageAPIs = {
      const fileData: Files = {
       filepath: filePath,
       filename: fileToStore,
-      mime_type: 'image/jpeg',
-      original_name: fileName,
+      mime_type: file.mimeType || 'unknown',
+      original_name: file.name,
       token: token,
       bucket_name: STORAGE_BUCKETS.FILES,
       created_at: new Date().toISOString(),
-      message_id: newFile.id
+      message_id: newFile.id,
+      file_size: file.size || 0
     }
-
-    //Update to Files table
-    await messageAPI.upsertFileAndImage(fileData);
-
+    await filesAPI.insertFilesMessages(fileData);
     return { success: true, message: 'File uploaded and sent!' };
   } catch (e) {
     console.warn('File upload error:', e);
@@ -128,23 +125,21 @@ export const storageAPIs = {
   }
 },
   async uploadAvatarToSupabase(
-  imageUri: string,
-  fileName: string,
-  userId: string,
-  groupOrIndividual: string = 'individual'
+  image: ImagePicker.ImagePickerAsset,
+  userId: string
 ) {
   try {
-    const response = await fetch(imageUri);
+    const response = await fetch(image.uri);
     const arrayBuffer = await response.arrayBuffer();
     await storageAPIs.deleteAvatarFromSupabase(userId); // Delete existing avatar if any
 
-    const fileToStore = `${Date.now()}-${fileName}`;
+    const fileToStore = `${Date.now()}-${image.fileName}`;
     const filepath = `${STORAGE_BUCKETS.AVATARS}/${userId}/${fileToStore}`;
     
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKETS.AVATARS)
       .upload(filepath, arrayBuffer, {
-        contentType: 'image/jpeg',
+        contentType: image.mimeType,
       });
 
     if (error) throw error;
@@ -157,38 +152,30 @@ export const storageAPIs = {
     
     // Update user's avatar URL
     //console.log('New avatar URL:', publicUrl.signedUrl);
-    const token = await utilityFunction.getToken(publicUrl.signedUrl)
+    const token = utilityFunction.getToken(publicUrl.signedUrl);
 
     //Update or insert avatar for profile. Files and Images in messages no need to replace.
-    const existed = 
-      groupOrIndividual == 'group'?
-      await profileAPI.getImagesbyGroup(userId): 
-      await profileAPI.getImagesbyProfile(userId);
-
+    
     const fileData: Files = {
-      id: existed.data?.id || uuidv4(),
       filepath: filepath,
       filename: fileToStore,
-      mime_type: 'image/jpeg',
-      original_name: fileName,
+      mime_type: image.type || '',
+      original_name: image.fileName || '',
       token: token,
+      file_size: image.fileSize || 0,
       bucket_name: STORAGE_BUCKETS.AVATARS,
       created_at: new Date().toISOString(),
-      conversation_id: groupOrIndividual == 'group'? userId : null,
-      profile_id: groupOrIndividual == 'individual'? userId : null,
     }
 
-    await messageAPI.upsertFileAndImage(fileData);
-
-    return { msg: { success: true, avatar_url: publicUrl.signedUrl}, message: 'Avatar uploaded and updated!' };
+    return { msg: { success: true, avatar_url: publicUrl.signedUrl, data: fileData }, message: 'Avatar uploaded and updated!' };
   } catch (e) {
     console.warn('Avatar upload error:', e);
     return { msg: { success: false, avatar_url: null}, error: 'Failed to upload avatar' };
   }
   },
-  async resizedImage(uri: string){
+  async resizedImage(image: ImagePicker.ImagePickerAsset){
     const resized = await ImageManipulator.manipulateAsync(
-      uri,
+      image.uri,
       [
         {
           resize: {width: 128}
@@ -199,7 +186,12 @@ export const storageAPIs = {
         format:ImageManipulator.SaveFormat.JPEG
       }
     )
-    return resized
+    return {
+      ...image,
+      uri: resized.uri,
+      width: resized.width,
+      height: resized.height
+    }
   },
   async deleteAvatarFromSupabase(
   userId: string
@@ -247,10 +239,7 @@ export const handleDeviceFilePath = {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
-      const fileName = uri.split('/').pop() || 'image.jpg';
-      return { uri, fileName};
-    
+      return result.assets[0]
     }
     else 
       return null;
@@ -270,10 +259,7 @@ export const handleDeviceFilePath = {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
-      const fileName = uri.split('/').pop() || 'image.jpg';
-      return { uri, fileName};
-
+      return result.assets[0];
     }
     else
       return null;
@@ -281,14 +267,28 @@ export const handleDeviceFilePath = {
   }
 }
 
-export const utilityFunction ={
-  async getToken(url: string){
+export const utilityFunction = {
+  getToken(url: string){
     const params = new URL(url).searchParams;
     return params.get('token');
   },
   async getImageOrFileStorageURL(file: Files){
     return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${file.bucket_name}/${file.filepath}?token=${file.token}`
   },
+  // Build a safe string URL from Files record (defensive: avoid passing objects to Image.uri)
+  buildFileUrl(file: Files | null){
+      if (!file) return '';
+      try {
+        const bucket = typeof file.bucket_name === 'string' ? file.bucket_name : String(file.bucket_name ?? '');
+        const filepath = typeof file.filepath === 'string' ? file.filepath : (file.filepath && typeof file.filepath === 'object' ? String((file.filepath as any).path ?? (file.filepath as any).uri ?? JSON.stringify(file.filepath)) : String(file.filepath ?? ''));
+        const token = typeof file.token === 'string' ? file.token : String(file.token ?? '');
+        if (!bucket || !filepath) return '';
+        return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}${token ? `?token=${token}` : ''}`;
+      } catch (e) {
+        console.error('Error building file url:', e, file);
+        return '';
+      }
+  }
 }
 
 

@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/utility/connection';
-import { handleDeviceFilePath, storageAPIs } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
 import {
   Actionsheet,
   ActionsheetContent,
@@ -16,8 +16,8 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { Spinner } from '@/components/ui/spinner';
-import { conversationAPI, messageAPI } from '@/utility/messages';
-import { Message } from '@/utility/types/supabse';
+import { conversationAPI, messageAPI,filesAPI} from '@/utility/messages';
+import { Files, Message } from '@/utility/types/supabse';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { Link } from 'expo-router';
 import { LinkText } from '@/components/ui/link';
@@ -45,21 +45,32 @@ export default function ChatRoomEditing() {
   const [activeImageUrl, setActiveImageUrl] = useState<string>('');
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
-    if (result && result.assets && result.assets[0])
+    handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
+      if (result != null)
       {
         setLoading(true);
-        storageAPIs.resizedImage(result.assets[0].uri).then((data) => {
+        storageAPIs.resizedImage(result).then((data) => {
 
-          storageAPIs.uploadAvatarToSupabase(data.uri, result?.assets[0]?.fileName ?? 'inage.jpg', conversation_id || '', 'group')
+          storageAPIs.uploadAvatarToSupabase(data, conversation_id || '')
           .then((data) => {
             if(data.msg?.success)
               setAvatarUri(data.msg?.avatar_url || '');
+
+            if(data.msg.data) {
+               let avatar: Files = data.msg?.data;
+              avatar.conversation_id = conversation_id;
+
+              filesAPI.selectFileGroup(conversation_id ?? '').then((data) => {
+                if(data && data.data && data.data.id){
+
+                  avatar.id = data.data.id;
+                  filesAPI.updateFileGroup(avatar);
+                }
+                else
+                  filesAPI.insertFileGroup(avatar);
+              })
+            }
+
           })
           .finally(async () => {
             setShowActionsheet(false);
@@ -67,30 +78,43 @@ export default function ChatRoomEditing() {
           });
         });
        
-      }
-    if (!result.canceled) {
-      setAvatarUri(result.assets[0].uri);
-    }
+      }});
   };
-    const takePicture = async ()=> {
-      handleDeviceFilePath.takePicture().then((result) => {
-        if (result != null)
-        {
-          setLoading(true);
-          storageAPIs.resizedImage(result.uri).then((data) => {
-            //last parameter to updateload to group
-            storageAPIs.uploadAvatarToSupabase(data.uri, result.fileName, conversation_id || '', 'group').then((data) => {
-              if(data.msg?.success)
-                setAvatarUri(data.msg?.avatar_url || '');
-            })
-            .finally(async () => {
-              setShowActionsheet(false);
-              setLoading(false);
-            });
+  const takePicture = async ()=> {
+    handleDeviceFilePath.takePicture().then((result) => {
+      if (result != null)
+      {
+        setLoading(true);
+        storageAPIs.resizedImage(result).then((data) => {
+          //last parameter to updateload to group
+          storageAPIs.uploadAvatarToSupabase(data, conversation_id || '').then((data) => {
+
+            if(data.msg?.success)
+              setAvatarUri(data.msg?.avatar_url || '');
+
+            if(data.msg.data) {
+               let avatar: Files = data.msg?.data;
+              avatar.conversation_id = conversation_id;
+
+              filesAPI.selectFileGroup(conversation_id ?? '').then((data) => {
+                if(data && data.data && data.data.id){
+
+                  avatar.id = data.data.id;
+                  filesAPI.updateFileGroup(avatar);
+                }
+                else
+                  filesAPI.insertFileGroup(avatar);
+              })
+            }
           })
-  
-        }});
-      }
+          .finally(async () => {
+            setShowActionsheet(false);
+            setLoading(false);
+          });
+        })
+
+      }});
+  }
 
   const handleSave = async () => {
 
@@ -105,29 +129,28 @@ export default function ChatRoomEditing() {
     router.back();
   };
 
-  const loadConversation = async () => {
-    const conversation = await conversationAPI.getConversationById({id: conversation_id});
-    if(conversation && conversation.data){
-        setAvatarUri(conversation.data?.avatar_url)
+  const loadAvatar = async () => {
+    const avatarRes = await conversationAPI.getAvatarProfileForGroup({id: conversation_id});
+    if(avatarRes && avatarRes.data){
+      const avatar = utilityFunction.buildFileUrl(avatarRes.data);
+      setAvatarUri(avatar)
     }
   }
 
   const loadFilesAndImages = async () => {
-    const fileAndImage = await messageAPI.getFilesAndImagesOnly({conversation_id: conversation_id})
+    const fileAndImage = await filesAPI.getFilesAndImagesOnly({conversation_id: conversation_id})
     if(fileAndImage && fileAndImage.data && fileAndImage.data.length > 0){
+         
         setMessages(fileAndImage.data)
     }
   }
 
   useEffect(() =>{
+    if( avatarUri != null || message.length > 0 ) return;
 
-  },[])
-
-  useEffect(() =>{
-    if( avatarUri != null || message.length > 0) return;
-
-    loadConversation();
+    loadAvatar();
     loadFilesAndImages();
+
   },[avatarUri, message])
 
   return (
@@ -175,6 +198,7 @@ export default function ChatRoomEditing() {
 
         {message.map((m, index) => {
             const msg_type = m.message_type;
+            const url = utilityFunction.buildFileUrl(m.files[0]);
             return(
                 
                 <GridItem 
@@ -184,27 +208,27 @@ export default function ChatRoomEditing() {
                     className: 'col-span-4',
                     }}
                 >   
-                    {msg_type == 'image' ?
+                    {msg_type.includes('image') ?
                         <TouchableOpacity
                             onPress={() => {
-                                setActiveImageUrl(m.content);
+                                setActiveImageUrl(url);
                                 setModalVisible(true);
                             }}
                         >
                             <Image
-                                source={{ uri: m.content }}
+                                source={{ uri: url }}
                                 className="w-42 h-48 rounded-lg"
                                 alt="image"
                             />
                         </TouchableOpacity>
-                       : msg_type == 'file'?
+                       : msg_type.includes('file')?
 
                         <Link
-                            href={`${m.content}` as '/'}
+                            href={url as '/'}
                             target="_blank"
                             rel="noopener noreferrer"
                             >
-                            <LinkText className="text-black text-xl">Download file</LinkText>
+                            <LinkText className="text-black text-xl">{m?.files[0].filename ?? ''}</LinkText>
                         <Icon
                             as={ArrowBigDown}
                             size="lg"

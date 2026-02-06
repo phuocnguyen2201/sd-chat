@@ -11,7 +11,7 @@ import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert } from 're
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { storageAPIs } from '@/utility/handleStorage';
+import { STORAGE_BUCKETS, storageAPIs, utilityFunction } from '@/utility/handleStorage';
 import ZoomImage from '@/components/ZoomImage';
 import { LinkText } from '@/components/ui/link';
 import { ArrowBigDown } from 'lucide-react-native';
@@ -44,6 +44,7 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
 import ForwardMessage from '@/components/ForwardMessage';
+import { Files } from '@/utility/types/supabse';
 
 type Message = {
   id: string;
@@ -56,6 +57,7 @@ type Message = {
   key_nonce: string;
   displayname: string;
   reactions: Array<Reaction>;
+  files: Array<Files>;
   created_at: string;
 };
 
@@ -110,6 +112,8 @@ export default function ChatScreen() {
 
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
+
+  const [imageUrlCache, setImageUrlCache] = useState<Record<string, string>>({});
 
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
@@ -362,7 +366,7 @@ export default function ChatScreen() {
         ]);
 
         if (error) {
-          console.warn('Error forwarding message', error);
+          console.warn('Error forwarding message', error.message);
           Alert.alert('Error', 'Failed to forward message to some recipients');
         }
       }
@@ -399,6 +403,9 @@ export default function ChatScreen() {
     }
   };
 
+  
+
+
   // Handle send message
   async function handleSend() {
     if (!newMessage.trim() || !conversation_id || !conversationKey || !userId) {
@@ -427,7 +434,7 @@ export default function ChatScreen() {
         
 
         if (error) {
-          console.warn('Error editing message', error);
+          console.warn('Error editing message', error.message);
           Alert.alert('Error', 'Failed to edit message');
         } else {
           setNewMessage('');
@@ -446,7 +453,7 @@ export default function ChatScreen() {
         ]);
 
           if (error) {
-          console.warn('Error sending message', error);
+          console.warn('Error sending message', error.message);
           Alert.alert('Error', 'Failed to send message');
         } else {
           setNewMessage('');
@@ -487,11 +494,11 @@ export default function ChatScreen() {
     });
 
     if (!result.canceled && conversation_id) {
-      const uri = result.assets[0].uri;
-      const fileName = uri.split('/').pop() || 'image.jpg';
+      //const uri = result.assets[0].uri;
+      //const fileName = uri.split('/').pop() || 'image.jpg';
       setLoading(true);
       try {
-        await storageAPIs.uploadImageToSupabase(uri, fileName, conversation_id, userId);
+        await storageAPIs.uploadImageToSupabase(result.assets[0], conversation_id, userId);
       } catch (error) {
         Alert.alert('Error', 'Failed to upload image');
       } finally {
@@ -513,9 +520,10 @@ export default function ChatScreen() {
 
       if (result.assets && result.assets.length > 0 && conversation_id) {
         const file = result.assets[0];
+        
         setLoading(true);
         try {
-          await storageAPIs.uploadFileToSupabase(file.uri, file.name, conversation_id, userId);
+          await storageAPIs.uploadFileToSupabase(file, conversation_id, userId);
         } catch (error) {
           Alert.alert('Error', 'Failed to upload file');
         } finally {
@@ -590,6 +598,10 @@ export default function ChatScreen() {
               // Only show username if it's not the current user and sender is different from previous message
               const shouldShowUsername = !isCurrentUser && !isSameSenderAsPrevious;
               //console.log('Rendering message from:', m.displayname);
+              const data = m.files?.[0] ?? null;
+
+              const url = utilityFunction.buildFileUrl(data);
+
               return (
                 <Pressable
                   key={m.id}
@@ -635,7 +647,7 @@ export default function ChatScreen() {
                   { shouldShowUsername ?  
                     <Box className={'flex-row mb-2 justify-start'}> 
                       <Text className="text-xs text-gray-500">{m.displayname}</Text>
-                    </Box>: null}
+                    </Box>: null }
                   
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
@@ -647,28 +659,26 @@ export default function ChatScreen() {
                           : 'bg-gray-300 rounded-bl-none'
                       }`}
                     >
-                      {m.message_type.includes('image') &&
-                      m.content.includes('/storage/v1/object/sign/storage-msg/') ? (
+                      {m.message_type.includes('image') ? (
                         <Pressable
                           onPress={() => {
-                            setActiveImageUrl(m.content);
-                            setModalVisible(true);
+                              setActiveImageUrl(url)
+                              setModalVisible(true);
                           }}
-                        >
+                        > 
                           <Image
-                            source={{ uri: m.content }}
+                            source={{uri: url}}
                             className="w-48 h-48 rounded-lg"
                             alt="image"
                           />
                         </Pressable>
-                      ) : m.message_type.includes('file') &&
-                        m.content.includes('/storage/v1/object/sign/chat-files/') ? (
+                      ) : m.message_type.includes('file') ? (
                         <Link
-                          href={`${m.content}` as '/'}
+                          href={url as '/'}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <LinkText className="text-black text-xl">Download file</LinkText>
+                          <LinkText className="text-black text-xl">{data?.filename|| ''}</LinkText>
                           <Icon
                             as={ArrowBigDown}
                             size="lg"

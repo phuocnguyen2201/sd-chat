@@ -24,7 +24,7 @@ export type Profile = {
   bio?: string;
   created_at?: string;
   updated_at?: string;
-  files?: Files[];
+  files_profiles?: Files[];
   // Add other profile fields as needed
 } | null;
 

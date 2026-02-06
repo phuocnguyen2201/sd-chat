@@ -42,7 +42,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*, files(*)')
+        .select('*, files_profiles(*)')
         .eq('id', userId)
 
       if (profileError) {

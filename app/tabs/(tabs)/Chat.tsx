@@ -589,11 +589,7 @@ export default function Chat() {
                           <Text className="text-xs text-gray-500">{time}</Text>
                         </HStack>
                         <Text className="text-sm text-gray-600" numberOfLines={1}>
-                          {msg_type == 'image'
-                            ? 'Image'
-                            : msg_type == 'file'
-                            ? 'Download'
-                            : lastMsg}
+                          {lastMsg}
                         </Text>
                       </Box>
                     </Pressable>
