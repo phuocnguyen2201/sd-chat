@@ -1,5 +1,5 @@
 // chat room can edit room name and avatar and 2 panels to display images and files
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
@@ -16,8 +16,8 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { Spinner } from '@/components/ui/spinner';
-import { conversationAPI, messageAPI,filesAPI} from '@/utility/messages';
-import { Files, Message } from '@/utility/types/supabse';
+import { conversationAPI, messageAPI, filesAPI} from '@/utility/messages';
+import { Conversation, Files, Message } from '@/utility/types/supabse';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { Link } from 'expo-router';
 import { LinkText } from '@/components/ui/link';
@@ -28,13 +28,14 @@ import {
 import { Card } from '@/components/ui/card';
 import { Heading } from '@/components/ui/heading';
 import ZoomImage from '@/components/ZoomImage';
+import { useSession } from '@/utility/session/SessionProvider';
 
 export default function ChatRoomEditing() {
+  const { user } = useSession();
   const router = useRouter();
-  const { conversation_id, displayName, public_key } = useLocalSearchParams<{
+  const { conversation_id, displayName } = useLocalSearchParams<{
     conversation_id?: string;
     displayName?: string;
-    public_key?: string;
   }>();
   const [loading, setLoading] = useState(false);
   const [message, setMessages] = useState<Message[]>([]);
@@ -43,7 +44,7 @@ export default function ChatRoomEditing() {
   const [showActionSheet, setShowActionsheet] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState<string>('');
-
+  const [isGroup, setIsGroup] = useState(false);
   const pickImage = async () => {
     handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
       if (result != null)
@@ -130,10 +131,25 @@ export default function ChatRoomEditing() {
   };
 
   const loadAvatar = async () => {
-    const avatarRes = await conversationAPI.getAvatarProfileForGroup({id: conversation_id});
+    const avatarRes = await conversationAPI.getCurrentConversation(conversation_id || '');
     if(avatarRes && avatarRes.data){
-      const avatar = utilityFunction.buildFileUrl(avatarRes.data);
-      setAvatarUri(avatar)
+
+      const convertedData = avatarRes.data;
+
+      setIsGroup(convertedData?.is_group)
+
+      if(convertedData?.is_group) {
+        const avatar = utilityFunction.buildFileUrl(convertedData.files_group?.[0]);
+        setAvatarUri(avatar)
+      }
+      else{
+         const participantAvatar =
+                    convertedData.conversation_participants?.[1]?.profiles?.id == user?.id
+                      ?  convertedData.conversation_participants?.[0]?.profiles.files_profiles?.[0]
+                      : convertedData.conversation_participants?.[1]?.profiles.files_profiles?.[0];
+          const buildURL = utilityFunction.buildFileUrl(participantAvatar || null);
+        setAvatarUri(buildURL)
+      }
     }
   }
 
@@ -155,7 +171,7 @@ export default function ChatRoomEditing() {
 
   return (
     <ScrollView className='bg-white' contentContainerStyle={{ padding: 16 }}>
-      <Box className="items-center mb-6">
+      <Box className="items-center mb-6 border border-gray-200">
         <TouchableOpacity onPress={() => setShowActionsheet(true)}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 100, height: 100, borderRadius: 50 }} />
@@ -167,21 +183,28 @@ export default function ChatRoomEditing() {
         </TouchableOpacity>
         </Box>
         <Box className="mb-4">
-            <Text className="mb-2">Group Name</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter room name"
-              className="border border-gray-300 rounded px-3 py-2"
-            />
+            { isGroup ? (
+              <>
+                <Text className="mb-2">Group Name</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter room name"
+                  className="border border-gray-300 rounded px-3 py-2"
+                />
+                <TouchableOpacity
+                onPress={handleSave}
+                  className="bg-blue-500 rounded px-4 py-2 items-center"
+                  >
+                  <Text className="text-white">Save</Text>
+              </TouchableOpacity>
+              </>
+            ) : (
+              <Heading>{name}</Heading>
+            )}
         </Box>
 
-        <TouchableOpacity
-          onPress={handleSave}
-            className="bg-blue-500 rounded px-4 py-2 items-center"
-            >
-            <Text className="text-white">Save</Text>
-        </TouchableOpacity>
+       
 
         <Card size="md" variant="elevated" className="m-3">
             <Heading size="md" className="mb-1">
@@ -196,7 +219,7 @@ export default function ChatRoomEditing() {
             }}
         >
 
-        {message.map((m, index) => {
+        {message && message.length > 0? message.map((m, index) => {
             const msg_type = m.message_type;
             const url = utilityFunction.buildFileUrl(m.files[0]);
             return(
@@ -237,7 +260,12 @@ export default function ChatRoomEditing() {
                 </GridItem>
                 
             )
-        })}
+        }):
+          <GridItem  
+          className="bg-background-50 p-6 rounded-md"
+          _extra={{ className: 'col-span-8' }}>
+            <Text className="text-gray-400 text-center">No images and files yet.</Text>
+          </GridItem>}
         </Grid>
 
         {/* ZoomImage Modal - Rendered at top level */}

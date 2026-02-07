@@ -473,6 +473,24 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async getCurrentConversation(conversation_id: string) : Promise<ApiResponse<Conversation>>{
+    try {
+      const {data, error} = await supabase
+      .from('conversations')
+      .select(`*, 
+        files_group(*), 
+        conversation_participants(
+          profiles(files_profiles(*))
+        )`)
+      .eq('id', conversation_id).single()
+
+      if(error) throw error
+
+      return { data , error: null};
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
 

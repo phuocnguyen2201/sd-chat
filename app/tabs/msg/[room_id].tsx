@@ -92,7 +92,6 @@ export default function ChatScreen() {
 
   const userId = user?.id ?? null;
 
-  const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
 
@@ -111,8 +110,6 @@ export default function ChatScreen() {
 
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
-
-  const [imageUrlCache, setImageUrlCache] = useState<Record<string, string>>({});
 
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
@@ -184,13 +181,14 @@ export default function ChatScreen() {
         headerRight: () => (
           <Pressable
             onPress={() => {
-              router.push({
-                pathname: '/tabs/msg/ChatRoomEditing',
-                params: {
-                  conversation_id: conversation_id,
-                  displayName: displayName,
-                },
-              });
+               router.push({
+                    pathname: '/tabs/msg/ChatRoomEditing',
+                    params: {
+                      conversation_id: conversation_id,
+                      displayName: displayName,
+                    },
+                  });
+             
             }}
             className="px-3 py-1 bg-blue-500 rounded-lg"
           >

@@ -74,7 +74,7 @@ export default function Settings() {
       const data = await authAPI.getProfileUser(user?.id ?? '');
       if(data.data){
         if(data.data.files_profiles) {        
-          const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles);
+          const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles?.[0]);
 
           setAvatar(avaURL || '')
         }
