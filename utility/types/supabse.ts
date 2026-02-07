@@ -134,7 +134,7 @@ export interface UserProfile {
   avatar_url: string | null
   public_key: string | null
   created_at: string
-  files_profiles: Files | null
+  files_profiles: Files [] | null
 }
 
 export interface Files{
@@ -160,9 +160,11 @@ export interface Conversation {
   created_at: string
   created_by: string
   avatar_url: string
-  participants: Array<{
-    profiles: Pick<UserProfile, 'id' | 'username' | 'displayname'>
+  conversation_participants: Array<{
+    profiles: Pick<UserProfile, 'id' | 'username' | 'displayname'| 'avatar_url'| 'files_profiles'>
   }>
+  
+  files_group: Array<Files>
   messages?: Message[]
 }
 

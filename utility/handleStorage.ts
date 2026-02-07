@@ -280,9 +280,6 @@ export const utilityFunction = {
         const filepath = typeof file.filepath === 'string' ? file.filepath : (file.filepath && typeof file.filepath === 'object' ? String((file.filepath as any).path ?? (file.filepath as any).uri ?? JSON.stringify(file.filepath)) : String(file.filepath ?? ''));
         const token = typeof file.token === 'string' ? file.token : String(file.token ?? '');
         if (!bucket || !filepath) return '';
-         const { data } = supabase.storage
-          .from(file.bucket_name)
-          .getPublicUrl(file.filepath);
         const publicURLCombined = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}?token=${token}`
 
         return publicURLCombined;

@@ -224,7 +224,7 @@ export const profileAPI = {
       const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`*, files_profiles(*)`)
         .neq('id', user?.id || '')
         .order('username')
       
@@ -342,8 +342,9 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         .select(`
           *,
           conversation_participants!inner(
-            profiles(id, username, displayname, avatar_url, public_key)
+            profiles(id, username, displayname, avatar_url, public_key, files_profiles(*))
           ),
+          files_group(*),
           messages(
             id,
             content,

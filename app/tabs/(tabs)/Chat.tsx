@@ -16,6 +16,9 @@ import * as Notifications from 'expo-notifications';
 import { PlusCircleIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import CreateGroupChat from '@/components/CreateGroupChat';
+import { Profile } from '@/utility/types/user';
+import { Conversation, UserProfile } from '@/utility/types/supabse';
+import { utilityFunction } from '@/utility/handleStorage';
 
 /**
  * Chat Tab Screen
@@ -28,11 +31,11 @@ export default function Chat() {
   const { user, profile, setCurrentConversation } = useSession();
   const userId = user?.id ?? '';
 
-  const [listUser, setListUser] = useState<any>(null);
-  const [listChatRooms, setListChatRooms] = useState<any>(null);
+  const [listUser, setListUser] = useState<UserProfile[]>([]);
+  const [listChatRooms, setListChatRooms] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filteredChatRooms, setFilteredChatRooms] = useState<any>([]);
-  const [filteredUsers, setFilteredUsers] = useState<any>([]);
+  const [filteredChatRooms, setFilteredChatRooms] = useState<Conversation[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [newChat, setNewChat] = useState<string>('');
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -493,7 +496,7 @@ export default function Chat() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="md" className="mr-4">
               {filteredUsers &&
-                filteredUsers.map((users: any, index: number) => (
+                filteredUsers.map((users, index: number) => (
                   <Pressable
                     className="pr-4 items-center"
                     key={`${users.id}-${index}` || `user-${index}`}
@@ -504,7 +507,7 @@ export default function Chat() {
                         {(users.displayname || 'U').slice(0, 2)}
                       </AvatarFallbackText>
                       <AvatarImage
-                        source={{ uri: users.avatar_url || undefined }}
+                        source={{ uri: utilityFunction.buildFileUrl(users.files_profiles?.[0]|| null) || undefined }}
                         style={{ width: 40, height: 40 }}
                       />
                       <AvatarBadge className="bg-green-500" />
@@ -526,12 +529,12 @@ export default function Chat() {
           >
             <VStack space="xs" className="pb-6">
               {filteredChatRooms && filteredChatRooms.length > 0 ? (
-                filteredChatRooms.map((room: any, index: number) => {
-
+                filteredChatRooms.map((room, index: number) => {
+                  
                   // if group chat, show group name
-                  const groupChatName = room?.name??'';
-
-                  const groupAvatar = room?.avatar_url?? '';
+                  const is_group = room?.is_group ?? false;
+                  const groupChatName = is_group ? room?.name: '';
+                  const groupAvatar = utilityFunction.buildFileUrl(room.files_group?.[0] || null);
 
                   // Determine participant info
                   const participantNames =
@@ -542,12 +545,13 @@ export default function Chat() {
                   // if group chat, show group avatar
                   const participantAvatar =
                     room.conversation_participants?.[1]?.profiles?.id == userId
-                      ? room.conversation_participants?.[0]?.profiles?.avatar_url
-                      : room.conversation_participants?.[1]?.profiles?.avatar_url;
+                      ?  utilityFunction.buildFileUrl(room.conversation_participants?.[0]?.profiles.files_profiles?.[0]|| null)
+                      : utilityFunction.buildFileUrl(room.conversation_participants?.[1]?.profiles.files_profiles?.[0]|| null);
 
+                  
                   // Get last message info
                   const lastMsg =
-                    room.messages?.length > 0
+                     room?.messages && room?.messages?.length > 0
                       ? room.messages[room.messages.length - 1].content
                       : 'No messages yet';
 
@@ -555,8 +559,8 @@ export default function Chat() {
                   const msg_type = room.messages?.[0]?.message_type ?? 'Text';
 
                   // Format time
-                  const time = room.updated_at
-                    ? new Date(room.updated_at).toLocaleTimeString([], {
+                  const time = room.created_at
+                    ? new Date(room.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
                       })
@@ -571,12 +575,12 @@ export default function Chat() {
                       <Box className="relative">
                         <Avatar size="lg" className="mr-3">
                           <AvatarFallbackText>
-                            {(groupChatName != ''? groupChatName : room.conversation_participants?.[1]?.profiles?.displayname || 'U').slice(
+                            {( is_group? groupChatName || 'U' : participantNames || 'U').slice(
                               0,
                               2
                             )}
                           </AvatarFallbackText>
-                          <AvatarImage source={{ uri: groupChatName != ''? groupAvatar : participantAvatar || undefined }} />
+                          <AvatarImage source={{ uri: groupChatName != '' && is_group ? groupAvatar : participantAvatar || undefined }} />
                         </Avatar>
                         <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
                       </Box>
