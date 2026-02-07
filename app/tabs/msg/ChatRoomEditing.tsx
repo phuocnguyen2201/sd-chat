@@ -202,7 +202,7 @@ export default function ChatRoomEditing() {
             return(
                 
                 <GridItem 
-                    id={`${m.id}-${index}`}
+                    key={`${m.id}-${m.conversation_id}`}
                     className="bg-background-50 p-4 rounded-md text-center"
                     _extra={{
                     className: 'col-span-4',

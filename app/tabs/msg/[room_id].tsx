@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Image } from '@/components/ui/image';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
@@ -7,7 +6,7 @@ import { useLocalSearchParams, Link, useRouter } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
-import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image } from 'react-native';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -241,8 +240,11 @@ export default function ChatScreen() {
           filter: `conversation_id=eq.${conversation_id}`,
         },
         (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
+           messageAPI.refreshMessage(payload.new.id).then((newMsg) => {
+            if(newMsg && newMsg.data){
+              setMessages((prev) => [...prev, newMsg.data as unknown as Message]);
+            }
+          });
         }
       )
       .on(
@@ -598,9 +600,11 @@ export default function ChatScreen() {
               // Only show username if it's not the current user and sender is different from previous message
               const shouldShowUsername = !isCurrentUser && !isSameSenderAsPrevious;
               //console.log('Rendering message from:', m.displayname);
+              let url: string = '';
               const data = m.files?.[0] ?? null;
-
-              const url = utilityFunction.buildFileUrl(data);
+              if(m.files && data && m.message_type.includes('image')){
+                url = utilityFunction.buildFileUrl(data);
+              }
 
               return (
                 <Pressable
@@ -662,14 +666,15 @@ export default function ChatScreen() {
                       {m.message_type.includes('image') ? (
                         <Pressable
                           onPress={() => {
-                              setActiveImageUrl(url)
+                              setActiveImageUrl(utilityFunction.buildFileUrl(data))
                               setModalVisible(true);
                           }}
                         > 
                           <Image
-                            source={{uri: url}}
+                            source={{uri: url }}
                             className="w-48 h-48 rounded-lg"
                             alt="image"
+                            onError={(e) => console.log('Image error:', e.nativeEvent.error)}
                           />
                         </Pressable>
                       ) : m.message_type.includes('file') ? (

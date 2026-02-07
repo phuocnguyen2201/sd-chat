@@ -558,7 +558,26 @@ export const messageAPI = {
       return { data: null, error: error as Error }
     }
   },
+  async refreshMessage(messageId: string): Promise<ApiResponse<Message>>{
+    try {
+       const {data, error} = await supabase
+        .from('messages')
+        .select(`
+          *,
+          profiles!inner(*),
+          files(*),
+          reactions(*)
+        `)
+        .eq('id', messageId)
+        .single();
 
+        if(error) throw error
+        return {data, error: null}
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+
+  }
 }
 
 // 5. Files and images

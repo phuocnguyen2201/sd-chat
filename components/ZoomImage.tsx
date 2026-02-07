@@ -6,7 +6,6 @@ import { Modal, View } from 'react-native';
 import ImageViewer from 'react-native-image-zoom-viewer';
 
 export default function ZoomImage({ image, visible, onClose }: { image: string; visible: boolean; onClose?: () => void }) {
-
     return (
         <Modal transparent={true} animationType="fade" visible={visible} onRequestClose={onClose}>
            <ImageViewer

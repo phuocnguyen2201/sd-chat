@@ -272,18 +272,20 @@ export const utilityFunction = {
     const params = new URL(url).searchParams;
     return params.get('token');
   },
-  async getImageOrFileStorageURL(file: Files){
-    return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${file.bucket_name}/${file.filepath}?token=${file.token}`
-  },
   // Build a safe string URL from Files record (defensive: avoid passing objects to Image.uri)
-  buildFileUrl(file: Files | null){
+  buildFileUrl(file: Files | null): string{
       if (!file) return '';
       try {
         const bucket = typeof file.bucket_name === 'string' ? file.bucket_name : String(file.bucket_name ?? '');
         const filepath = typeof file.filepath === 'string' ? file.filepath : (file.filepath && typeof file.filepath === 'object' ? String((file.filepath as any).path ?? (file.filepath as any).uri ?? JSON.stringify(file.filepath)) : String(file.filepath ?? ''));
         const token = typeof file.token === 'string' ? file.token : String(file.token ?? '');
         if (!bucket || !filepath) return '';
-        return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}${token ? `?token=${token}` : ''}`;
+         const { data } = supabase.storage
+          .from(file.bucket_name)
+          .getPublicUrl(file.filepath);
+        const publicURLCombined = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}?token=${token}`
+
+        return publicURLCombined;
       } catch (e) {
         console.error('Error building file url:', e, file);
         return '';
