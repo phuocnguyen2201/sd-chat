@@ -149,7 +149,7 @@ export interface Files{
   original_name: string
   mime_type: string
   file_size?: number | 0
-  created_at: string
+  created_at?: string
 }
 
 export interface Conversation {
@@ -169,15 +169,19 @@ export interface Conversation {
 }
 
 export interface Message {
-  id: string
-  conversation_id: string
-  sender_id: string
-  content: string
-  message_type: string
-  metadata: Json | null
-  created_at: string
-  read_by: string[]
-  files: Files[]
+  id?: string;
+  conversation_id?: string;
+  sender_id: string | null;
+  message_type?: string;
+  content?: string;
+  nonce?: string;
+  wrapped_key?: string;
+  key_nonce?: string;
+  displayname?: string;
+  reactions?: Array<Reaction>;
+  files?: Array<Files>;
+  is_forward?: boolean;
+  created_at?: string;
 }
 
 export interface Reaction {

@@ -16,10 +16,9 @@ import * as Notifications from 'expo-notifications';
 import { PlusCircleIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import CreateGroupChat from '@/components/CreateGroupChat';
-import { Profile } from '@/utility/types/user';
 import { Conversation, UserProfile } from '@/utility/types/supabse';
 import { utilityFunction } from '@/utility/handleStorage';
-
+import { Button, ButtonText } from '@/components/ui/button';
 /**
  * Chat Tab Screen
  * 
@@ -27,6 +26,7 @@ import { utilityFunction } from '@/utility/handleStorage';
  * Uses SessionProvider for conversation key management.
  * No push notification logic - handled by Bootstrap.
  */
+
 export default function Chat() {
   const { user, profile, setCurrentConversation } = useSession();
   const userId = user?.id ?? '';
@@ -37,6 +37,8 @@ export default function Chat() {
   const [filteredChatRooms, setFilteredChatRooms] = useState<Conversation[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [newChat, setNewChat] = useState<string>('');
+
+  const [cancelSeachButton, setCancelSearchButton]= useState(false);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
 
@@ -487,6 +489,14 @@ export default function Chat() {
             className="text-gray-700 px-4"
             placeholderTextColor="#9CA3AF"
           />
+          { searchQuery != ''?           
+              <Button variant="solid" size="sm" action="primary" 
+                onPress={() => {
+                  setSearchQuery('');
+                }}>
+                <ButtonText>Cancel</ButtonText>
+              </Button> : <></>}
+
         </Input>
       </Box>
 

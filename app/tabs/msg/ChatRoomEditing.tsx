@@ -135,7 +135,7 @@ export default function ChatRoomEditing() {
     if(avatarRes && avatarRes.data){
 
       const convertedData = avatarRes.data;
-
+      console.log(convertedData.conversation_participants[0].profiles.id)
       setIsGroup(convertedData?.is_group)
 
       if(convertedData?.is_group) {
@@ -220,8 +220,8 @@ export default function ChatRoomEditing() {
         >
 
         {message && message.length > 0? message.map((m, index) => {
-            const msg_type = m.message_type;
-            const url = utilityFunction.buildFileUrl(m.files[0]);
+            const msg_type = m && m.message_type? m.message_type : '';
+            const url = utilityFunction.buildFileUrl(m?.files?.[0] || null);
             return(
                 
                 <GridItem 
@@ -251,7 +251,7 @@ export default function ChatRoomEditing() {
                             target="_blank"
                             rel="noopener noreferrer"
                             >
-                            <LinkText className="text-black text-xl">{m?.files[0].filename ?? ''}</LinkText>
+                            <LinkText className="text-black text-xl">{m && m?.files?.[0]?.filename || ''}</LinkText>
                         <Icon
                             as={ArrowBigDown}
                             size="lg"

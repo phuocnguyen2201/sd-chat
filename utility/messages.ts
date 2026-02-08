@@ -391,7 +391,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         p_group_users: participantIds
       })
       
-      if (convError) console.log('Conversation creation error:', convError)
+      if (convError) throw `Conversation creation error, ${convError}`;
       return { data: conversation[0], error: null };
     } catch (error) {
       return { data: null, error: error as Error };
@@ -481,7 +481,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       .select(`*, 
         files_group(*), 
         conversation_participants(
-          profiles(files_profiles(*))
+          profiles(id, files_profiles(*))
         )`)
       .eq('id', conversation_id).single()
 
@@ -520,6 +520,23 @@ export const messageAPI = {
         .select()
         .single()
       
+      if (error) throw error
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async forwardMessage(forward: Message): Promise<ApiResponse<Message>>{
+    try {
+        const { data, error } = await supabase
+        .from('messages')
+        .insert([
+          forward
+        ])
+        .select()
+        .single();
+         
       if (error) throw error
 
       return { data, error: null }
@@ -595,7 +612,25 @@ export const messageAPI = {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+  async getMessageWithFileOrImage(messageId:string, conversation_id: string): Promise<ApiResponse<Message>> {
+   try {
+    const {data, error} = await supabase
+        .from('messages')
+        .select(`
+          *,
+          files(*)
+        `)
+        .eq('id', messageId)
+        .eq('conversation_id', conversation_id)
+        .in('message_type',['image','file'])
+        .single();
 
+        if(error) throw error
+        return {data, error: null}
+   } catch (error) {
+    return { data: null, error: error as Error }
+   } 
   }
 }
 
@@ -639,7 +674,7 @@ export const filesAPI = {
       .eq('profile_id', profile_id)
       .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
       
-      if(error) console.log(error.message);
+      if(error) throw(error.message);
 
       return { data: data?.[0], error: null }
     } catch (error) {
@@ -654,7 +689,7 @@ export const filesAPI = {
       .select()
       .single()
       
-      if(error) console.log(error.message);
+      if(error) throw(error.message);
 
       return { data, error: null }
     } catch (error) {
@@ -668,7 +703,7 @@ export const filesAPI = {
       .update(update)
       .eq('id', update.id)
       
-      if(error) console.log(error.message);
+      if(error) throw(error.message);
 
       return { data, error: null }
     } catch (error) {
@@ -683,7 +718,7 @@ export const filesAPI = {
       .eq('conversation_id', group_id)
       .eq('bucket_name', STORAGE_BUCKETS.AVATARS)
       
-      if(error) console.log(error.message);
+      if(error) throw(error.message);
 
       return { data: data?.[0], error: null }
     } catch (error) {
@@ -698,7 +733,7 @@ export const filesAPI = {
       .select()
       .single()
       
-      if(error) console.log(error.message);
+      if(error) throw(error.message);
 
       return { data, error: null }
     } catch (error) {

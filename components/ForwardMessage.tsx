@@ -10,7 +10,6 @@ import { Scroll } from 'lucide-react-native';
 
 type ForwardMessageProps = {
   isOpen: boolean;
-  message?: string;
   messagePreview?: string; // decrypted/plaintext message preview
   onClose: () => void;
   onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
@@ -25,7 +24,6 @@ type UserProfile = {
 
 export default function ForwardMessage({
   isOpen,
-  message,
   messagePreview = '',
   onClose,
   onForward,

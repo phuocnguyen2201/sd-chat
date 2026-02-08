@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet, Text as RNText } from "react-native";
+import { View, Pressable, StyleSheet, Text as RNText, TouchableWithoutFeedback } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Icon } from "@/components/ui/icon";
 import { ForwardIcon, Trash2Icon, EditIcon } from "lucide-react-native";
@@ -7,6 +7,7 @@ import { HStack } from "./ui/hstack";
 
 type MessageActionProps = {
   messageId: string;
+  msg_type: string;
   onReaction?: (messageId: string, emoji: string) => void;
   onEdit?: () => void;
   onForward?: () => void;
@@ -23,6 +24,7 @@ const ACTIONS = [
 
 export function MessageAction({
   messageId,
+  msg_type,
   onReaction,
   onEdit,
   onForward,
@@ -43,48 +45,55 @@ export function MessageAction({
   };
 
   return (
-    <View style={styles.container}>
+    <View style = { styles.container } >
       <HStack space="md" className="flex-wrap">
         {REACTIONS.map((emoji) => (
           <Pressable
-            key={emoji}
-            onPress={() => onReaction?.(messageId, emoji)}
-            style={styles.reaction}
+            key = {emoji}
+            onPress = {() => onReaction?.(messageId, emoji)}
+            style = { styles.reaction }
           >
-            <RNText style={styles.emoji}>{emoji}</RNText>
+            <RNText style = { styles.emoji }>{ emoji }</RNText>
           </Pressable>
         ))}
 
-        <View style={styles.divider} />
+        <View style = { styles.divider } />
 
-        {ACTIONS.map((action) => (
-          <Pressable
-            key={action.id}
-            onPress={() => handleAction(action.id)}
-            style={styles.action}
-            disabled={
-              (action.id === "edit" && !onEdit) ||
-              (action.id === "forward" && !onForward) ||
-              (action.id === "delete" && !onDelete)
-            }
-          >
-            <Icon
-              as={action.icon}
-              size="md"
-              style={{ color: action.color }}
-            />
-            <Text
-              style={{
-                fontSize: 10,
-                color: action.color,
-                marginTop: 4,
-                textAlign: "center",
-              }}
+        {ACTIONS.map((action) => {
+          // Skip edit action if msg_type is not 'text'
+          if (action.id === "edit" && msg_type !== "text") {
+            return null;
+          }
+
+          return (
+            <Pressable
+              key = { action.id }
+              onPress = {() => handleAction(action.id)}
+              style = {styles.action}
+              disabled = {
+                (action.id === "edit" && !onEdit) ||
+                (action.id === "forward" && !onForward) ||
+                (action.id === "delete" && !onDelete)
+              }
             >
-              {action.label}
-            </Text>
-          </Pressable>
-        ))}
+              <Icon
+                as = { action.icon }
+                size = "md"
+                style = {{ color: action.color }}
+              />
+              <Text
+                style = {{
+                  fontSize: 10,
+                  color: action.color,
+                  marginTop: 4,
+                  textAlign: "center",
+                }}
+              >
+                { action.label }
+              </Text>
+            </Pressable>
+          );
+        })}
       </HStack>
     </View>
   );

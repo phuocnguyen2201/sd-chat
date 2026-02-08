@@ -6,7 +6,7 @@ import { useLocalSearchParams, Link, useRouter } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
-import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View } from 'react-native';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -18,7 +18,7 @@ import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
 import { Picker } from 'emoji-mart-native';
-import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
+import { conversationAPI, filesAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
   Popover,
   PopoverBackdrop,
@@ -43,30 +43,8 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
 import ForwardMessage from '@/components/ForwardMessage';
-import { Files } from '@/utility/types/supabse';
-
-type Message = {
-  id: string;
-  conversation_id: string;
-  sender_id: string | null;
-  message_type: string;
-  content: string;
-  nonce: string;
-  wrapped_key: string;
-  key_nonce: string;
-  displayname: string;
-  reactions: Array<Reaction>;
-  files: Array<Files>;
-  created_at: string;
-};
-
-type Reaction = {
-  id: string;
-  sender_id: string;
-  sender_username: string;
-  emoji: string;
-  message_id: string;
-};
+import { Files, Message } from '@/utility/types/supabse';
+import { TouchableWithoutFeedback } from '@gorhom/bottom-sheet';
 
 /**
  * Chat Room Screen
@@ -100,6 +78,7 @@ export default function ChatScreen() {
 
   const [activeMessage, setActiveMessage] = useState<string>('');
   const [activeReaction, setActiveReaction] = useState<string>('');
+  const [activeMsgType, setActiveMsgType] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -335,8 +314,13 @@ export default function ChatScreen() {
   }
 
   //Handle forward message
-  const handleForwardMessage = async (message: string, recipientId: Array<string>) => {
-    if (!message || !recipientId) {
+  const handleForwardMessage = async (recipientId: Array<string>) => {
+
+    const messageToForward = messages.find((msg) => 
+      msg.id === activeMessage && msg.conversation_id === conversation_id
+    )
+
+    if (messageToForward && messageToForward.id && !messageToForward?.content || !recipientId) {
       Alert.alert('Error', 'Message or Recipient ID not available');
       return;
     }
@@ -346,28 +330,85 @@ export default function ChatScreen() {
       const conversation = await conversationAPI.verifyDMConversation(recipient!);
       
       if (conversation !== null && conversation.data?.conversation_id) {
+        //For text message when fwd, must encryption the message with new receiver's public keys.
+        if(messageToForward?.message_type === 'text') {
+          // Find the right conversation key
+          const forwardPartyKey = await getConversationKey(conversation.data.conversation_id);
 
-        // Find the right conversation key
-        const forwardPartyKey = await getConversationKey(conversation.data.conversation_id);
-
-        // Encrypt and send the forwarded message
-        const encryptedMessage = MessageEncryption.encryptMessage(message, forwardPartyKey!);
-
-        const { error } = await supabase.from('messages').insert([
-          {
+          // Encrypt and send the forwarded message
+          const encryptedMessage = MessageEncryption.encryptMessage(messageToForward?.content ?? '', forwardPartyKey!);
+          const msg: Message = {
             conversation_id: conversation?.data?.conversation_id as string || '',
-            sender_id: userId,
-            content: encryptedMessage.ciphertext,
-            nonce: encryptedMessage.nonce,
-            key_nonce: encryptedMessage.keyNonce,
-            wrapped_key: encryptedMessage.wrappedKey,
-            message_type: 'forward',
-          },
-        ]);
+              sender_id: userId,
+              content: encryptedMessage.ciphertext,
+              nonce: encryptedMessage.nonce,
+              key_nonce: encryptedMessage.keyNonce,
+              wrapped_key: encryptedMessage.wrappedKey,
+              message_type: messageToForward.message_type,
+              is_forward: true
+          }
+          const { error } = await messageAPI.forwardMessage(msg)
 
-        if (error) {
-          console.warn('Error forwarding message', error.message);
-          Alert.alert('Error', 'Failed to forward message to some recipients');
+          if (error) {
+            console.warn('Error forwarding message', error.message);
+            Alert.alert('Error', 'Failed to forward message to some recipients');
+          }
+        }
+        else {
+          //Forward type file or message. Files or Images location will remaining the same, just add a new record so the new conversation can reference to the images or files.
+          //Filter the message wanted to forward
+          
+          //console.log(fwdMsg)
+          /* When nonce, key_nonce and wrapped_key is null, which mean the msg is either file or images*/
+          if(!messageToForward?.key_nonce && !messageToForward?.wrapped_key) {
+
+            //Forward the message first and get the id for the new conversation.
+            const newFwdMessage: Message = {
+              sender_id: userId,
+              conversation_id: conversation.data.conversation_id as string || '',
+              message_type: messageToForward?.message_type,
+              content: messageToForward?.content,
+              is_forward: true
+            }
+            // insert new message first
+            const { data: dataFwdMsg, error: fwdError } = await messageAPI.forwardMessage(newFwdMessage)
+
+            if (fwdError) throw fwdError;
+
+            // Retrieve the files or images information to create reference in table files for new conversation.
+            const {data: msg, error: msgError} = await messageAPI.getMessageWithFileOrImage(messageToForward?.id || '', conversation_id || '');
+
+            if(msgError) throw msgError;
+
+            if(msg && msg.files) {
+              
+              const retrievedFileInformation = msg.files[0];
+
+              //New Files or images information as reference for new conversation.
+              const newFwdFileOrImage: Files = {
+                message_id: dataFwdMsg?.id, //Upate new message id
+                bucket_name: retrievedFileInformation?.bucket_name,
+                filepath: retrievedFileInformation?.filepath,
+                filename: retrievedFileInformation?.filename,
+                file_size: retrievedFileInformation?.file_size || 0,
+                original_name: retrievedFileInformation?.original_name || '',
+                token: retrievedFileInformation?.token,
+                mime_type: retrievedFileInformation?.mime_type,
+              
+              }
+
+              //Insert a new message to new conversation.
+              const { data, error: fwdFileError} = await filesAPI.insertFilesMessages(newFwdFileOrImage);
+             
+
+              if (fwdFileError) {
+                console.warn('Error forwarding message', fwdFileError?.message);
+                Alert.alert('Error', 'Failed to forward message to some recipients');
+              }
+            }
+           
+          }
+
         }
       }
       });
@@ -600,7 +641,7 @@ export default function ChatScreen() {
               //console.log('Rendering message from:', m.displayname);
               let url: string = '';
               const data = m.files?.[0] ?? null;
-              if(m.files && data && m.message_type.includes('image')){
+              if(m && m.message_type && m.files  && (m.message_type.includes('image')|| m.message_type.includes('file'))){
                 url = utilityFunction.buildFileUrl(data);
               }
 
@@ -609,39 +650,45 @@ export default function ChatScreen() {
                   key={m.id}
                   onLongPress={() => {
                     setShowReaction(true);
-                    setActiveMessage(m.id);
+                    setActiveMessage(m.id ?? '');
+                  }}
+                  onPress={() => {
+                    setShowReaction(false);
+                    setActiveMessage('');
                   }}
                 >
+                  <TouchableWithoutFeedback>
                   {/* active message want to reaction or delete */}
                   {showReaction && activeMessage == m.id && (
-                    <Box>
-
-                      <MessageAction 
-                        messageId={m.id} 
-                        onReaction={handleReaction}
-                        onEdit={() => {
-                          setNewMessage(MessageEncryption.decryptMessage(
-                            {
-                              ciphertext: m.content,
-                              nonce: m.nonce,
-                              wrappedKey: m.wrapped_key,
-                              keyNonce: m.key_nonce,
-                            },
-                            conversationKey
-                          ));
-                          setActiveMessage(m.id);
-                          setShowReaction(false);
-                        }}
-                        onForward={() => {
-                          setShowForwardDialog(true)
-                        }}
-                        onDelete={() => { 
-                          setShowDeleteDialog(true)
-                          setMessageToDelete(m.id);
-
-                        }} />
-                    </Box>
-                    
+                        <View onStartShouldSetResponder={() => true}
+                              onResponderTerminationRequest={() => false}
+                              onTouchEnd={(e) => { e.stopPropagation() }}>
+                        <MessageAction 
+                          messageId = {m.id}
+                          msg_type = {m?.message_type || ''}
+                          onReaction = {handleReaction}
+                          onEdit={() => {
+                            setNewMessage(m.message_type == 'text' ? MessageEncryption.decryptMessage(
+                              {
+                                ciphertext: m?.content?? '',
+                                nonce: m.nonce?? '',
+                                wrappedKey: m.wrapped_key?? '',
+                                keyNonce: m.key_nonce?? '',
+                              },
+                              conversationKey
+                            ): '');
+                            setActiveMessage(m?.id ?? '');
+                            setShowReaction(false);
+                          }}
+                          onForward={() => {
+                            setShowForwardDialog(true)
+                          }}
+                          onDelete={() => { 
+                            setShowDeleteDialog(true)
+                            setMessageToDelete(m.id ?? '');
+                        
+                          }}/>
+                        </View>
                   )}
          
                   
@@ -649,7 +696,7 @@ export default function ChatScreen() {
                   { shouldShowUsername ?  
                     <Box className={'flex-row mb-2 justify-start'}> 
                       <Text className="text-xs text-gray-500">{m.displayname}</Text>
-                    </Box>: null }
+                    </Box>: <></> }
                   
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
@@ -659,12 +706,13 @@ export default function ChatScreen() {
                         isCurrentUser
                           ? 'bg-blue-500 rounded-br-none'
                           : 'bg-gray-300 rounded-bl-none'
-                      }`}
-                    >
-                      {m.message_type.includes('image') ? (
+                      }`}> 
+                      {m.is_forward ? <Text><Icon as={ForwardIcon} size="md" className="text-gray-700" /></Text> : null}
+                      {m && m.message_type && m?.message_type.includes('image') ? 
+                        
                         <Pressable
                           onPress={() => {
-                              setActiveImageUrl(utilityFunction.buildFileUrl(data))
+                              setActiveImageUrl(url)
                               setModalVisible(true);
                           }}
                         > 
@@ -675,7 +723,7 @@ export default function ChatScreen() {
                             onError={(e) => console.log('Image error:', e.nativeEvent.error)}
                           />
                         </Pressable>
-                      ) : m.message_type.includes('file') ? (
+                       : m && m.message_type && m.message_type.includes('file') ? 
                         <Link
                           href={url as '/'}
                           target="_blank"
@@ -688,44 +736,23 @@ export default function ChatScreen() {
                             className="mt-0.5 text-info-600 text-black"
                           />
                         </Link>
-                      ) : m.message_type.includes('forward') ? (
-                        <Box>
-                          <Icon as={ForwardIcon} size="md" className="text-gray-700" />
-                          <Text
-                            className={`text-lg ${
-                              isCurrentUser ? 'text-white font-semibold' : 'text-black'
-                            }`}
-                          >
-                            {MessageEncryption.decryptMessage(
-                              {
-                                ciphertext: m.content,
-                                nonce: m.nonce,
-                                wrappedKey: m.wrapped_key,
-                                keyNonce: m.key_nonce,
-                              },
-                              conversationKey
-                            )}
-                          </Text>
-                        </Box>
-                          
-                        )
-                      : (
+                       : 
                         <Text
                           className={`text-lg ${
                             isCurrentUser ? 'text-white font-semibold' : 'text-black'
                           }`}
                         >
-                          {MessageEncryption.decryptMessage(
+                          { m.message_type == 'text' ? MessageEncryption.decryptMessage(
                             {
-                              ciphertext: m.content,
-                              nonce: m.nonce,
-                              wrappedKey: m.wrapped_key,
-                              keyNonce: m.key_nonce,
+                              ciphertext: m.content ?? '',
+                              nonce: m.nonce ?? '',
+                              wrappedKey: m.wrapped_key ?? '',
+                              keyNonce: m.key_nonce ?? '',
                             },
                             conversationKey
-                          )}
+                          ): null }
                         </Text>
-                      )}
+                      }
                     </Box>
                   </Box>
                   {/*Reaction loading*/}
@@ -739,7 +766,7 @@ export default function ChatScreen() {
                           <Popover
                             isOpen={activeReaction === m.id}
                             onClose={() => setActiveReaction('')}
-                            onOpen={() => setActiveReaction(m.id)}
+                            onOpen={() => setActiveReaction(m.id ?? '')}
                             placement="top"
                             size="md"
                             trigger={(triggerProps) => {
@@ -763,9 +790,12 @@ export default function ChatScreen() {
                         
                       ))}
                   </Box>
+                  </TouchableWithoutFeedback>
                 </Pressable>
+
               );
             })}
+            
           </VStack>
 
 
@@ -815,17 +845,16 @@ export default function ChatScreen() {
         </AlertDialog>
               {/*Forward message*/}
         <ForwardMessage
-          isOpen={showForwardDialog}
-          onClose={() => {
+          isOpen = {showForwardDialog}
+          onClose = {() => {
             setShowForwardDialog(false)
             setShowReaction(false);
           }}
-          
-          onForward={(message, recipientIds) => {
-            handleForwardMessage(message, recipientIds);
+          onForward = {(message, recipientIds) => {
+            handleForwardMessage(recipientIds);
           }}
-          messagePreview={
-            messages.find((msg) => msg.id === activeMessage)
+          messagePreview = {
+            messages.find((msg) => msg.id === activeMessage && msg.message_type == "text")
               ? MessageEncryption.decryptMessage(
                   {
                     ciphertext: messages.find((msg) => msg.id === activeMessage)?.content || '',
@@ -835,7 +864,7 @@ export default function ChatScreen() {
                   },
                   conversationKey
                 )
-              : ''
+              : messages.find((msg) => msg.id === activeMessage)?.content?.toUpperCase() || ''
           }
         /> 
         {/* Input Bar - Fixed above keyboard */}
