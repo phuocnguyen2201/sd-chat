@@ -657,7 +657,7 @@ export default function ChatScreen() {
                     setActiveMessage('');
                   }}
                 >
-                  <TouchableWithoutFeedback>
+                  
                   {/* active message want to reaction or delete */}
                   {showReaction && activeMessage == m.id && (
                         <View onStartShouldSetResponder={() => true}
@@ -712,8 +712,12 @@ export default function ChatScreen() {
                         
                         <Pressable
                           onPress={() => {
-                              setActiveImageUrl(url)
-                              setModalVisible(true);
+                            setActiveImageUrl(url)
+                            setModalVisible(true);
+                          }}
+                          onLongPress={() => {
+                            setShowReaction(true);
+                            setActiveMessage(m.id ?? '');
                           }}
                         > 
                           <Image
@@ -790,7 +794,6 @@ export default function ChatScreen() {
                         
                       ))}
                   </Box>
-                  </TouchableWithoutFeedback>
                 </Pressable>
 
               );

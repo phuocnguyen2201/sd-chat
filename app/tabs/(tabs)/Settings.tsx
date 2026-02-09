@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Spinner } from '@/components/ui/spinner';
@@ -10,7 +10,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { supabase } from '@/utility/connection';
 import { ScrollView, Pressable, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import {
   AlertDialog,
   AlertDialogBackdrop,
@@ -21,7 +21,7 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import * as ImagePicker from 'expo-image-picker';
-import { Icon, CloseIcon } from '@/components/ui/icon';
+import { Icon, CloseIcon, SunIcon, MoonIcon } from '@/components/ui/icon';
 import { authAPI, profileAPI, filesAPI }  from '../../../utility/messages';
 import {
   Actionsheet,
@@ -37,6 +37,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { Files } from '@/utility/types/supabse';
+import { Switch } from '@/components/ui/switch';
 
 export default function Settings() {
   const router = useRouter();
@@ -55,7 +56,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, refreshProfile } = useSession();
+  const { user, profile, isDarkMode, fetchThemeMode, refreshProfile } = useSession();
+
 
   useEffect(() => {
     if(!avatar || !displayName) {
@@ -230,8 +232,22 @@ export default function Settings() {
 
       }});
     } 
+
+    //Toggle darkmore
+    const toggleDarkMode = async (toggle: boolean) =>{
+      try {
+       await AsyncStorage.setItem('darkmode', toggle ? 'dark' : 'light');
+       await fetchThemeMode();
+        setTimeout(() => {
+          router.push('/Bootstrap');
+        }, 1000);
+      } catch (error) {
+        console.log("Error on toggleDarkMode", error)
+        return
+      }
+    }
   return (
-    <ScrollView className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
+    <ScrollView className={`flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
       <Box className="p-6">
         <Heading className="font-bold text-3xl mb-2">Settings</Heading>
         <Text className="text-gray-500 mb-6">Manage your profile and account</Text>
@@ -243,7 +259,7 @@ export default function Settings() {
         )}
 
         {/* Avatar Section */}
-        <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border `}>
           <HStack className="justify-between items-center mb-2">
             <Pressable onPress={() => setShowActionsheet(true)}>
               <Avatar size="xl">
@@ -259,13 +275,29 @@ export default function Settings() {
             {loading ? <Spinner size="large" color="grey" />:<></>}
           </HStack>
         </Box>
-        
-        {/* Display Name Section */}
-        <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+
+        {/* Dark mode Section */}
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
             <VStack className="flex-1">
-              <Text className="text-xs text-gray-500 uppercase font-bold mb-2">Display Name</Text>
-              <Text className="text-lg text-black font-semibold">{displayName || 'Not set'}</Text>
+              <Text className={`text-lg ${isDarkMode == "dark"? 'text-white':'text-black'} font-semibold`}>Dark Mode: <Icon as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
+            </VStack>
+            <Switch
+              size="lg"
+              trackColor={{ false: '#d4d4d4', true: '#525252' }}
+              thumbColor="#fafafa"
+              defaultValue={isDarkMode == 'light'? false: true}
+              onValueChange={(data) => { toggleDarkMode(data) }}
+            />
+          </HStack>
+        </Box>
+        
+        {/* Display Name Section */}
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
+          <HStack className="justify-between items-center mb-2">
+            <VStack className="flex-1">
+              <Text className={`text-xs ${isDarkMode == "dark"? 'text-white':'text-gray-500'} uppercase font-bold mb-2`}>Display Name</Text>
+              <Text className={`text-lg ${isDarkMode == "dark"? 'text-white':'text-black'} font-semibold`}>{displayName || 'Not set'}</Text>
             </VStack>
             <Button
               size="sm"
@@ -279,11 +311,11 @@ export default function Settings() {
         </Box>
 
         {/* Password Section */}
-        <Box className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border border-gray-200`}>
           <HStack className="justify-between items-center">
             <VStack>
-              <Text className="text-xs text-gray-500 uppercase font-bold mb-2">Password</Text>
-              <Text className="text-gray-600">••••••••</Text>
+              <Text className={`text-xs ${isDarkMode == "dark"? 'text-white':'text-gray-500'} uppercase font-bold mb-2`}>Password</Text>
+              <Text className={`${isDarkMode == "dark"? 'text-white':'text-black'}`}>••••••••</Text>
             </VStack>
             <Button
               size="sm"

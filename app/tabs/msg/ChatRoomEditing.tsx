@@ -135,7 +135,7 @@ export default function ChatRoomEditing() {
     if(avatarRes && avatarRes.data){
 
       const convertedData = avatarRes.data;
-      console.log(convertedData.conversation_participants[0].profiles.id)
+
       setIsGroup(convertedData?.is_group)
 
       if(convertedData?.is_group) {
@@ -185,16 +185,16 @@ export default function ChatRoomEditing() {
         <Box className="mb-4">
             { isGroup ? (
               <>
-                <Text className="mb-2">Group Name</Text>
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Enter room name"
-                  className="border border-gray-300 rounded px-3 py-2"
-                />
+                <Text className="mb-2 text-lg text-black font-semibold">Group Name</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Enter room name"
+                    className="border border-gray-300 rounded px-3 py-2"
+                  />
                 <TouchableOpacity
                 onPress={handleSave}
-                  className="bg-blue-500 rounded px-4 py-2 items-center"
+                  className="bg-blue-500 rounded px-4 py-2 items-center mt-2"
                   >
                   <Text className="text-white">Save</Text>
               </TouchableOpacity>

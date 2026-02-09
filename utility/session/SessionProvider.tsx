@@ -7,6 +7,7 @@ import { ConversationKeyManager } from '../securedMessage/ConversationKeyManagem
 export interface SessionState {
   user: User;
   profile: Profile;
+  isDarkMode: string;
   conversationKey: Uint8Array | null; // Current conversation key
   currentConversationId: string | null;
   loading: boolean;
@@ -16,6 +17,7 @@ export interface SessionState {
 export interface SessionContextType extends SessionState {
   // Session management
   refreshProfile: () => Promise<void>;
+  fetchThemeMode: () => Promise<void>;
   logout: () => Promise<void>;
   setCurrentConversation: (conversationId: string, key: Uint8Array | null) => Promise<void>;
   getConversationKey: (conversationId: string) => Promise<Uint8Array | null>;
@@ -35,6 +37,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [initialized, setInitialized] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<string>('light');
+
   const isInitializing = useRef(false);
 
   // Fetch user profile from database
@@ -202,14 +206,30 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     }
   }, [profile]);
 
+  //fetch theme mode
+  const fetchThemeMode = async () => {
+    if(isDarkMode){
+      const upated = await AsyncStorage?.getItem('darkmode')
+      if(upated)
+        setIsDarkMode(upated)
+    }
+  }
+    
+  useEffect(() => {
+    fetchThemeMode();
+
+  }, [isDarkMode])
+
   const value: SessionContextType = {
     user,
     profile,
+    isDarkMode,
     conversationKey,
     currentConversationId,
     loading,
     initialized,
     refreshProfile,
+    fetchThemeMode,
     logout,
     setCurrentConversation,
     getConversationKey,

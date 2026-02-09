@@ -16,6 +16,7 @@ import { Fab, FabIcon } from '@/components/ui/fab';
 import { MoonIcon, SunIcon } from '@/components/ui/icon';
 import { SessionProvider } from '@/utility/session/SessionProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,8 +50,16 @@ function RootLayoutNav() {
   const segments = useSegments();
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
 
-  // Show theme toggle only on login screen
-  const showThemeToggle = pathname === '/login' || (pathname === '/' && segments.length < 1);
+  const showThemeToggle = pathname === '/tabs/(tabs)/Chat' || (pathname === '/' && segments.length < 1);
+  const fetchThemeSetting = async () => {
+    const theme = await AsyncStorage.getItem('darkmode')
+    setColorMode(theme === 'dark' ? 'dark' : 'light')
+  }
+
+  useEffect(() => {
+    if(colorMode)
+      fetchThemeSetting();
+  },[colorMode])
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -59,8 +68,8 @@ function RootLayoutNav() {
         <SessionProvider>
           <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
             <Slot />
-            {showThemeToggle && (
-              <Fab
+            {
+              /*showThemeToggle && (<Fab
                 onPress={() =>
                   setColorMode(colorMode === 'dark' ? 'light' : 'dark')
                 }
@@ -69,7 +78,8 @@ function RootLayoutNav() {
               >
                 <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
               </Fab>
-            )}
+            )*/
+            }
           </ThemeProvider>
         </SessionProvider>
       </GluestackUIProvider>

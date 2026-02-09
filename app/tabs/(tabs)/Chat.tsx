@@ -28,7 +28,7 @@ import { Button, ButtonText } from '@/components/ui/button';
  */
 
 export default function Chat() {
-  const { user, profile, setCurrentConversation } = useSession();
+  const { user, profile, isDarkMode, setCurrentConversation } = useSession();
   const userId = user?.id ?? '';
 
   const [listUser, setListUser] = useState<UserProfile[]>([]);
@@ -451,9 +451,9 @@ export default function Chat() {
   }
 
   return (
-    <Box className="flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
+    <Box className={`flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
       {/* Header */}
-      <Box className="bg-white border-b border-gray-200 pt-4 px-4 pb-3">
+      <Box className={`${isDarkMode == "dark"? 'bg-black':'bg-white'} border-b border-gray-200 pt-4 px-4 pb-3`}>
         <HStack className="justify-between items-center mb-4">
           <Heading size="xl" className="font-bold text-typography-900">
             Chats
@@ -501,8 +501,8 @@ export default function Chat() {
       </Box>
 
       {/* Users Horizontal Scroll */}
-      <Box className="flex-1">
-        <Box className="bg-white border-b border-gray-100 py-3">
+      <Box className={`${isDarkMode == "dark"? 'bg-black':'bg-white'} flex-1`}>
+        <Box className={`${isDarkMode == "dark"? 'bg-black':'bg-white'}border-b border-gray-100 py-3`}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="md" className="mr-4">
               {filteredUsers &&
@@ -532,12 +532,12 @@ export default function Chat() {
         </Box>
 
         {/* Conversations List */}
-        <Box className="flex-1">
+        <Box className={`flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}>
           <ScrollView
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ flexGrow: 1 }}
           >
-            <VStack space="xs" className="pb-6">
+            <VStack space="xs" className={`pb-6 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}>
               {filteredChatRooms && filteredChatRooms.length > 0 ? (
                 filteredChatRooms.map((room, index: number) => {
                   
@@ -580,7 +580,7 @@ export default function Chat() {
                     <Pressable
                       key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
                       onPress={() => handleConversationPress(room)}
-                      className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white"
+                      className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
                     >
                       <Box className="relative">
                         <Avatar size="lg" className="mr-3">
@@ -602,7 +602,7 @@ export default function Chat() {
                           </Text>
                           <Text className="text-xs text-gray-500">{time}</Text>
                         </HStack>
-                        <Text className="text-sm text-gray-600" numberOfLines={1}>
+                        <Text className={`text-sm ${isDarkMode == "dark"? 'text-white':'text-gray-600'}`} numberOfLines={1}>
                           {lastMsg}
                         </Text>
                       </Box>
