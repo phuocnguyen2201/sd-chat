@@ -31,7 +31,7 @@ import ZoomImage from '@/components/ZoomImage';
 import { useSession } from '@/utility/session/SessionProvider';
 
 export default function ChatRoomEditing() {
-  const { user } = useSession();
+  const { user, isDarkMode } = useSession();
   const router = useRouter();
   const { conversation_id, displayName } = useLocalSearchParams<{
     conversation_id?: string;
@@ -170,7 +170,7 @@ export default function ChatRoomEditing() {
   },[avatarUri, message])
 
   return (
-    <ScrollView className='bg-white' contentContainerStyle={{ padding: 16 }}>
+    <ScrollView className={`${isDarkMode == "dark"? 'bg-black':'bg-white'}`} contentContainerStyle={{ padding: 16 }}>
       <Box className="items-center mb-6 border border-gray-200">
         <TouchableOpacity onPress={() => setShowActionsheet(true)}>
           {avatarUri ? (
@@ -185,18 +185,18 @@ export default function ChatRoomEditing() {
         <Box className="mb-4">
             { isGroup ? (
               <>
-                <Text className="mb-2 text-lg text-black font-semibold">Group Name</Text>
+                <Text className={`mb-2 text-lg ${isDarkMode == "dark"? 'text-white':'text-black'} font-semibold`}>Group Name</Text>
                   <TextInput
                     value={name}
                     onChangeText={setName}
                     placeholder="Enter room name"
-                    className="border border-gray-300 rounded px-3 py-2"
+                    className={`border border-gray-300 rounded px-3 py-2 ${isDarkMode == "dark"? 'text-white':'text-black'}`}
                   />
                 <TouchableOpacity
                 onPress={handleSave}
                   className="bg-blue-500 rounded px-4 py-2 items-center mt-2"
                   >
-                  <Text className="text-white">Save</Text>
+                  <Text className="text-white font-semibold">Save</Text>
               </TouchableOpacity>
               </>
             ) : (
@@ -251,11 +251,11 @@ export default function ChatRoomEditing() {
                             target="_blank"
                             rel="noopener noreferrer"
                             >
-                            <LinkText className="text-black text-xl">{m && m?.files?.[0]?.filename || ''}</LinkText>
+                            <LinkText className={`${isDarkMode == 'dark'?'text-white': 'text-black'} text-xl`}>{m && m?.files?.[0]?.filename || ''}</LinkText>
                         <Icon
                             as={ArrowBigDown}
                             size="lg"
-                            className="mt-0.5 text-info-600 text-black"
+                            className={`mt-0.5 text-info-600 ${isDarkMode == 'dark'?'text-white': 'text-black'}`}
                         /></Link> : null}
                 </GridItem>
                 

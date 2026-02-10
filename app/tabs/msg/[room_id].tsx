@@ -62,6 +62,7 @@ export default function ChatScreen() {
   const {
     user,
     profile,
+    isDarkMode,
     conversationKey,
     currentConversationId,
     getConversationKey,
@@ -615,7 +616,7 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
       style={{ flex: 1 }}
     >
-      <Box className="relative flex-1 bg-white pt-safe px-4 md:px-6 lg:px-8">
+      <Box className={`relative flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
         <ScrollView
           ref={scrollRef}
           className="flex-1 px-4 py-3"
@@ -667,6 +668,7 @@ export default function ChatScreen() {
                           messageId = {m.id}
                           msg_type = {m?.message_type || ''}
                           onReaction = {handleReaction}
+                          id_darkMode = {isDarkMode == 'dark'? true: false}
                           onEdit={() => {
                             setNewMessage(m.message_type == 'text' ? MessageEncryption.decryptMessage(
                               {
@@ -705,9 +707,9 @@ export default function ChatScreen() {
                       className={`max-w-xs px-3 py-2 rounded-2xl ${
                         isCurrentUser
                           ? 'bg-blue-500 rounded-br-none'
-                          : 'bg-gray-300 rounded-bl-none'
+                          : 'bg-gray-200 rounded-bl-none'
                       }`}> 
-                      {m.is_forward ? <Text><Icon as={ForwardIcon} size="md" className="text-gray-700" /></Text> : null}
+                      {m.is_forward ? <Text><Icon as={ForwardIcon} size="md" className={`${isCurrentUser? 'text-white': 'text-gray-700'}`} /></Text> : null}
                       {m && m.message_type && m?.message_type.includes('image') ? 
                         
                         <Pressable
@@ -733,18 +735,16 @@ export default function ChatScreen() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <LinkText className="text-black text-xl">{data?.filename|| ''}</LinkText>
+                          <LinkText className={`${isCurrentUser? 'text-white': 'text-black'} text-xl`}>{data?.filename|| ''}</LinkText>
                           <Icon
                             as={ArrowBigDown}
                             size="lg"
-                            className="mt-0.5 text-info-600 text-black"
+                            className={`mt-0.5 text-info-600 ${isCurrentUser? 'text-white': 'text-black'}`}
                           />
                         </Link>
                        : 
                         <Text
-                          className={`text-lg ${
-                            isCurrentUser ? 'text-white font-semibold' : 'text-black'
-                          }`}
+                          className={`text-lg ${isCurrentUser? 'text-white': 'text-black'} font-semibold`}
                         >
                           { m.message_type == 'text' ? MessageEncryption.decryptMessage(
                             {
@@ -768,12 +768,12 @@ export default function ChatScreen() {
                       m.reactions.map((r) => (
                         <Box key={r.id} className='z-40 mx-1'>
                           <Popover
-                            isOpen={activeReaction === m.id}
-                            onClose={() => setActiveReaction('')}
-                            onOpen={() => setActiveReaction(m.id ?? '')}
-                            placement="top"
-                            size="md"
-                            trigger={(triggerProps) => {
+                            isOpen = {activeReaction === m.id}
+                            onClose = {() => setActiveReaction('')}
+                            onOpen = {() => setActiveReaction(m.id ?? '')}
+                            placement = "top"
+                            size = "md"
+                            trigger = {(triggerProps) => {
                               return (
                                 <Pressable {...triggerProps}>
                                   <Text>{r.emoji}</Text>
@@ -785,7 +785,7 @@ export default function ChatScreen() {
                             <PopoverContent>
                               <PopoverArrow />
                               <PopoverBody>
-                                <Text className="text-typography-900">{r.sender_username}</Text>
+                                <Text className = {`${isDarkMode == 'dark'? 'text-white':'text-typography-900'}`}>{r.sender_username}</Text>
                               </PopoverBody>
                             </PopoverContent>
                           </Popover>
@@ -871,7 +871,7 @@ export default function ChatScreen() {
           }
         /> 
         {/* Input Bar - Fixed above keyboard */}
-        <Box className="absolute left-0 right-0 bottom-5 p-3 bg-white border-t border-gray-200">
+        <Box className={`absolute left-0 right-0 bottom-5 p-3 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} border-t `}>
           {showPicker && (
             <Picker
               onSelect={(emo) => {
@@ -914,7 +914,7 @@ export default function ChatScreen() {
                   : 'bg-gray-300'
               }`}
             >
-              <Text className="text-white text-lg font-bold">{loading ? '...' : '➤'}</Text>
+              <Text className={`text-lg ${isDarkMode == "dark" ? 'text-black': 'text-white'}  font-bold`}>{loading ? '...' : '➤'}</Text>
             </Pressable>
           </HStack>
         </Box>

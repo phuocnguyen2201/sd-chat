@@ -1,13 +1,14 @@
-import React from "react";
-import { View, Pressable, StyleSheet, Text as RNText, TouchableWithoutFeedback } from "react-native";
+import React, { useContext } from "react";
+import { View, Pressable, StyleSheet, Text as RNText } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Icon } from "@/components/ui/icon";
 import { ForwardIcon, Trash2Icon, EditIcon } from "lucide-react-native";
 import { HStack } from "./ui/hstack";
-
+import { useSession } from '@/utility/session/SessionProvider';
 type MessageActionProps = {
   messageId: string;
   msg_type: string;
+  id_darkMode: boolean;
   onReaction?: (messageId: string, emoji: string) => void;
   onEdit?: () => void;
   onForward?: () => void;
@@ -17,14 +18,17 @@ type MessageActionProps = {
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
 const ACTIONS = [
-  { id: "edit", icon: EditIcon, label: "Edit", color: "#4b5563" },
-  { id: "forward", icon: ForwardIcon, label: "Forward", color: "#4b5563" },
-  { id: "delete", icon: Trash2Icon, label: "Delete", color: "#ef4444" },
+  { id: "edit", icon: EditIcon, label: "Edit", color: "#4b5563", dark_color: '#fff' },
+  { id: "forward", icon: ForwardIcon, label: "Forward", color: "#4b5563", dark_color: '#fff' },
+  { id: "delete", icon: Trash2Icon, label: "Delete", color: "#ef4444", dark_color: '#fff' },
 ];
+
+
 
 export function MessageAction({
   messageId,
   msg_type,
+  id_darkMode,
   onReaction,
   onEdit,
   onForward,
@@ -43,9 +47,9 @@ export function MessageAction({
         break;
     }
   };
-
   return (
-    <View style = { styles.container } >
+    <View style = { id_darkMode ? styles.dark_contain: styles.container } >
+      
       <HStack space="md" className="flex-wrap">
         {REACTIONS.map((emoji) => (
           <Pressable
@@ -53,7 +57,7 @@ export function MessageAction({
             onPress = {() => onReaction?.(messageId, emoji)}
             style = { styles.reaction }
           >
-            <RNText style = { styles.emoji }>{ emoji }</RNText>
+            <RNText style = {  id_darkMode? styles.dark_emoji:styles.emoji }>{ emoji }</RNText>
           </Pressable>
         ))}
 
@@ -69,7 +73,7 @@ export function MessageAction({
             <Pressable
               key = { action.id }
               onPress = {() => handleAction(action.id)}
-              style = {styles.action}
+              style = { id_darkMode ? styles.dark_contain : styles.action}
               disabled = {
                 (action.id === "edit" && !onEdit) ||
                 (action.id === "forward" && !onForward) ||
@@ -79,12 +83,12 @@ export function MessageAction({
               <Icon
                 as = { action.icon }
                 size = "md"
-                style = {{ color: action.color }}
+                style = {{ color: id_darkMode? action.dark_color: action.color }}
               />
               <Text
                 style = {{
                   fontSize: 10,
-                  color: action.color,
+                  color: id_darkMode? action.dark_color: action.color,
                   marginTop: 4,
                   textAlign: "center",
                 }}
@@ -109,11 +113,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  dark_contain:{
+    backgroundColor: "#303030",
+    padding: 8,
+    borderRadius: 24,
+    elevation: 5,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   reaction: {
     padding: 6,
   },
   emoji: {
     fontSize: 24,
+  },
+  dark_emoji:{
+    fontSize: 24,
+    textShadowColor: 'white',
+    textShadowRadius: 10,
   },
   divider: {
     width: 1,
