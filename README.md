@@ -116,24 +116,68 @@ SD Chat leverages Supabase as its complete backend solution, providing:
 
 ```
 sd-chat/
-├── app/                    # Application screens and routes
-│   ├── index.tsx          # Authentication screen
-│   ├── CompleteProfile.tsx # Profile setup screen
-│   └── tabs/              # Tab navigation screens
-│       ├── Chat.tsx       # Main chat list
-│       ├── Settings.tsx   # User settings
-│       └── msg/           # Individual chat rooms
-├── components/            # Reusable UI components
-├── utility/               # Core business logic
-│   ├── connection.ts      # Supabase client
-│   ├── messages.ts        # API functions
-│   ├── handleStorage.ts   # File operations
-│   ├── securedMessage/    # Encryption utilities
-│   ├── session/           # User context
-│   └── push-notification/ # Notification handling
-├── supabase/              # Supabase configuration
-│   └── functions/         # Edge Functions
-└── documentation/         # Project documentation
+├── app/                        # Application screens and routes
+│   ├── _layout.tsx             # Root layout (providers, themes, routing shell)
+│   ├── index.tsx               # Root entry (redirects to Bootstrap)
+│   ├── Bootstrap.tsx           # Bootstrap / gate screen (session + push init)
+│   ├── login.tsx               # Authentication (login/register) screen
+│   ├── CompleteProfile.tsx     # Profile setup screen
+│   ├── modal.tsx               # Global modal route
+│   └── tabs/                   # Tab + nested navigation
+│       ├── _layout.tsx         # Tabs stack layout
+│       ├── (tabs)/             # Bottom tab navigator screens
+│       │   ├── _layout.tsx     # Tabs layout (Chat, Settings)
+│       │   ├── Chat.tsx        # Main chat list
+│       │   └── Settings.tsx    # User settings
+│       └── msg/                # Message / room routes
+│           ├── [room_id].tsx   # Individual encrypted chat room
+│           └── ChatRoomEditing.tsx # (Optional) room editing utilities
+├── components/                 # Reusable UI components
+│   ├── CreateGroupChat.tsx
+│   ├── ForwardMessage.tsx
+│   ├── MessageAction.tsx
+│   ├── LoadingModal.tsx
+│   ├── ZoomImage.tsx
+│   └── ui/                     # Gluestack v3 primitives
+│       ├── box/, button/, text/, input/, ... 
+├── utility/                    # Core business logic & helpers
+│   ├── connection.ts           # Supabase client
+│   ├── messages.ts             # Domain APIs (auth, profiles, conversations, messages, realtime)
+│   ├── handleStorage.ts        # File/image storage (Supabase buckets)
+│   ├── push-notification/      # Push notification registration + token storage
+│   │   └── push-Notification.ts
+│   ├── securedMessage/         # E2E encryption utilities
+│   │   ├── secured.ts          # Message encryption / key wrapping
+│   │   └── ConversationKeyManagement.ts # Conversation key cache + SecureStore
+│   ├── session/                # Global session state
+│   │   └── SessionProvider.tsx # Session context (user, profile, conversationKey)
+│   └── types/                  # Shared TS types
+│       ├── supabse.ts
+│       └── user.ts
+├── supabase/                   # Supabase project files
+│   ├── config.toml             # Supabase CLI config
+│   └── functions/              # Edge Functions (Deno)
+│       └── push/               # Push notification function
+│           ├── index.ts
+│           └── deno.json, .npmrc
+├── documentation/              # In-repo documentation grouped by feature
+│   ├── app/
+│   │   ├── index.md            # Auth screen docs
+│   │   ├── CompleteProfile.md  # Profile screen docs
+│   │   └── tabs/               # Tab-related docs
+│   │       ├── Chat.md
+│   │       └── msg/
+│   │           └── room_id.md
+│   ├── supabase/README.md      # Supabase & Edge Functions docs
+│   └── utility/README.md       # Utility layer (APIs, encryption, session)
+├── components/ui/...           # Gluestack component implementations
+├── assets/                     # Icons, images, fonts
+├── constants/                  # App-wide constants
+├── types/                      # Additional global type declarations
+├── global.css                  # Global web styles
+├── metro.config.js             # Metro bundler config
+├── tailwind.config.js          # Tailwind / NativeWind config
+└── tsconfig.json               # TypeScript configuration
 ```
 
 ## Security Architecture
