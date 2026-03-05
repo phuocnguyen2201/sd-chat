@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { supabase } from '@/utility/connection';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Push_Tokens } from '../types/user';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,7 +14,6 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
-
 
 export const usePushNotifications = {
     async registerForPushNotificationsAsync(): Promise<string | undefined> {
@@ -49,6 +49,7 @@ export const usePushNotifications = {
             projectId,
             })
         ).data;
+        //console.log('Push token obtained:', pushTokenString);
         return pushTokenString;
         } catch (e: unknown) {
         console.log(`Testing: ${e}`);
@@ -61,34 +62,84 @@ export const usePushNotifications = {
     async savePushTokenToDatabase(token: string) {
     const user = await AsyncStorage.getItem('user').then((data) => data ? JSON.parse(data) : null);
     if (!user) return;
-    if (await this.verifyPushTokenInDatabase()) {
+    if (await this.verifyPushTokenInDatabase(token)) {
         console.log('Push token already exists in database');
         return;
     }
-    
+
+    const push_token: Push_Tokens = {
+        token: token,
+        profile_id: user?.id,
+        created_at: new Date().toISOString(),
+        provider: 'fcm',
+        platform: 'android',
+        is_active: true
+    }
+
     const { data, error } = await supabase
-        .from('profiles')
-        .update({ fcm_token: token })
-        .eq('id', user.id);
+        .from('push_notification_tokens')
+        .insert(push_token)
+
     if (error) {
         console.log('Error saving push token to database:', error.message);
-    } else {
-        console.log('Push token saved to database successfully:', data);
     }
     },
+    async updateTokenStatus(token: string): Promise<boolean> {
+        try {
 
-    async verifyPushTokenInDatabase(): Promise<boolean> {
+            const user = await AsyncStorage.getItem('user').then((data) => data ? JSON.parse(data) : null);
+
+            //Active on the device logging in.
+            const { error: currentToken } = await supabase
+            .from('push_notification_tokens')
+            .update({ 
+                is_active: true , 
+                updated_at: new Date().toISOString()
+            })
+            .eq('token', token)
+            .eq('profile_id', user?.id)
+
+            if (currentToken) { 
+                console.log(currentToken.message)
+                return false;
+            }
+
+            //Deactive all others token.
+            const { error: otherTokens } = await supabase
+            .from('push_notification_tokens')
+            .update({ 
+                is_active: false,
+                updated_at: new Date().toISOString()
+            })
+            .neq('token', token)
+            .neq('profile_id', user?.id)
+
+             if (otherTokens) { 
+                console.log(otherTokens.message)
+                return false;
+            }
+
+            return true;
+
+        } catch (error) {
+             console.log('Error updating push token to database:', error);
+             return false;
+        }
+    },
+
+    async verifyPushTokenInDatabase(token: string): Promise<boolean> {
         const user = await AsyncStorage.getItem('user').then((data) => data ? JSON.parse(data) : null);
     if (!user) return false;
     const { data, error } = await supabase
-        .from('profiles')
-        .select('fcm_token')
-        .eq('id', user.id)
-        .single();
+        .from('push_notification_tokens')
+        .select('token')
+        .eq('profile_id', user.id)
+        .eq('token', token)
+
     if (error) {
         console.log('Error verifying push token in database:', error.message);
         return false;
     }
-    return data?.fcm_token != null;
+    return data?.length > 0;
     },
 }

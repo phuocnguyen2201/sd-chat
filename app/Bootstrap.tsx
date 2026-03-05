@@ -40,18 +40,29 @@ export default function Bootstrap() {
     const initializePush = async () => {
       try {
         // Only initialize if user doesn't have token
-        if (profile?.fcm_token) {
+        /* if (profile?.push_notification_tokens) {
           console.log('Push token already exists');
           setPushInitialized(true);
           return;
-        }
+        }*/
 
         const token = await usePushNotifications.registerForPushNotificationsAsync();
-        if (token) {
-          await usePushNotifications.savePushTokenToDatabase(token);
-          console.log('Push notifications initialized');
+        const listTokens = profile?.push_notification_tokens.find((tokens) => tokens.token === token);
+       // console.log('Existing tokens:', profile?.push_notification_tokens);
+
+        if (!listTokens) {
+          if (token) {
+            await usePushNotifications.savePushTokenToDatabase(token);
+            //console.log('Push notifications initialized');
+          }
+          setPushInitialized(true);
         }
-        setPushInitialized(true);
+        else {
+          //update active status of token
+          await usePushNotifications.updateTokenStatus(token || '');
+        }
+        
+      
       } catch (error) {
         console.error('Error initializing push notifications:', error);
         setPushInitialized(true); // Continue even if push fails

@@ -25,8 +25,20 @@ export type Profile = {
   created_at?: string;
   updated_at?: string;
   files_profiles?: Files[];
+  push_notification_tokens: Push_Tokens[];
   // Add other profile fields as needed
 } | null;
+
+export type Push_Tokens = {
+  id?: string;
+  profile_id?: string;
+  token: string;
+  platform?: string;
+  provider?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export type UserContextType = {
   user: User;

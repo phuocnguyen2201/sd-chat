@@ -46,7 +46,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*, files_profiles(*)')
+        .select('*, files_profiles(*), push_notification_tokens(*)')
         .eq('id', userId)
 
       if (profileError) {

@@ -58,11 +58,12 @@ Deno.serve(async (req: Request) => {
       .eq("conversation_id", record?.conversation_id).neq("user_id", record?.sender_id)
       .single();
     const received_fcm_token = await supabaseClient
-      .from("profiles")
-      .select("fcm_token, displayname")
-      .eq("id", receivedPerson.data?.user_id)
-      .single();
+      .from("push_notification_tokens")
+      .select("token")
+      .eq("profile_id", receivedPerson.data?.user_id)
+      .eq('is_active', true)
     // If you need Supabase client, construct it with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+    const listTokens: Array<string> = Object.values(received_fcm_token.data || []).map((item) => item.token);
 
     console.log("Preparing to send push notification...");
      const res = await fetch(SUPABASE_PUSH_NOTIFICATIONS_KEY, {
@@ -71,7 +72,7 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        to: received_fcm_token.data?.fcm_token || '',
+        to: listTokens,
         sound: 'default',
         title: sender_name.data?.displayname || 'New Message',
         body: content || 'You have a new message',
