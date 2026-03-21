@@ -56,7 +56,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, isDarkMode, fetchThemeMode, refreshProfile } = useSession();
+  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile } = useSession();
 
 
   useEffect(() => {
@@ -233,19 +233,17 @@ export default function Settings() {
       }});
     } 
 
-    //Toggle darkmore
-    const toggleDarkMode = async (toggle: boolean) =>{
-      try {
-       await AsyncStorage.setItem('darkmode', toggle ? 'dark' : 'light');
-       await fetchThemeMode();
-        setTimeout(() => {
-          router.push('/Bootstrap');
-        }, 1000);
-      } catch (error) {
-        console.log("Error on toggleDarkMode", error)
-        return
-      }
+  //Toggle dark mode
+  const toggleDarkMode = async (toggle: boolean) => {
+    try {
+      const mode = toggle ? 'dark' : 'light';
+      await setDarkMode(mode);
+      // fetchThemeMode is optional as setDarkMode already updates context, but keep in sync
+      await fetchThemeMode();
+    } catch (error) {
+      console.log('Error on toggleDarkMode', error);
     }
+  };
   return (
     <ScrollView className={`flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
       <Box className="p-6">

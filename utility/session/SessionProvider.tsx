@@ -18,6 +18,7 @@ export interface SessionContextType extends SessionState {
   // Session management
   refreshProfile: () => Promise<void>;
   fetchThemeMode: () => Promise<void>;
+  setDarkMode: (mode: 'light' | 'dark') => Promise<void>;
   logout: () => Promise<void>;
   setCurrentConversation: (conversationId: string, key: Uint8Array | null) => Promise<void>;
   getConversationKey: (conversationId: string) => Promise<Uint8Array | null>;
@@ -206,19 +207,30 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     }
   }, [profile]);
 
-  //fetch theme mode
-  const fetchThemeMode = async () => {
-    if(isDarkMode){
-      const upated = await AsyncStorage?.getItem('darkmode')
-      if(upated)
-        setIsDarkMode(upated)
+  // Fetch theme mode from persistent storage
+  const fetchThemeMode = useCallback(async () => {
+    try {
+      const updated = await AsyncStorage.getItem('darkmode');
+      setIsDarkMode(updated === 'dark' ? 'dark' : 'light');
+    } catch (error) {
+      console.warn('Error fetching dark mode setting:', error);
+      setIsDarkMode('light');
     }
-  }
-    
+  }, []);
+
+  // Set theme mode in state and persist it
+  const setDarkMode = useCallback(async (mode: 'light' | 'dark') => {
+    try {
+      setIsDarkMode(mode);
+      await AsyncStorage.setItem('darkmode', mode);
+    } catch (error) {
+      console.warn('Error setting dark mode:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchThemeMode();
-
-  }, [isDarkMode])
+  }, [fetchThemeMode]);
 
   const value: SessionContextType = {
     user,
@@ -230,6 +242,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     initialized,
     refreshProfile,
     fetchThemeMode,
+    setDarkMode,
     logout,
     setCurrentConversation,
     getConversationKey,

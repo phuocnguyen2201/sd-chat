@@ -14,9 +14,8 @@ import { Slot, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Fab, FabIcon } from '@/components/ui/fab';
 import { MoonIcon, SunIcon } from '@/components/ui/icon';
-import { SessionProvider } from '@/utility/session/SessionProvider';
+import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -42,46 +41,33 @@ export default function RootLayout() {
     }
   }, [loaded]);
   
-  return <RootLayoutNav />;
+  return (
+    <SessionProvider>
+      <RootLayoutNav />
+    </SessionProvider>
+  );
 }
 
 function RootLayoutNav() {
   const pathname = usePathname();
   const segments = useSegments();
-  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
+  const { isDarkMode, fetchThemeMode } = useSession();
 
   const showThemeToggle = pathname === '/tabs/(tabs)/Chat' || (pathname === '/' && segments.length < 1);
-  const fetchThemeSetting = async () => {
-    const theme = await AsyncStorage.getItem('darkmode')
-    setColorMode(theme === 'dark' ? 'dark' : 'light')
-  }
 
   useEffect(() => {
-    if(colorMode)
-      fetchThemeSetting();
-  },[colorMode])
+    fetchThemeMode();
+  }, [fetchThemeMode]);
+
+  const colorMode = isDarkMode === 'dark' ? 'dark' : 'light';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
       <GluestackUIProvider mode={colorMode}>
-        <SessionProvider>
-          <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
-            <Slot />
-            {
-              /*showThemeToggle && (<Fab
-                onPress={() =>
-                  setColorMode(colorMode === 'dark' ? 'light' : 'dark')
-                }
-                className="m-6"
-                size="lg"
-              >
-                <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
-              </Fab>
-            )*/
-            }
-          </ThemeProvider>
-        </SessionProvider>
+        <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
+          <Slot />
+        </ThemeProvider>
       </GluestackUIProvider>
     </GestureHandlerRootView>
   );
