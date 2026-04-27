@@ -17,9 +17,13 @@ import { usePushNotifications } from '@/utility/push-notification/push-Notificat
  * 3. Navigation to appropriate screen based on auth state
  */
 export default function Bootstrap() {
-  const { user, profile, loading, initialized } = useSession();
+  const { user, profile, loading, initialized, isDarkMode } = useSession();
   const [pushInitialized, setPushInitialized] = useState(false);
   const hasNavigated = useRef(false);
+
+  const backgroundClass = isDarkMode === 'dark' ? 'bg-background-300' : 'bg-background-50';
+  const textClass = isDarkMode === 'dark' ? 'text-white' : 'text-black';
+  const spinnerColor = isDarkMode === 'dark' ? 'white' : 'black';
 
   // Configure notification handler
   useEffect(() => {
@@ -136,10 +140,10 @@ export default function Bootstrap() {
   // Show loading screen while initializing
   if (!initialized || loading) {
     return (
-      <Box className="flex-1 bg-background-900 items-center justify-center">
+      <Box className={`flex-1 ${backgroundClass} items-center justify-center`}>
         <VStack space="lg" className="items-center">
-          <Spinner size="large" color="white" />
-          <Text className="text-white text-lg">Loading...</Text>
+          <Spinner size="large" color={spinnerColor} />
+          <Text className={`${textClass} text-lg`}>Loading...</Text>
         </VStack>
       </Box>
     );
@@ -147,10 +151,10 @@ export default function Bootstrap() {
 
   // This should rarely be seen as navigation happens quickly
   return (
-    <Box className="flex-1 bg-background-900 items-center justify-center">
+    <Box className={`flex-1 ${backgroundClass} items-center justify-center`}>
       <VStack space="lg" className="items-center">
-        <Spinner size="large" color="white" />
-        <Text className="text-white text-lg">Initializing...</Text>
+        <Spinner size="large" color={spinnerColor} />
+        <Text className={`${textClass} text-lg`}>Initializing...</Text>
       </VStack>
     </Box>
   );

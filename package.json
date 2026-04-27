@@ -58,7 +58,6 @@
     "react-aria": "^3.41.1",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-dotenv": "^3.4.11",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-get-random-values": "^2.0.0",
     "react-native-image-zoom-viewer": "^3.0.1",
