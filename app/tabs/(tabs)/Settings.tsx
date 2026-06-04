@@ -365,7 +365,6 @@ export default function Settings() {
                 placeholder="Enter new display name"
                 value={displayName}
                 onChangeText={setDisplayName}
-                className="text-black"
               />
             </Input>
           </AlertDialogBody>
@@ -406,7 +405,7 @@ export default function Settings() {
                   secureTextEntry
                   value={newPassword}
                   onChangeText={setNewPassword}
-                  className="text-black"
+
                 />
               </Input>
               <Input>
@@ -415,7 +414,6 @@ export default function Settings() {
                   secureTextEntry
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  className="text-black"
                 />
               </Input>
             </VStack>
