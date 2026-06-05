@@ -37,7 +37,7 @@ export const storageAPIs = {
 
     const { data: publicUrl, error: urlError } = await supabase.storage
     .from(STORAGE_BUCKETS.MESSAGES)
-    .createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+    .createSignedUrl(data.path, 60 * 60 * 24 * 365); // 365 days
 
     if (urlError) throw urlError;
 
@@ -59,6 +59,8 @@ export const storageAPIs = {
       token: token,
       bucket_name: STORAGE_BUCKETS.MESSAGES,
       created_at: new Date().toISOString(),
+      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      status: true,
       message_id: newImage.id,
     }
 
@@ -91,7 +93,7 @@ export const storageAPIs = {
 
     const { data: publicUrl, error: urlError } = await supabase.storage
     .from(STORAGE_BUCKETS.FILES)
-    .createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+    .createSignedUrl(data.path, 60 * 60 * 24 * 365); // 365 days
 
     if (urlError) throw urlError;
 
@@ -114,6 +116,8 @@ export const storageAPIs = {
       token: token,
       bucket_name: STORAGE_BUCKETS.FILES,
       created_at: new Date().toISOString(),
+      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      status: true,
       message_id: newFile.id,
       file_size: file.size || 0
     }
@@ -165,6 +169,8 @@ export const storageAPIs = {
       file_size: image.fileSize || 0,
       bucket_name: STORAGE_BUCKETS.AVATARS,
       created_at: new Date().toISOString(),
+      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      status: true
     }
 
     return { msg: { success: true, avatar_url: publicUrl.signedUrl, data: fileData }, message: 'Avatar uploaded and updated!' };
@@ -280,7 +286,7 @@ export const utilityFunction = {
         const filepath = typeof file.filepath === 'string' ? file.filepath : (file.filepath && typeof file.filepath === 'object' ? String((file.filepath as any).path ?? (file.filepath as any).uri ?? JSON.stringify(file.filepath)) : String(file.filepath ?? ''));
         const token = typeof file.token === 'string' ? file.token : String(file.token ?? '');
         if (!bucket || !filepath) return '';
-        const publicURLCombined = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}?token=${token}`
+        const publicURLCombined = file.status === true ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/${process.env.EXPO_PUBLIC_PREPATH_STORAGE}/${bucket}/${filepath}?token=${token}` : 'INACTIVE';
 
         return publicURLCombined;
       } catch (e) {

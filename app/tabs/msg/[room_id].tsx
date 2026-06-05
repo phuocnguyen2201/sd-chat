@@ -711,7 +711,7 @@ export default function ChatScreen() {
                       }`}> 
                       {m.is_forward ? <Text><Icon as={ForwardIcon} size="md" className={`${isCurrentUser? 'text-white': 'text-gray-700'}`} /></Text> : null}
                       {m && m.message_type && m?.message_type.includes('image') ? 
-                        
+                         url != 'INACTIVE' ?
                         <Pressable
                           onPress={() => {
                             setActiveImageUrl(url)
@@ -729,6 +729,7 @@ export default function ChatScreen() {
                             onError={(e) => console.log('Image error:', e.nativeEvent.error)}
                           />
                         </Pressable>
+                        :<Text>File/ image not available</Text>
                        : m && m.message_type && m.message_type.includes('file') ? 
                         <Link
                           href={url as '/'}
