@@ -616,7 +616,7 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
       style={{ flex: 1 }}
     >
-      <Box className={`relative flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
+      <Box className={`relative flex-1 pt-safe px-4 md:px-6 lg:px-8`}>
         <ScrollView
           ref={scrollRef}
           className="flex-1 px-4 py-3"
@@ -785,7 +785,7 @@ export default function ChatScreen() {
                             <PopoverContent>
                               <PopoverArrow />
                               <PopoverBody>
-                                <Text className = {`${isDarkMode == 'dark'? 'text-white':'text-typography-900'}`}>{r.sender_username}</Text>
+                                <Text>{r.sender_username}</Text>
                               </PopoverBody>
                             </PopoverContent>
                           </Popover>

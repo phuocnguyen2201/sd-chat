@@ -245,7 +245,7 @@ export default function Settings() {
     }
   };
   return (
-    <ScrollView className={`flex-1 ${isDarkMode == "dark"? 'bg-black':'bg-white'} pt-safe px-4 md:px-6 lg:px-8`}>
+    <ScrollView className="flex-1 pt-safe px-4 md:px-6 lg:px-8">
       <Box className="p-6">
         <Heading className="font-bold text-3xl mb-2">Settings</Heading>
         <Text className="text-gray-500 mb-6">Manage your profile and account</Text>
@@ -257,7 +257,7 @@ export default function Settings() {
         )}
 
         {/* Avatar Section */}
-        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border `}>
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
             <Pressable onPress={() => setShowActionsheet(true)}>
               <Avatar size="xl">
@@ -278,7 +278,7 @@ export default function Settings() {
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
             <VStack className="flex-1">
-              <Text className={`text-lg ${isDarkMode == "dark"? 'text-white':'text-black'} font-semibold`}>Dark Mode: <Icon as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
+              <Text className="text-lg font-semibold">Dark Mode: <Icon as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
             </VStack>
             <Switch
               size="lg"
@@ -294,8 +294,8 @@ export default function Settings() {
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
             <VStack className="flex-1">
-              <Text className={`text-xs ${isDarkMode == "dark"? 'text-white':'text-gray-500'} uppercase font-bold mb-2`}>Display Name</Text>
-              <Text className={`text-lg ${isDarkMode == "dark"? 'text-white':'text-black'} font-semibold`}>{displayName || 'Not set'}</Text>
+              <Text className={`text-xs uppercase font-bold mb-2`}>Display Name</Text>
+              <Text className={`text-lg font-semibold`}>{displayName || 'Not set'}</Text>
             </VStack>
             <Button
               size="sm"
@@ -312,8 +312,8 @@ export default function Settings() {
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border border-gray-200`}>
           <HStack className="justify-between items-center">
             <VStack>
-              <Text className={`text-xs ${isDarkMode == "dark"? 'text-white':'text-gray-500'} uppercase font-bold mb-2`}>Password</Text>
-              <Text className={`${isDarkMode == "dark"? 'text-white':'text-black'}`}>••••••••</Text>
+              <Text className={`text-xs  uppercase font-bold mb-2`}>Password</Text>
+              <Text >••••••••</Text>
             </VStack>
             <Button
               size="sm"
