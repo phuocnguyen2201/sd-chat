@@ -293,7 +293,7 @@ export const utilityFunction = {
 
 // 5. Files and images
   
-const filesAPI = {
+export const filesAPI = {
   async getFilesAndImagesOnly(select: Partial<Pick<Files, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
     try {
       const { data, error} = await supabase

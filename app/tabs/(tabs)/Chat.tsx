@@ -11,7 +11,7 @@ import { Pressable, ScrollView, Alert } from 'react-native';
 import { Input, InputField } from '@/components/ui/input';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
-import { ConversationKeyManager } from '../../../utility/securedMessage/ConversationKeyManagement';
+import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import * as Notifications from 'expo-notifications';
 import { PlusCircleIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
@@ -19,7 +19,9 @@ import CreateGroupChat from '@/components/CreateGroupChat';
 import { Conversation, UserProfile } from '@/utility/types/supabse';
 import { utilityFunction } from '@/utility/handleStorage';
 import { Button, ButtonText } from '@/components/ui/button';
+import { createSnapshotTable, SnapShot, snapshotDB } from '@/utility/localstorage/snapshot';
 import * as SQLite from 'expo-sqlite';
+
 
 /**
  * Chat Tab Screen
@@ -55,7 +57,24 @@ export default function Chat() {
 
   const fetchChatRooms = async () => {
     try {
+
       const { data } = await conversationAPI.getConversations();
+
+      //compared with local snapshot and only save new conversations to local storage to optimize performance
+      const storedSnapshots = await SnapShot.getMessagesSnapshot();
+      const storedSnapshotIds = new Set(storedSnapshots.map((snap) => snap.conversation_id)); // Use Set for O(1)
+      const newConversations = data?.filter((conv: any) => !storedSnapshotIds.has(conv.id)) || [];
+
+      // stroe new conversations to local storage for snapshot
+      await Promise.all(
+          newConversations.map((item) =>
+              SnapShot.saveMessageSnapshot(
+                  item.id,
+                  JSON.stringify(item.messages),
+                  item.messages?.[item.messages.length - 1]?.content || ''
+              )
+          )
+      );
       setListChatRooms(data || []);
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
@@ -229,7 +248,9 @@ export default function Chat() {
   // Load data on mount
   useEffect(() => {
     if (!userId) return;
-
+    snapshotDB;
+    createSnapshotTable();
+    
     fetchChatRooms();
     fetchUsers();
 

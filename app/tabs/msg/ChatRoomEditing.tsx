@@ -16,8 +16,9 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { Spinner } from '@/components/ui/spinner';
-import { conversationAPI, messageAPI, filesAPI} from '@/utility/messages';
+import { conversationAPI, messageAPI } from '@/utility/messages';
 import { Conversation, Files, Message } from '@/utility/types/supabse';
+import { filesAPI } from '@/utility/handleStorage';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { Link } from 'expo-router';
 import { LinkText } from '@/components/ui/link';

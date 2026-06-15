@@ -98,6 +98,7 @@ export default function Bootstrap() {
         router.push({
           pathname: '/tabs/msg/[room_id]',
           params: {
+            room_id: conversationId,
             conversation_id: conversationId,
             displayName: displayName || 'Chat',
             public_key: public_key || '',
@@ -130,8 +131,10 @@ export default function Bootstrap() {
         // Profile incomplete - go to complete profile
         router.replace('/CompleteProfile');
       } else {
+
         // Profile complete - go to chat
         router.replace('/tabs/(tabs)/Chat');
+        
       }
     };
 

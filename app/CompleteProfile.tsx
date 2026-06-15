@@ -8,7 +8,8 @@ import { FormControl} from '@/components/ui/form-control';
 import { VStack } from '@/components/ui/vstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText } from '@/components/ui/button';
-import { filesAPI, profileAPI } from '@/utility/messages';
+import { profileAPI } from '@/utility/messages';
+import { filesAPI } from '@/utility/handleStorage';
 import { router } from 'expo-router';
 import { Divider } from '@/components/ui/divider';
 import { Files, UserProfile } from '@/utility/types/supabse';
@@ -132,7 +133,7 @@ export default function CompleteProfile() {
          <Box className="flex flex-1 items-center mx-5 lg:my-24 lg:mx-32 py-safe">
                   <Box className="flex-1 justify-center items-center h-auto w-[300px] lg:h-auto lg:w-[400px]">
          <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
-            <Heading className="text-typography-900 mb-2 text-white" size="lg">Complete the profile</Heading>
+            <Heading className="text-typography-900 mb-2" size="lg">Complete the profile</Heading>
             <VStack className="gap-4">
               <VStack space="lg">
                 <Text className="text-typography-500">Display Name</Text>

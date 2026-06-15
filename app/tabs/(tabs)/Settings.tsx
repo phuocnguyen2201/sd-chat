@@ -21,7 +21,7 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import { Icon, CloseIcon, SunIcon, MoonIcon } from '@/components/ui/icon';
-import { authAPI, profileAPI, filesAPI }  from '../../../utility/messages';
+import { authAPI, profileAPI }  from '@/utility/messages';
 import {
   Actionsheet,
   ActionsheetContent,
@@ -31,17 +31,20 @@ import {
   ActionsheetDragIndicatorWrapper,
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
-import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
+import { SnapShot } from '@/utility/localstorage/snapshot';
+import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 
 export default function Settings() {
   const router = useRouter();
   const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [totalKey, setTotalKey] = useState(0);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -73,21 +76,20 @@ export default function Settings() {
     }
     else{
       const data = await authAPI.getProfileUser(user?.id ?? '');
-      if(data.data){
-        if(data.data.files_profiles) {        
+      if (data.data) {
+        if (data.data.files_profiles) {        
           const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles?.[0]);
 
           setAvatar(avaURL || '')
         }
 
-        if(data.data.displayname) {
+        if (data.data.displayname) {
           setDisplayName(data.data.displayname)
         }
-
       }
     }
-
   }
+
   async function updateProfile(): Promise<void> {
     setLoading(true);
     if (user?.id) {
@@ -243,6 +245,27 @@ export default function Settings() {
       console.log('Error on toggleDarkMode', error);
     }
   };
+
+  const verifyKeys = async (conversationId: string) => {
+    const data: Uint8Array | null = await ConversationKeyManager.getKey(conversationId);
+    return data !== null && data !== undefined && data instanceof Uint8Array ? true : false;
+  }
+
+  useEffect(() => {
+    if (totalKey == 0) {
+      SnapShot.getMessagesSnapshot().then((res) => {
+        res.forEach((snapshot) => {
+          verifyKeys(snapshot.conversation_id).then((hasKey) => {
+            if (hasKey) {
+              setTotalKey((prev) => prev + 1);
+            }
+          })
+        });
+      }).catch((err) => {
+        console.error('Error fetching users from SQLite:', err);
+      });
+    }
+  }, [totalKey])
   return (
     <ScrollView className="flex-1 pt-safe px-4 md:px-6 lg:px-8">
       <Box className="p-6">
@@ -279,6 +302,7 @@ export default function Settings() {
             <VStack className="flex-1">
               <Text className="text-lg font-semibold">Key Management</Text>
             </VStack>
+            <Text className="text-sm text-gray-500">{totalKey} keys stored</Text>
           </HStack>
         </Box>
 
