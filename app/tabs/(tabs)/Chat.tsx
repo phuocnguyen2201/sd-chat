@@ -19,6 +19,8 @@ import CreateGroupChat from '@/components/CreateGroupChat';
 import { Conversation, UserProfile } from '@/utility/types/supabse';
 import { utilityFunction } from '@/utility/handleStorage';
 import { Button, ButtonText } from '@/components/ui/button';
+import * as SQLite from 'expo-sqlite';
+
 /**
  * Chat Tab Screen
  * 
@@ -463,7 +465,7 @@ export default function Chat() {
             <Icon
               as={PlusCircleIcon}
               size="lg"
-              className="mt-0.5 text-info-600 text-black"/>
+              className="mt-0.5 text-info-600"/>
           </Pressable>
         </HStack>
 

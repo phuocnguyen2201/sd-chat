@@ -4,15 +4,12 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from '@react-navigation/native';
+} from 'expo-router/react-navigation';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useEffect } from 'react';
 import { Slot, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Fab, FabIcon } from '@/components/ui/fab';
-import { MoonIcon, SunIcon } from '@/components/ui/icon';
 import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -47,11 +44,7 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const pathname = usePathname();
-  const segments = useSegments();
   const { isDarkMode, fetchThemeMode } = useSession();
-
-  const showThemeToggle = pathname === '/tabs/(tabs)/Chat' || (pathname === '/' && segments.length < 1);
 
   useEffect(() => {
     fetchThemeMode();

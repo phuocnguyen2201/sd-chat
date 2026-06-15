@@ -20,9 +20,10 @@ import {
 import { Divider } from '@/components/ui/divider';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import * as Network from 'expo-network';
 
 /**
- * Login Screen (Dumb Component)
+ * Login Screen
  * 
  * This screen only handles UI and authentication.
  * Navigation is handled by Bootstrap screen after successful login.
@@ -35,6 +36,7 @@ export default function Login() {
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const networkState = Network.useNetworkState();
   const { refreshProfile } = useSession();
 
   const handleClose = () => setShowAlertDialog(false);
@@ -55,7 +57,10 @@ export default function Login() {
       setMessage('Please enter both email and password');
       return;
     }
-
+    if (!networkState.isConnected) {
+      setMessage('No internet connection. Please connect to the internet and try again.');
+      return;
+    }
     setIsLoading(true);
     try {
       const msg = await authAPI.signIn(email, password);
@@ -80,7 +85,10 @@ export default function Login() {
       setMessage('Please enter both email and password');
       return;
     }
-
+    if (!networkState.isConnected) {
+      setMessage('No internet connection. Please connect to the internet and try again.');
+      return;
+    }
     setIsLoading(true);
     try {
       const public_key = await getPublicKey();
@@ -138,7 +146,7 @@ export default function Login() {
           </AlertDialog>
 
           <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
-            <Heading className="text-typography-900 mb-2 text-white" size="lg">
+            <Heading className="text-typography-900 mb-2" size="lg">
               Authentication
             </Heading>
             <VStack className="gap-4">

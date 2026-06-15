@@ -20,7 +20,6 @@ import {
   AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
-import * as ImagePicker from 'expo-image-picker';
 import { Icon, CloseIcon, SunIcon, MoonIcon } from '@/components/ui/icon';
 import { authAPI, profileAPI, filesAPI }  from '../../../utility/messages';
 import {
@@ -271,6 +270,15 @@ export default function Settings() {
               </Avatar>
             </Pressable>
             {loading ? <Spinner size="large" color="grey" />:<></>}
+          </HStack>
+        </Box>
+
+        {/* Key management */}
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
+          <HStack className="justify-between items-center mb-2">
+            <VStack className="flex-1">
+              <Text className="text-lg font-semibold">Key Management</Text>
+            </VStack>
           </HStack>
         </Box>
 

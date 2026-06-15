@@ -44,7 +44,6 @@ import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
 import ForwardMessage from '@/components/ForwardMessage';
 import { Files, Message } from '@/utility/types/supabse';
-import { TouchableWithoutFeedback } from '@gorhom/bottom-sheet';
 
 /**
  * Chat Room Screen

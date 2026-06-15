@@ -1,18 +1,13 @@
 
 import { supabase } from './connection';
-import { authAPI, conversationAPI, filesAPI, messageAPI, profileAPI } from './messages';
+import { profileAPI } from './messages';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator'
-import { Files } from './types/supabse';
+import { ApiResponse, Files, Message } from './types/supabse';
 import 'react-native-get-random-values';
 import { DocumentPickerAsset } from 'expo-document-picker';
-
-export const STORAGE_BUCKETS = {
-  MESSAGES: 'storage-msg',
-  FILES: 'chat-files',
-  AVATARS: 'avatars',
-};
+import { Constants } from '../constants/Constants';
 
 export const storageAPIs = {
   async uploadImageToSupabase(
@@ -25,10 +20,10 @@ export const storageAPIs = {
     const arrayBuffer = await response.arrayBuffer();
 
     const fileToStore = `${Date.now()}-${image.fileName}`;
-    const filePath = `${STORAGE_BUCKETS.MESSAGES}/${conversation_id}/${fileToStore}`;
+    const filePath = `${Constants.STORAGE_BUCKETS.MESSAGES}/${conversation_id}/${fileToStore}`;
 
     const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKETS.MESSAGES)
+      .from(Constants.STORAGE_BUCKETS.MESSAGES)
       .upload(filePath, arrayBuffer, {
         contentType: image.mimeType,
       });
@@ -36,7 +31,7 @@ export const storageAPIs = {
     if (error) throw error;
 
     const { data: publicUrl, error: urlError } = await supabase.storage
-    .from(STORAGE_BUCKETS.MESSAGES)
+    .from(Constants.STORAGE_BUCKETS.MESSAGES)
     .createSignedUrl(data.path, 60 * 60 * 24 * 365); // 365 days
 
     if (urlError) throw urlError;
@@ -57,7 +52,7 @@ export const storageAPIs = {
       mime_type: image.mimeType || 'unknown',
       original_name: image.fileName|| 'image.jpg',
       token: token,
-      bucket_name: STORAGE_BUCKETS.MESSAGES,
+      bucket_name: Constants.STORAGE_BUCKETS.MESSAGES,
       created_at: new Date().toISOString(),
       expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
@@ -83,16 +78,16 @@ export const storageAPIs = {
     const arrayBuffer = await response.arrayBuffer();
 
     const fileToStore = `${Date.now()}-${file.name}`;
-    const filePath = `${STORAGE_BUCKETS.FILES}/${conversation_id}/${fileToStore}`;
+    const filePath = `${Constants.STORAGE_BUCKETS.FILES}/${conversation_id}/${fileToStore}`;
     
     const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKETS.FILES)
+      .from(Constants.STORAGE_BUCKETS.FILES)
       .upload(filePath, arrayBuffer);
 
     if (error) throw error;
 
     const { data: publicUrl, error: urlError } = await supabase.storage
-    .from(STORAGE_BUCKETS.FILES)
+    .from(Constants.STORAGE_BUCKETS.FILES)
     .createSignedUrl(data.path, 60 * 60 * 24 * 365); // 365 days
 
     if (urlError) throw urlError;
@@ -114,7 +109,7 @@ export const storageAPIs = {
       mime_type: file.mimeType || 'unknown',
       original_name: file.name,
       token: token,
-      bucket_name: STORAGE_BUCKETS.FILES,
+      bucket_name: Constants.STORAGE_BUCKETS.FILES,
       created_at: new Date().toISOString(),
       expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
@@ -138,10 +133,10 @@ export const storageAPIs = {
     await storageAPIs.deleteAvatarFromSupabase(userId); // Delete existing avatar if any
 
     const fileToStore = `${Date.now()}-${image.fileName}`;
-    const filepath = `${STORAGE_BUCKETS.AVATARS}/${userId}/${fileToStore}`;
+    const filepath = `${Constants.STORAGE_BUCKETS.AVATARS}/${userId}/${fileToStore}`;
     
     const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKETS.AVATARS)
+      .from(Constants.STORAGE_BUCKETS.AVATARS)
       .upload(filepath, arrayBuffer, {
         contentType: image.mimeType,
       });
@@ -149,7 +144,7 @@ export const storageAPIs = {
     if (error) throw error;
 
     const { data: publicUrl, error: urlError } = await supabase.storage
-    .from(STORAGE_BUCKETS.AVATARS)
+    .from(Constants.STORAGE_BUCKETS.AVATARS)
     .createSignedUrl(data.path, 60 * 60 * 24 * 365); // 365 days
 
     if (urlError) throw urlError;
@@ -167,7 +162,7 @@ export const storageAPIs = {
       original_name: image.fileName || '',
       token: token,
       file_size: image.fileSize || 0,
-      bucket_name: STORAGE_BUCKETS.AVATARS,
+      bucket_name: Constants.STORAGE_BUCKETS.AVATARS,
       created_at: new Date().toISOString(),
       expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true
@@ -213,7 +208,7 @@ export const storageAPIs = {
 
       if (avatar && avatar?.filepath) {
         // const filePath = `${STORAGE_BUCKET.AVATARS}/${user.id}/${fileName}`;
-        const { error: deleteError } = await supabase.storage.from(STORAGE_BUCKETS.AVATARS).remove([avatar.filepath]);
+        const { error: deleteError } = await supabase.storage.from(Constants.STORAGE_BUCKETS.AVATARS).remove([avatar.filepath]);
         if (deleteError) {
           console.warn('Error deleting existing avatar:', deleteError);
           return { success: false, error: 'Failed to delete avatar' };
@@ -296,4 +291,125 @@ export const utilityFunction = {
   }
 }
 
+// 5. Files and images
+  
+const filesAPI = {
+  async getFilesAndImagesOnly(select: Partial<Pick<Files, 'conversation_id'>>): Promise<ApiResponse<Message[]>>{
+    try {
+      const { data, error} = await supabase
+      .from('messages')
+      .select(`*, files!inner(*)`)
+      .eq('conversation_id', select.conversation_id)
+      .in('message_type',['image','file'])
 
+      if (error) throw error
+      return { data: data , error: null};
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async insertFilesMessages(insert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files')
+      .insert(insert)
+      .select()
+      .single()
+      
+      if(error) throw error;
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async selectFileProfile(profile_id: string) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_profiles')
+      .select('*')
+      .eq('profile_id', profile_id)
+      .eq('bucket_name', Constants.STORAGE_BUCKETS.AVATARS)
+      
+      if(error) throw(error.message);
+
+      return { data: data?.[0], error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async insertFileProfile(upsert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_profiles')
+      .insert(upsert)
+      .select()
+      .single()
+      
+      if(error) throw(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async updateFileProfile(update: Files): Promise<ApiResponse<Files>>{
+    try {
+        const {data, error} = await supabase
+      .from('files_profiles')
+      .update(update)
+      .eq('id', update.id)
+      
+      if(error) throw(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async selectFileGroup(group_id: string) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .select('*')
+      .eq('conversation_id', group_id)
+      .eq('bucket_name', Constants.STORAGE_BUCKETS.AVATARS)
+      
+      if(error) throw(error.message);
+
+      return { data: data?.[0], error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async insertFileGroup(upsert: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .insert(upsert)
+      .select()
+      .single()
+      
+      if(error) throw(error.message);
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+    async updateFileGroup(update: Files) : Promise<ApiResponse<Files>>{
+    try {
+      const {data, error} = await supabase
+      .from('files_group')
+      .upsert(update)
+      .select()
+      .single()
+      
+      if(error) throw error;
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "SD chat",
     "slug": "sd-chat",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "starterkitexpo",
@@ -39,7 +39,9 @@
       "expo-web-browser",
       "expo-font",
       "expo-notifications",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

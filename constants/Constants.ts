@@ -20,4 +20,9 @@ export const Constants = {
             CREATED_AT: 'created_at',
         },
     },
+    STORAGE_BUCKETS : {
+        MESSAGES: 'storage-msg',
+        FILES: 'chat-files',
+        AVATARS: 'avatars',
+    },
 };

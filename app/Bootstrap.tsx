@@ -7,7 +7,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
-
+import * as Network from 'expo-network';
 /**
  * Bootstrap Screen
  * 
@@ -24,6 +24,7 @@ export default function Bootstrap() {
   const backgroundClass = isDarkMode === 'dark' ? 'bg-background-300' : 'bg-background-50';
   const textClass = isDarkMode === 'dark' ? 'text-white' : 'text-black';
   const spinnerColor = isDarkMode === 'dark' ? 'white' : 'black';
+  const networkState = Network.useNetworkState();
 
   // Configure notification handler
   useEffect(() => {
@@ -118,14 +119,14 @@ export default function Bootstrap() {
     const navigate = async () => {
       hasNavigated.current = true;
 
-      if (!user) {
+      if (!user || !networkState.isConnected) {
         // No user session - go to login
         router.replace('/login');
         return;
       }
 
       // User is authenticated
-      if (!profile?.displayname) {
+      if (!profile?.displayname && networkState.isConnected) {
         // Profile incomplete - go to complete profile
         router.replace('/CompleteProfile');
       } else {
