@@ -5,6 +5,7 @@ import { ApiResponse, Conversation, Files, Message, Reaction, UserProfile } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ALWAYS_THIS_DEVICE_ONLY } from 'expo-secure-store';
 import { Constants } from '../constants/Constants';
+import { Profile } from './types/user';
 
 // 1. Authentication with displayname
 
@@ -234,15 +235,15 @@ export const profileAPI = {
       return { data: null, error: error as Error }
     }
   },
-  async getParticipantsPublicKey(userId: string[]): Promise<ApiResponse<Array<{ id: string; public_key: string }>>> {
+  async getParticipantsPublicKey(userId: string[]): Promise<ApiResponse<Profile[]>> {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, public_key')
+        .select('*')
         .in('id', userId)
       
       if (error) throw error
-      return { data: data as Array<{ id: string; public_key: string }>, error: null }
+      return { data: data as Profile[], error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }

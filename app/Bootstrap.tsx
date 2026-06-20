@@ -119,8 +119,8 @@ export default function Bootstrap() {
 
     const navigate = async () => {
       hasNavigated.current = true;
-
-      if (!user || !networkState.isConnected) {
+      //console.log('Is network connected?', networkState.isConnected);
+      if (!user && networkState.isConnected) {
         // No user session - go to login
         router.replace('/login');
         return;
@@ -130,7 +130,9 @@ export default function Bootstrap() {
       if (!profile?.displayname && networkState.isConnected) {
         // Profile incomplete - go to complete profile
         router.replace('/CompleteProfile');
-      } else {
+      }
+      
+      if (networkState.isConnected && profile?.displayname) {
 
         // Profile complete - go to chat
         router.replace('/tabs/(tabs)/Chat');

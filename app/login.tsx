@@ -37,7 +37,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const networkState = Network.useNetworkState();
-  const { refreshProfile } = useSession();
+  const { refreshProfile, isDarkMode } = useSession();
 
   const handleClose = () => setShowAlertDialog(false);
 
@@ -53,6 +53,7 @@ export default function Login() {
   };
 
   const signInAsync = async () => {
+    debugger;
     if (!email.trim() || !password.trim()) {
       setMessage('Please enter both email and password');
       return;
@@ -146,16 +147,16 @@ export default function Login() {
           </AlertDialog>
 
           <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
-            <Heading className="text-typography-900 mb-2" size="lg">
+            <Heading className={isDarkMode ? 'text-typography-100' : 'text-typography-900 mb-2'} size="lg">
               Authentication
             </Heading>
             <VStack className="gap-4">
               <VStack space="lg">
                 <Text className="text-typography-500">Email</Text>
-                <Input>
+                <Input className="my-1">
                   <InputField
                     type="text"
-                    className="text-white"
+                    className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
                     value={email}
                     onChangeText={setEmail}
                     editable={!isLoading}
@@ -166,10 +167,10 @@ export default function Login() {
               </VStack>
               <VStack space="lg">
                 <Text className="text-typography-500">Password</Text>
-                <Input>
+                <Input className="my-1">
                   <InputField
                     type={showPassword ? 'text' : 'password'}
-                    className="text-white"
+                    className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
                     value={password}
                     onChangeText={setPassword}
                     editable={!isLoading}

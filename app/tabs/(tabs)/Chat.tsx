@@ -420,11 +420,21 @@ export default function Chat() {
         // For group chat, we may need to handle differently in future
         otherPublicKey = data?.filter((participant: any) => participant.profiles?.id === groupChatCreatorId)?.[0]?.profiles?.public_key || null;
       }
-      else{
-        otherPublicKey = 
+      else {
+        // For 1-1 chat, get the other participant's public key for the first time conversation initialization
+        if(data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null){
+          const firstInitConversationKey = await profileAPI.getParticipantsPublicKey([data?.[0]?.profiles?.id, data?.[1]?.profiles?.id])
+          otherPublicKey = 
+            firstInitConversationKey.data?.[0]?.id == userId
+            ? firstInitConversationKey.data?.[1]?.public_key
+            : firstInitConversationKey.data?.[0]?.public_key || null;
+        }
+        else
+          otherPublicKey = 
             data?.[1]?.profiles?.id == userId
             ? data?.[0]?.profiles?.public_key
             : data?.[1]?.profiles?.public_key;
+            //console.log('Other participant public key:', otherPublicKey);
       }
       const conversationKeyBytes = await getConversationKeyForOtherParticipants(
           otherPublicKey,
@@ -589,7 +599,7 @@ export default function Chat() {
                       : 'No messages yet';
 
                   // Get message type
-                  const msg_type = room.messages?.[0]?.message_type ?? 'Text';
+                  //const msg_type = room.messages?.[0]?.message_type ?? 'Text';
 
                   // Format time
                   const time = room.created_at
