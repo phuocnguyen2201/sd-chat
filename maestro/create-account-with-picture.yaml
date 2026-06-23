@@ -12,9 +12,15 @@ appId: com.phuocng23000.sdchat
 - tapOn: 
     point: '50%, 50%'
 - inputText: ${PASSWORD}
-- assertVisible: ".*Return.*"
-- tapOn: ".*Return.*"
-- assertNotVisible: ".*Return.*"
+
+- runFlow:
+    when: 
+        platform: "iOS"
+    commands: 
+        - assertVisible: ".*Return.*"
+        - tapOn: ".*Return.*"
+        - assertNotVisible: ".*Return.*"
+
 - tapOn: "Register"
 - assertVisible: "Notification.*"
 - assertVisible: ".*Registration successful!.*"
@@ -25,9 +31,15 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "Input Field"
 - tapOn: "Input Field"
 - inputRandomCityName
-- assertVisible: ".*Return.*"
-- tapOn: ".*Return.*"
-- assertNotVisible: ".*Return.*"
+
+- runFlow:
+    when: 
+        platform: "iOS"
+    commands: 
+        - assertVisible: ".*Return.*"
+        - tapOn: ".*Return.*"
+        - assertNotVisible: ".*Return.*"
+
 - assertVisible:
     point: 32%,50%
 - tapOn:
@@ -51,11 +63,3 @@ appId: com.phuocng23000.sdchat
 - tapOn: "Save"
 - assertVisible: "Chat.*"
 - assertVisible: { id: "users-scroll" }
-
-
-
-
-
-
-
-
