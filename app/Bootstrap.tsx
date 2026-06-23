@@ -7,7 +7,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
-import * as Network from 'expo-network';
+
 /**
  * Bootstrap Screen
  * 
@@ -24,7 +24,6 @@ export default function Bootstrap() {
   const backgroundClass = isDarkMode === 'dark' ? 'bg-background-300' : 'bg-background-50';
   const textClass = isDarkMode === 'dark' ? 'text-white' : 'text-black';
   const spinnerColor = isDarkMode === 'dark' ? 'white' : 'black';
-  const networkState = Network.useNetworkState();
 
   // Configure notification handler
   useEffect(() => {
@@ -120,24 +119,22 @@ export default function Bootstrap() {
     const navigate = async () => {
       hasNavigated.current = true;
       //console.log('Is network connected?', networkState.isConnected);
-      if (!user && networkState.isConnected) {
-        // No user session - go to login
+      
+      if (!user) {
+        // No user session - go to login (regardless of network)
         router.replace('/login');
         return;
       }
 
       // User is authenticated
-      if (!profile?.displayname && networkState.isConnected) {
+      if (!profile?.displayname) {
         // Profile incomplete - go to complete profile
         router.replace('/CompleteProfile');
+        return;
       }
       
-      if (networkState.isConnected && profile?.displayname) {
-
-        // Profile complete - go to chat
-        router.replace('/tabs/(tabs)/Chat');
-        
-      }
+      // Profile complete - go to chat
+      router.replace('/tabs/(tabs)/Chat');
     };
 
     navigate();

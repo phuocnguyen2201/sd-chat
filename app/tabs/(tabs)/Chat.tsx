@@ -492,6 +492,7 @@ export default function Chat() {
             Chats
           </Heading>
           <Pressable 
+            testID="create-group"
             onPress={() => setShowCreateGroupModal(true)}>
             <Icon
               as={PlusCircleIcon}
@@ -516,6 +517,7 @@ export default function Chat() {
         {/* Search Bar */}
         <Input className="rounded-full bg-gray-100 border-0">
           <InputField
+            testID="search"
             placeholder="Search Messenger"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -537,7 +539,7 @@ export default function Chat() {
       <Box className="flex-1">
         <Box className="border-b border-gray-100 py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <HStack space="md" className="mr-4">
+            <HStack space="md" testID="users-scroll" className="mr-4">
               {filteredUsers &&
                 filteredUsers.map((users, index: number) => (
                   <Pressable

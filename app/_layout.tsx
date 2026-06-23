@@ -12,6 +12,20 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+// Source - https://stackoverflow.com/a/79908585
+// Posted by Zakhar G, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-06-22, License - CC BY-SA 4.0
+
+import { requireOptionalNativeModule } from 'expo';
+
+const DevMenuPreferences = requireOptionalNativeModule('DevMenuPreferences');
+DevMenuPreferences?.setPreferencesAsync({
+  showFloatingActionButton: false,
+  showsAtLaunch: false,
+  motionGestureEnabled: false,    // Disables shake to open
+  touchGestureEnabled: false,     // Disables 3-finger long press to open
+});
+
 
 export {
   // Catch any errors thrown by the Layout component.

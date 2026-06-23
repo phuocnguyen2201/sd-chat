@@ -20,8 +20,6 @@ import {
 import { Divider } from '@/components/ui/divider';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
-import * as Network from 'expo-network';
-
 /**
  * Login Screen
  * 
@@ -36,7 +34,6 @@ export default function Login() {
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const networkState = Network.useNetworkState();
   const { refreshProfile, isDarkMode } = useSession();
 
   const handleClose = () => setShowAlertDialog(false);
@@ -53,15 +50,11 @@ export default function Login() {
   };
 
   const signInAsync = async () => {
-    debugger;
     if (!email.trim() || !password.trim()) {
       setMessage('Please enter both email and password');
       return;
     }
-    if (!networkState.isConnected) {
-      setMessage('No internet connection. Please connect to the internet and try again.');
-      return;
-    }
+
     setIsLoading(true);
     try {
       const msg = await authAPI.signIn(email, password);
@@ -86,10 +79,7 @@ export default function Login() {
       setMessage('Please enter both email and password');
       return;
     }
-    if (!networkState.isConnected) {
-      setMessage('No internet connection. Please connect to the internet and try again.');
-      return;
-    }
+
     setIsLoading(true);
     try {
       const public_key = await getPublicKey();
@@ -152,10 +142,14 @@ export default function Login() {
             </Heading>
             <VStack className="gap-4">
               <VStack space="lg">
-                <Text className="text-typography-500">Email</Text>
-                <Input className="my-1">
+                <Text className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}>Email</Text>
+
+                <Input className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
                   <InputField
+                    accessibilityLabel="email input field"
+                    testID="email_input"
                     type="text"
+                    placeholder="Enter your email"
                     className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
                     value={email}
                     onChangeText={setEmail}
@@ -166,9 +160,12 @@ export default function Login() {
                 </Input>
               </VStack>
               <VStack space="lg">
-                <Text className="text-typography-500">Password</Text>
-                <Input className="my-1">
+                <Text className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}>Password</Text>
+                <Input testID="password_field" className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
                   <InputField
+                    testID="password_input"
+                    accessibilityLabel="password input field"
+                    placeholder="Enter your password"
                     type={showPassword ? 'text' : 'password'}
                     className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
                     value={password}
@@ -184,6 +181,7 @@ export default function Login() {
 
               <VStack>
                 <Button
+                  testID="login_button"
                   className="p-0"
                   size="xl"
                   onPress={signInAsync}
