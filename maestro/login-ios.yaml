@@ -1,0 +1,22 @@
+appId: "com.phuocng23000.sdchat"
+---
+- runFlow: 
+    when:
+      platform: "ios"
+    commands:
+        - launchApp
+        - assertVisible: "Downloading.*"
+        - extendedWaitUntil: 
+            visible: "Authentication.*"
+            timeout: 50000
+        - assertVisible: "Email"
+        - assertVisible: "Password"
+        - tapOn: 
+            point: '50%, 40%'
+        - inputText: ${EMAIL}
+        - tapOn: 
+            point: '50%, 50%'
+        - inputText: ${PASSWORD}
+        - tapOn: "Login"
+        - assertVisible: "Chat.*"
+        - assertVisible: { id: "users-scroll" }

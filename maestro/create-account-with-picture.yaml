@@ -1,0 +1,61 @@
+appId: com.phuocng23000.sdchat
+---
+- launchApp
+- extendedWaitUntil: 
+    visible: "Authentication.*"
+    timeout: 50000
+- assertVisible: "Email"
+- assertVisible: "Password"
+- tapOn: 
+    point: '50%, 40%'
+- inputRandomEmail
+- tapOn: 
+    point: '50%, 50%'
+- inputText: ${PASSWORD}
+- assertVisible: ".*Return.*"
+- tapOn: ".*Return.*"
+- assertNotVisible: ".*Return.*"
+- tapOn: "Register"
+- assertVisible: "Notification.*"
+- assertVisible: ".*Registration successful!.*"
+- assertVisible: ".*Okay.*"
+- tapOn: "Okay"
+- tapOn: "Login"
+- assertVisible: "Complete the profile"
+- assertVisible: "Input Field"
+- tapOn: "Input Field"
+- inputRandomCityName
+- assertVisible: ".*Return.*"
+- tapOn: ".*Return.*"
+- assertNotVisible: ".*Return.*"
+- assertVisible:
+    point: 32%,50%
+- tapOn:
+    point: 32%,50%
+
+- assertVisible: "Take Photo"
+- assertVisible: "Select from album"
+- tapOn: "Take Photo"
+- assertVisible: "Shutter"
+- tapOn: "Shutter"
+- assertVisible:
+    id: "bottombar_intent_review"
+- assertVisible: "Done"
+- tapOn: "Done"
+- assertVisible: "CROP"
+- tapOn: "CROP"
+- extendedWaitUntil:
+    visible: "Complete the profile"
+    timeout: 10000
+- assertVisible: "Save"
+- tapOn: "Save"
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+
+
+
+
+
+
+
+
