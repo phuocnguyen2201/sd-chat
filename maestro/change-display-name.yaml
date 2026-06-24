@@ -1,0 +1,19 @@
+appId: com.phuocng23000.sdchat
+---
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Settings"
+- tapOn: "Settings"
+- assertVisible: "Edit"
+- tapOn: "Edit"
+- assertVisible: "Change Display Name"
+- tapOn: "Input Field"
+- repeat:
+    times: 12
+    commands:
+      - pressKey: backspace
+- inputRandomCityName
+- tapOn: "Save"
+- assertVisible: "Profile updated successfully"
+- assertNotVisible: "Profile updated successfully"

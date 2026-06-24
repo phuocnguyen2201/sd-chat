@@ -1,0 +1,15 @@
+appId: com.phuocng23000.sdchat
+---
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Settings"
+- tapOn: "Settings"
+- assertVisible: "Key Management"
+- assertVisible: "Dark Mode.*"
+- takeScreenshot: "value"
+- assertVisible:
+    point: 77%,34%
+- doubleTapOn:
+    point: 77%,34%
+- takeScreenshot: "value"
