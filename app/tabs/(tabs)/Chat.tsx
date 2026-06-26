@@ -20,7 +20,6 @@ import { Conversation, UserProfile } from '@/utility/types/supabse';
 import { utilityFunction } from '@/utility/handleStorage';
 import { Button, ButtonText } from '@/components/ui/button';
 import { createSnapshotTable, SnapShot, snapshotDB } from '@/utility/localstorage/snapshot';
-import * as SQLite from 'expo-sqlite';
 
 
 /**
@@ -121,8 +120,8 @@ export default function Chat() {
 
       // Wrap and store the conversation key for each recipient
       for (const pkEntry of publicKeys || []) {
-        const recipientId = pkEntry.id;
-        const public_key = pkEntry.public_key;
+        const recipientId = pkEntry?.id;
+        const public_key = pkEntry?.public_key;
 
         if (!public_key) {
           console.warn(`Public key not found for user ${recipientId}, skipping key storage.`);
@@ -146,7 +145,7 @@ export default function Chat() {
           // Store the wrapped key and nonce to the database for current user
           await conversationAPI.storeConversationKey(
             data.conversation_id,
-            recipientId,
+            recipientId || '',
             MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.wrappedKey),
             MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.nonce),
             recipientId === userId ? groupCreatorPublicKey : public_key,
@@ -484,7 +483,7 @@ export default function Chat() {
   }
 
   return (
-    <Box className="flex-1 pt-safe px-4 md:px-6 lg:px-8">
+    <Box className={`flex-1 pt-safe px-4 md:px-6 lg:px-8 isolate ${isDarkMode == "dark"? '':'bg-white'}`}>
       {/* Header */}
       <Box className="border-b border-gray-200 pt-4 px-4 pb-3">
         <HStack className="justify-between items-center mb-4">
