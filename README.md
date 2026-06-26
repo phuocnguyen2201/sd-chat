@@ -117,6 +117,8 @@ SD Chat leverages Supabase as its complete backend solution, providing:
 ```
 sd-chat/
 ├── app/                        # Application screens and routes
+│   ├── +html.tsx               # Web HTML shell
+│   ├── +not-found.tsx          # 404 / fallback route
 │   ├── _layout.tsx             # Root layout (providers, themes, routing shell)
 │   ├── index.tsx               # Root entry (redirects to Bootstrap)
 │   ├── Bootstrap.tsx           # Bootstrap / gate screen (session + push init)
@@ -131,19 +133,27 @@ sd-chat/
 │       │   └── Settings.tsx    # User settings
 │       └── msg/                # Message / room routes
 │           ├── [room_id].tsx   # Individual encrypted chat room
-│           └── ChatRoomEditing.tsx # (Optional) room editing utilities
+│           └── ChatRoomEditing.tsx # Room editing utilities
 ├── components/                 # Reusable UI components
 │   ├── CreateGroupChat.tsx
+│   ├── EditScreenInfo.tsx
+│   ├── ExternalLink.tsx
 │   ├── ForwardMessage.tsx
-│   ├── MessageAction.tsx
 │   ├── LoadingModal.tsx
+│   ├── MessageAction.tsx
+│   ├── Push.tsx
+│   ├── Themed.tsx
 │   ├── ZoomImage.tsx
-│   └── ui/                     # Gluestack v3 primitives
-│       ├── box/, button/, text/, input/, ... 
+│   ├── useClientOnlyValue.ts
+│   ├── useClientOnlyValue.web.ts
+│   ├── useColorScheme.ts
+│   ├── useColorScheme.web.ts
+│   └── ui/                     # Gluestack UI primitives
 ├── utility/                    # Core business logic & helpers
 │   ├── connection.ts           # Supabase client
-│   ├── messages.ts             # Domain APIs (auth, profiles, conversations, messages, realtime)
 │   ├── handleStorage.ts        # File/image storage (Supabase buckets)
+│   ├── messages.ts             # Domain APIs (auth, profiles, conversations, messages, realtime)
+│   ├── localstorage/           # Local persistence helpers
 │   ├── push-notification/      # Push notification registration + token storage
 │   │   └── push-Notification.ts
 │   ├── securedMessage/         # E2E encryption utilities
@@ -164,12 +174,27 @@ sd-chat/
 │   ├── app/
 │   │   ├── index.md            # Auth screen docs
 │   │   ├── CompleteProfile.md  # Profile screen docs
-│   │   └── tabs/               # Tab-related docs
+│   │   └── tabs/
 │   │       ├── Chat.md
 │   │       └── msg/
 │   │           └── room_id.md
 │   ├── supabase/README.md      # Supabase & Edge Functions docs
 │   └── utility/README.md       # Utility layer (APIs, encryption, session)
+├── maestro/                    # Automated test scenario definitions
+│   ├── change-display-name.yaml
+│   ├── change-password.yaml
+│   ├── create-account-with-picture.yaml
+│   ├── forward-message.yaml
+│   ├── interactive-users.yaml
+│   ├── login-ios.yaml
+│   ├── login.yaml
+│   ├── search-bar.yaml
+│   ├── send-emojies.yaml
+│   ├── send-files.yaml
+│   ├── send-images.yaml
+│   ├── send-messages.yaml
+│   ├── send-reaction.yaml
+│   └── toggle-darkmode.yaml
 ├── components/ui/...           # Gluestack component implementations
 ├── assets/                     # Icons, images, fonts
 ├── constants/                  # App-wide constants
@@ -206,7 +231,3 @@ Comprehensive documentation is available in the `documentation/` folder, coverin
 ## License
 
 This project is private and proprietary.
-
----
-
-Built with ❤️ using React Native, Expo, and Supabase
