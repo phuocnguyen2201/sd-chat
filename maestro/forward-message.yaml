@@ -1,0 +1,30 @@
+appId: com.phuocng23000.sdchat
+---
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Android Simulator.*"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Android Simulator"
+- longPressOn: "Testing message"
+- assertVisible:
+    point: 6%,23%
+- assertVisible: "Forward"
+- tapOn: "Forward"
+- assertVisible:
+    point: 3%,67%
+- assertVisible:
+    point: 6%,79%
+- swipe:
+    direction: LEFT
+- assertVisible: "Dfdf, @latricia.boyle"
+- tapOn: "Dfdf, @latricia.boyle"
+- assertVisible: "Forward (1)"
+- tapOn: "Forward (1)"
+- tapOn: "Navigate up"
+- assertVisible: ".*Dfdf.*"
+- tapOn: ".*Dfdf.*"
+- assertVisible: "￼"
+
+
+

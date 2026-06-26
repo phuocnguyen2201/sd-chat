@@ -1,0 +1,16 @@
+appId: com.phuocng23000.sdchat
+---
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Android Simulator.*"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Android Simulator"
+- longPressOn: "Testing message"
+- assertVisible:
+    point: 6%,23%
+- assertVisible: "👍"
+- tapOn: "👍"
+- tapOn: "Navigate up"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "👍"
