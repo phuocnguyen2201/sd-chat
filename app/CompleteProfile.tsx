@@ -28,6 +28,7 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { useSession } from '@/utility/session/SessionProvider';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
 export default function CompleteProfile() {
 
@@ -138,7 +139,7 @@ export default function CompleteProfile() {
               <VStack space="lg">
                 <Text className="text-typography-500">Display Name</Text>
                 <Input>
-                  <InputField type="text" className="text-white" value={displayName} onChangeText={setDisplayName} />
+                  <InputField testID={automationLocatorsDataState.completeProfileScreen.displayNameInput} type="text" className="text-white" value={displayName} onChangeText={setDisplayName} />
                 </Input>
                 <Box className="flex-row flex-wrap justify-between gap-2 mt-4">
 
@@ -147,7 +148,7 @@ export default function CompleteProfile() {
 
                 }
               }>
-                  <Avatar size="xl" className='bg-background-200'>
+                  <Avatar testID={automationLocatorsDataState.completeProfileScreen.avatarImage} size="xl" className='bg-background-200'>
                     <AvatarFallbackText>{displayName}</AvatarFallbackText>
                     <AvatarImage
                       source={{
@@ -162,7 +163,7 @@ export default function CompleteProfile() {
               </VStack>
            
               <VStack>
-                <Button className="p-0" size='xl'  
+                <Button testID={automationLocatorsDataState.completeProfileScreen.saveProfileButton} className="p-0" size='xl'  
                     onPress={updateProfile}>
                 <ButtonText>Save</ButtonText>
               </Button></VStack>
@@ -170,7 +171,7 @@ export default function CompleteProfile() {
               <Divider className="my-0.5 mb-4" />
 
               <VStack>
-                <Button className="p-0" size='xl'  
+                <Button testID={automationLocatorsDataState.completeProfileScreen.backButton} className="p-0" size='xl'  
                     onPress={async () => {
                       await supabase.auth.signOut();
                        router.push('/');
@@ -180,16 +181,16 @@ export default function CompleteProfile() {
             </VStack>
           </FormControl>
          {/* <AlertDialogBackdrop /> */}
-      <Actionsheet isOpen={showActionsheet} onClose={() => setShowActionsheet(false)}>
+      <Actionsheet testID={automationLocatorsDataState.completeProfileScreen.dialogBackdrop} isOpen={showActionsheet} onClose={() => setShowActionsheet(false)}>
         <ActionsheetBackdrop />
         <ActionsheetContent>
           <ActionsheetDragIndicatorWrapper>
             <ActionsheetDragIndicator />
           </ActionsheetDragIndicatorWrapper>
-          <ActionsheetItem onPress={takePicture}>
+          <ActionsheetItem testID={automationLocatorsDataState.completeProfileScreen.takePhotoButton} onPress={takePicture}>
             <ActionsheetItemText>Take Photo</ActionsheetItemText>
           </ActionsheetItem>
-          <ActionsheetItem onPress={pickImage}>
+          <ActionsheetItem testID={automationLocatorsDataState.completeProfileScreen.selectFromAlbumButton} onPress={pickImage}>
             <ActionsheetItemText>Select from album</ActionsheetItemText>
             {loading ? <Spinner size="large" color="grey"/> : null}
           </ActionsheetItem>

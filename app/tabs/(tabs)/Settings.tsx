@@ -39,6 +39,7 @@ import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
 import { SnapShot } from '@/utility/localstorage/snapshot';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
 export default function Settings() {
   const router = useRouter();
@@ -281,7 +282,7 @@ export default function Settings() {
         {/* Avatar Section */}
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
-            <Pressable onPress={() => setShowActionsheet(true)}>
+            <Pressable testID={automationLocatorsDataState.settingsScreen.avatarImage} onPress={() => setShowActionsheet(true)}>
               <Avatar size="xl">
                 <AvatarFallbackText>{displayName}</AvatarFallbackText>
                 <AvatarImage
@@ -313,6 +314,7 @@ export default function Settings() {
               <Text className="text-lg font-semibold">Dark Mode: <Icon as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
             </VStack>
             <Switch
+              testID={automationLocatorsDataState.settingsScreen.darkModeSwitch}
               size="lg"
               trackColor={{ false: '#d4d4d4', true: '#525252' }}
               thumbColor="#fafafa"
@@ -330,6 +332,7 @@ export default function Settings() {
               <Text className={`text-lg font-semibold`}>{displayName || 'Not set'}</Text>
             </VStack>
             <Button
+              testID={automationLocatorsDataState.settingsScreen.editDisplayNameButton}
               size="sm"
               action="primary"
               className="bg-blue-500"
@@ -348,6 +351,7 @@ export default function Settings() {
               <Text >••••••••</Text>
             </VStack>
             <Button
+            testID={automationLocatorsDataState.settingsScreen.changePasswordButton}
               size="sm"
               action="primary"
               className="bg-blue-500"
@@ -358,6 +362,7 @@ export default function Settings() {
           </HStack>
         </Box>
         <Button
+        testID={automationLocatorsDataState.settingsScreen.deleteAccountButton}
           size="lg"
           className="bg-red-500 mb-6"
           onPress={async () => {
@@ -368,6 +373,7 @@ export default function Settings() {
         </Button>
         {/* Sign Out Button */}
         <Button
+        testID={automationLocatorsDataState.settingsScreen.logoutButton}
           size="lg"
           className="bg-red-500"
           onPress={async () => {

@@ -7,6 +7,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
 import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
 type CreateGroupChat = {
   isOpen: boolean;

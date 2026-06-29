@@ -20,6 +20,7 @@ import {
 import { Divider } from '@/components/ui/divider';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 /**
  * Login Screen
  * 
@@ -110,7 +111,7 @@ export default function Login() {
       <Box className="absolute lg:w-[700px] lg:h-[700px]"></Box>
       <Box className="flex flex-1 items-center mx-5 lg:my-24 lg:mx-32 py-safe">
         <Box className="flex-1 justify-center items-center h-auto w-[300px] lg:h-auto lg:w-[400px]">
-          <AlertDialog isOpen={showAlertDialog} onClose={handleClose} size="md">
+          <AlertDialog testID={automationLocatorsDataState.loginScreen.notificationDialog} isOpen={showAlertDialog} onClose={handleClose} size="md">
             <AlertDialogContent>
               <AlertDialogHeader>
                 <Heading className="text-typography-950 font-semibold" size="md">
@@ -129,7 +130,7 @@ export default function Login() {
                 >
                   <ButtonText>Cancel</ButtonText>
                 </Button>
-                <Button size="sm" onPress={handleClose}>
+                <Button testID={automationLocatorsDataState.loginScreen.acceptButton} size="sm" onPress={handleClose}>
                   <ButtonText>Okay</ButtonText>
                 </Button>
               </AlertDialogFooter>
@@ -147,7 +148,7 @@ export default function Login() {
                 <Input className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
                   <InputField
                     accessibilityLabel="email input field"
-                    testID="email_input"
+                    testID={automationLocatorsDataState.loginScreen.emailInput}
                     type="text"
                     placeholder="Enter your email"
                     className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
@@ -161,9 +162,9 @@ export default function Login() {
               </VStack>
               <VStack space="lg">
                 <Text className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}>Password</Text>
-                <Input testID="password_field" className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
+                <Input className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
                   <InputField
-                    testID="password_input"
+                    testID={automationLocatorsDataState.loginScreen.passwordInput}
                     accessibilityLabel="password input field"
                     placeholder="Enter your password"
                     type={showPassword ? 'text' : 'password'}
@@ -181,7 +182,7 @@ export default function Login() {
 
               <VStack>
                 <Button
-                  testID="login_button"
+                  testID={automationLocatorsDataState.loginScreen.signInButton}
                   className="p-0"
                   size="xl"
                   onPress={signInAsync}
@@ -193,6 +194,7 @@ export default function Login() {
               <Divider className="my-0.5 mb-4" />
               <VStack>
                 <Button
+                  testID={automationLocatorsDataState.loginScreen.registerButton}
                   className="p-0"
                   size="xl"
                   onPress={signUpAsync}
