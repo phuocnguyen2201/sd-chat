@@ -7,6 +7,7 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
 import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -52,6 +53,7 @@ import { Files, Message } from '@/utility/types/supabse';
  * No conversationKey passed through navigation params.
  */
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const { conversation_id, displayName, public_key } = useLocalSearchParams<{
     conversation_id?: string;
     displayName?: string;
@@ -615,7 +617,7 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
       style={{ flex: 1 }}
     >
-      <Box className={`relative flex-1 pt-safe px-4 md:px-6 lg:px-8`}>
+      <Box className={`relative flex-1 px-4 md:px-6 lg:px-8`} style={{ paddingTop: insets.top }}>
         <ScrollView
           ref={scrollRef}
           className="flex-1 px-4 py-3"

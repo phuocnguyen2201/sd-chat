@@ -10,6 +10,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { supabase } from '@/utility/connection';
 import { ScrollView, Pressable, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
 import {
   AlertDialog,
@@ -43,6 +44,7 @@ import { automationLocatorsDataState } from '@/constants/automationLocatorsDataS
 
 export default function Settings() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [totalKey, setTotalKey] = useState(0);
@@ -268,7 +270,7 @@ export default function Settings() {
     }
   }, [totalKey])
   return (
-    <ScrollView className="flex-1 pt-safe px-4 md:px-6 lg:px-8">
+    <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>
       <Box className="p-6">
         <Heading className="font-bold text-3xl mb-2">Settings</Heading>
         <Text className="text-gray-500 mb-6">Manage your profile and account</Text>

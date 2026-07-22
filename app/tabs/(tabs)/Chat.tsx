@@ -8,6 +8,7 @@ import { Text } from '@/components/ui/text';
 import { conversationAPI, profileAPI, realtimeAPI } from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
 import { Pressable, ScrollView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, InputField } from '@/components/ui/input';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
@@ -40,7 +41,7 @@ export default function Chat() {
   const [filteredChatRooms, setFilteredChatRooms] = useState<Conversation[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [newChat, setNewChat] = useState<string>('');
-
+  const insets = useSafeAreaInsets();
   const [cancelSeachButton, setCancelSearchButton]= useState(false);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -483,7 +484,7 @@ export default function Chat() {
   }
 
   return (
-    <Box className={`flex-1 pt-safe px-4 md:px-6 lg:px-8 isolate ${isDarkMode == "dark"? '':'bg-white'}`}>
+    <Box className={`flex-1 px-4 md:px-6 lg:px-8 isolate ${isDarkMode == "dark"? '':'bg-white'}`} style={{ paddingTop: insets.top }}>
       {/* Header */}
       <Box className="border-b border-gray-200 pt-4 px-4 pb-3">
         <HStack className="justify-between items-center mb-4">
