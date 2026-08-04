@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Spinner } from '@/components/ui/spinner';
@@ -38,7 +38,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
-import { SnapShot } from '@/utility/localstorage/snapshot';
+
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
@@ -47,7 +47,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [totalKey, setTotalKey] = useState(0);
+  
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -57,6 +57,8 @@ export default function Settings() {
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showActionsheet, setShowActionsheet] = useState(false);
+
+  const [showManageKeysDialog, setShowManageKeysDialog] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -163,6 +165,35 @@ export default function Settings() {
     }
   }
 
+  function handleSharingQRCode() {
+    try {
+     router.push('/tabs/managekeys/ManageKeys');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to sync keys');
+      console.warn(e);
+    }
+    finally{
+      setShowManageKeysDialog(false);
+    }
+  }
+  async function handleScanningQRCode(): Promise<void> {
+    try {
+      const success = true;
+      console.log('Scanning QR code...');
+      if (success) {
+        Alert.alert('Success', 'Keys scanned successfully');
+      } else {
+        Alert.alert('Error', 'Failed to scan keys');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to scan keys');
+      console.warn(e);
+    }
+    finally{
+      setShowManageKeysDialog(false);
+    }
+  }
+
   function pickImage() {
     handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
       if (result != null)
@@ -249,26 +280,7 @@ export default function Settings() {
     }
   };
 
-  const verifyKeys = async (conversationId: string) => {
-    const data: Uint8Array | null = await ConversationKeyManager.getKey(conversationId);
-    return data !== null && data !== undefined && data instanceof Uint8Array ? true : false;
-  }
-
-  useEffect(() => {
-    if (totalKey == 0) {
-      SnapShot.getMessagesSnapshot().then((res) => {
-        res.forEach((snapshot) => {
-          verifyKeys(snapshot.conversation_id).then((hasKey) => {
-            if (hasKey) {
-              setTotalKey((prev) => prev + 1);
-            }
-          })
-        });
-      }).catch((err) => {
-        console.error('Error fetching users from SQLite:', err);
-      });
-    }
-  }, [totalKey])
+ 
   return (
     <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>
       <Box className="p-6">
@@ -305,7 +317,15 @@ export default function Settings() {
             <VStack className="flex-1">
               <Text className="text-lg font-semibold">Key Management</Text>
             </VStack>
-            <Text className="text-sm text-gray-500">{totalKey} keys stored</Text>
+            <Button
+              testID={automationLocatorsDataState.settingsScreen.manageKeysButton}
+              size="sm"
+              action="primary"
+              className="bg-blue-500"
+              onPress={() => setShowManageKeysDialog(true)}
+            >
+              <ButtonText>Manage Keys</ButtonText>
+            </Button>
           </HStack>
         </Box>
 
@@ -521,6 +541,39 @@ export default function Settings() {
           </ActionsheetItem>
         </ActionsheetContent>
       </Actionsheet>
+      {/* Manage Keys Button */}
+      <AlertDialog isOpen={showManageKeysDialog} onClose={() => setShowManageKeysDialog(false)} size="md">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <Heading className="text-typography-950 font-semibold" size="md">
+              Notification
+            </Heading>
+          </AlertDialogHeader>
+          <AlertDialogBody className="mt-3 mb-4">
+            <Text size="sm">
+              Sync your keys or share them for new devices?
+            </Text>
+          </AlertDialogBody>
+          <AlertDialogFooter className="">
+             <Button size="sm" onPress={handleScanningQRCode}>
+              <ButtonText>Scan QR Code</ButtonText>
+            </Button>
+            <Button size="sm" onPress={handleSharingQRCode}>
+              <ButtonText>Sharing QR Code</ButtonText>
+            </Button>
+            <Button
+              variant="outline"
+              action="secondary"
+              onPress={() => setShowManageKeysDialog(false)}
+              size="sm"
+            >
+              <ButtonText>Cancel</ButtonText>
+            </Button>
+
+          </AlertDialogFooter>
+        </AlertDialogContent>
+        
+      </AlertDialog>
     </ScrollView>
   );
 }

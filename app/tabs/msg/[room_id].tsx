@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { STORAGE_BUCKETS, storageAPIs, utilityFunction } from '@/utility/handleStorage';
+import { storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import ZoomImage from '@/components/ZoomImage';
 import { LinkText } from '@/components/ui/link';
 import { ArrowBigDown } from 'lucide-react-native';
@@ -19,7 +19,7 @@ import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '../../../utility/securedMessage/secured';
 import { Picker } from 'emoji-mart-native';
-import { conversationAPI, filesAPI, messageAPI, reactionAPI } from '@/utility/messages';
+import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
   Popover,
   PopoverBackdrop,
