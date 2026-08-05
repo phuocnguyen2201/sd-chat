@@ -41,6 +41,8 @@ import { Switch } from '@/components/ui/switch';
 
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import { checkBiometricAvailability } from '@/utility/biometricsSecurity/biometricSecurity';
+
 
 export default function Settings() {
   const router = useRouter();
@@ -165,12 +167,24 @@ export default function Settings() {
     }
   }
 
-  function handleSharingQRCode() {
+  async function handleSharingQRCode() {
     try {
-     router.push('/tabs/managekeys/ManageKeys');
+      const isBiometricAvailable = await AsyncStorage.getItem('biometricEnabled');
+      
+      if (isBiometricAvailable !== 'true') {
+        Alert.alert('Error', 'Biometric authentication is not enabled. Please enable it first.');
+        setShowManageKeysDialog(false);
+        return;
+      }
+
+      const isAvailable = await checkBiometricAvailability();
+      if (!isAvailable) {
+        setShowManageKeysDialog(false);
+        return;
+      }
+      router.push('/tabs/managekeys/ManageKeys');
     } catch (e) {
       Alert.alert('Error', 'Failed to sync keys');
-      console.warn(e);
     }
     finally{
       setShowManageKeysDialog(false);
@@ -325,6 +339,24 @@ export default function Settings() {
               onPress={() => setShowManageKeysDialog(true)}
             >
               <ButtonText>Manage Keys</ButtonText>
+            </Button>
+          </HStack>
+        </Box>
+
+           {/* Biometric authentication */}
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
+          <HStack className="justify-between items-center mb-2">
+            <VStack className="flex-1">
+              <Text className="text-lg font-semibold">Biometric Authentication</Text>
+            </VStack>
+            <Button
+              testID={automationLocatorsDataState.settingsScreen.manageBiometricsButton}
+              size="sm"
+              action="primary"
+              className="bg-blue-500"
+              onPress={() => router.push('/tabs/managekeys/EnableBiometric')}
+            >
+              <ButtonText>Manage Biometrics</ButtonText>
             </Button>
           </HStack>
         </Box>
@@ -574,6 +606,7 @@ export default function Settings() {
         </AlertDialogContent>
         
       </AlertDialog>
+      
     </ScrollView>
   );
 }
