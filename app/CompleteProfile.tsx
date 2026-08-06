@@ -29,9 +29,12 @@ import {
 } from '@/components/ui/actionsheet';
 import { useSession } from '@/utility/session/SessionProvider';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Constants } from '@/constants/Constants';
 
 export default function CompleteProfile() {
 
+  const Const = Constants.ASYNC_STORAGE_KEYS;
   const { user, profile, refreshProfile } = useSession();
 
   const [displayName, setDisplayName] = useState<string>('');
@@ -111,9 +114,24 @@ export default function CompleteProfile() {
         return;
       }
       else {
-        router.replace({
-          pathname: '/tabs/(tabs)/Chat',
-        });
+        const touchID = await AsyncStorage.getItem(Const.TOUCH_ID+user?.id);
+        const faceID = await AsyncStorage.getItem(Const.FACE_ID+user?.id);
+        const skipped = await AsyncStorage.getItem(Const.SKIP+user?.id);
+
+        if ((touchID === 'true' || faceID === 'true') && skipped === 'true') {
+          router.replace({
+            pathname: '/tabs/(tabs)/Chat',
+          });
+        }
+        else {
+          router.replace({
+            pathname: '/tabs/managekeys/EnableBiometric',
+            params: {
+              previousScreen: 'completeProfile'
+            }
+          })
+        }
+        
       }
     };
 

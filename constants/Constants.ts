@@ -25,4 +25,9 @@ export const Constants = {
         FILES: 'chat-files',
         AVATARS: 'avatars',
     },
+    ASYNC_STORAGE_KEYS: {
+        TOUCH_ID: 'touchIDEnabled',
+        FACE_ID: 'faceIDEnabled',
+        SKIP: 'skipBiometricAuthentication'
+    }
 };

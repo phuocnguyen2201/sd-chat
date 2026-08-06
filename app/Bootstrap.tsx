@@ -7,6 +7,8 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Constants } from '@/constants/Constants';
 
 /**
  * Bootstrap Screen
@@ -118,6 +120,7 @@ export default function Bootstrap() {
 
     const navigate = async () => {
       hasNavigated.current = true;
+      const skipBiometricAuthen = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.SKIP)
       //console.log('Is network connected?', networkState.isConnected);
       
       if (!user) {
@@ -130,6 +133,11 @@ export default function Bootstrap() {
       if (!profile?.displayname) {
         // Profile incomplete - go to complete profile
         router.replace('/CompleteProfile');
+        return;
+      }
+
+      if (skipBiometricAuthen !== 'true') {
+        router.replace('/tabs/managekeys/EnableBiometric')
         return;
       }
       

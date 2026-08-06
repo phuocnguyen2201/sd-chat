@@ -7,32 +7,52 @@ import { AlertDialog, AlertDialogBody, AlertDialogContent, AlertDialogFooter, Al
 import { useState } from "react";
 import { View, Alert } from 'react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Constants } from '@/constants/Constants';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useSession } from '@/utility/session/SessionProvider';
+
 
 export default function EnableBiometric() {
+    const { user } = useSession();
+    const param = useLocalSearchParams()
+    const Const = Constants.ASYNC_STORAGE_KEYS;
     const [activeDialog, setActiveDialog] = useState<'touchID' | 'faceID' | null>(null);
 
     const enableBiometric = async () => {
-        const bio_status = await AsyncStorage.getItem('biometricEnabled');
+        const bio_status = await AsyncStorage.getItem(Const.TOUCH_ID+user?.id);
         if (bio_status === 'true') {
-            Alert.alert('Biometric authentication is already enabled.');
+            Alert.alert('Touch ID authentication is already enabled.');
             setActiveDialog(null);
             return;
         }
 
-        await AsyncStorage.setItem('biometricEnabled', 'true');
+        await AsyncStorage.setItem(Const.TOUCH_ID+user?.id, 'true');
         setActiveDialog(null);
+
+        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen === 'completeProfile')
+            router.replace('/tabs/(tabs)/Chat')
     };
 
     const enableFaceID = async () => {
-        const bio_status = await AsyncStorage.getItem('faceIDEnabled');
+        const bio_status = await AsyncStorage.getItem(Const.FACE_ID+user?.id);
         if (bio_status === 'true') {
             Alert.alert('Face ID authentication is already enabled.');
             setActiveDialog(null);
             return;
         }
 
-        await AsyncStorage.setItem('faceIDEnabled', 'true');
+        await AsyncStorage.setItem(Const.FACE_ID+user?.id, 'true');
         setActiveDialog(null);
+
+        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen === 'completeProfile')
+            router.replace('/tabs/(tabs)/Chat')
+    }
+    const handleSkip = async () => {
+        const skip = await AsyncStorage.getItem(Const.SKIP+user?.id)
+        if(skip !== 'true'){
+            await AsyncStorage.setItem(Const.SKIP+user?.id, 'true')
+        }
+        router.push({pathname: '/tabs/(tabs)/Chat'})
     }
 
     const dialogRef = {
@@ -74,8 +94,7 @@ export default function EnableBiometric() {
 
                         <Button size="md"
                             action="primary"
-                            className="bg-blue-500" onPress={() => {
-                        }}>
+                            className="bg-blue-500" onPress={() => handleSkip()}>
                             <ButtonText className="dark:text-gray-300">Skip</ButtonText>
                         </Button>
                     </View>

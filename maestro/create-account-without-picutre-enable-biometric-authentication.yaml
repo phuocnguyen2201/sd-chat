@@ -1,0 +1,30 @@
+appId: "com.phuocng23000.sdchat"
+---
+- tapOn: "Enter your email"
+- inputRandomEmail
+- tapOn: "Enter your password"
+- inputText: ${PASSWORD}
+- tapOn: "Register"
+- extendedWaitUntil:
+    visible:
+        point: 10%,41%
+    timeout: 10000
+- assertVisible: "Okay"
+- tapOn: "Okay"
+- tapOn: "Login"
+- assertVisible: "Input Field"
+- tapOn: "Input Field"
+- inputRandomPersonName
+- tapOn: "Save"
+- assertVisible:
+    point: 8%,12%
+- tapOn: "Enable Touch ID"
+- extendedWaitUntil:
+    visible:
+        point: 10%,41%
+    timeout: 10000
+- tapOn: "Allow"
+- extendedWaitUntil:
+    visible:
+        point: 3%,14%
+    timeout: 10000
