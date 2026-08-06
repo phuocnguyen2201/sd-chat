@@ -54,13 +54,8 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  const [showDisplayNameDialog, setShowDisplayNameDialog] = useState(false);
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<'displayName' | 'password' | 'deleteAccount' | 'manageKeys' | null>(null);
   const [showActionsheet, setShowActionsheet] = useState(false);
-
-  const [showManageKeysDialog, setShowManageKeysDialog] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -105,7 +100,7 @@ export default function Settings() {
       displayname: displayName,
     }).finally(() => {
       setLoading(false);
-      setShowDisplayNameDialog(false);
+      setActiveDialog(null);
 
       setSuccessMessage('Profile updated successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -115,6 +110,7 @@ export default function Settings() {
       Alert.alert('Error', 'Failed to fetch account information');
       throw new Error('Profile update failed');
     }
+    setActiveDialog(null);
   }}
 
   async function updatePassword(password: string, confirmPassword: string): Promise<void> {
@@ -133,7 +129,7 @@ export default function Settings() {
       else {
         setSuccessMessage('Password updated successfully');
         setTimeout(() => setSuccessMessage(''), 3000);
-        setShowPasswordDialog(false);
+        setActiveDialog(null);
       }
     }
     catch (e) {
@@ -162,7 +158,7 @@ export default function Settings() {
         console.warn(e);
     }
     finally {
-        setShowDeleteDialog(false);
+        setActiveDialog(null);
         router.replace('/');
     }
   }
@@ -170,16 +166,16 @@ export default function Settings() {
   async function handleSharingQRCode() {
     try {
       const isBiometricAvailable = await AsyncStorage.getItem('biometricEnabled');
-      
+
       if (isBiometricAvailable !== 'true') {
         Alert.alert('Error', 'Biometric authentication is not enabled. Please enable it first.');
-        setShowManageKeysDialog(false);
+        setActiveDialog(null);
         return;
       }
 
       const isAvailable = await checkBiometricAvailability();
       if (!isAvailable) {
-        setShowManageKeysDialog(false);
+        setActiveDialog(null);
         return;
       }
       router.push('/tabs/managekeys/ManageKeys');
@@ -187,7 +183,7 @@ export default function Settings() {
       Alert.alert('Error', 'Failed to sync keys');
     }
     finally{
-      setShowManageKeysDialog(false);
+      setActiveDialog(null);
     }
   }
   async function handleScanningQRCode(): Promise<void> {
@@ -204,7 +200,7 @@ export default function Settings() {
       console.warn(e);
     }
     finally{
-      setShowManageKeysDialog(false);
+      setActiveDialog(null);
     }
   }
 
@@ -336,7 +332,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => setShowManageKeysDialog(true)}
+              onPress={() => setActiveDialog('manageKeys')}
             >
               <ButtonText>Manage Keys</ButtonText>
             </Button>
@@ -390,7 +386,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => setShowDisplayNameDialog(true)}
+              onPress={() => setActiveDialog('displayName')}
             >
               <ButtonText>Edit</ButtonText>
             </Button>
@@ -409,7 +405,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => setShowPasswordDialog(true)}
+              onPress={() => setActiveDialog('password')}
             >
               <ButtonText>Change</ButtonText>
             </Button>
@@ -419,9 +415,7 @@ export default function Settings() {
         testID={automationLocatorsDataState.settingsScreen.deleteAccountButton}
           size="lg"
           className="bg-red-500 mb-6"
-          onPress={async () => {
-            setShowDeleteDialog(true);}
-          }
+          onPress={() => setActiveDialog('deleteAccount')}
         >
           <ButtonText>Delete Account</ButtonText>
         </Button>
@@ -441,124 +435,151 @@ export default function Settings() {
         </Button>
       </Box>
 
-      {/* Display Name Dialog */}
-      <AlertDialog isOpen={showDisplayNameDialog} onClose={() => setShowDisplayNameDialog(false)}>
+      {/* Unified Dialogs */}
+      <AlertDialog isOpen={activeDialog !== null} onClose={() => setActiveDialog(null)}>
         <AlertDialogBackdrop />
         <AlertDialogContent>
           <AlertDialogHeader>
-            <Heading size="lg">Change Display Name</Heading>
-            <AlertDialogCloseButton onPress={() => setShowDisplayNameDialog(false)}>
-              <Icon as={CloseIcon} />
-            </AlertDialogCloseButton>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <Input className="mt-4">
-              <InputField
-                placeholder="Enter new display name"
-                value={displayName}
-                onChangeText={setDisplayName}
-              />
-            </Input>
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button
-              variant="outline"
-              action="secondary"
-              onPress={() => setShowDisplayNameDialog(false)}
-            >
-              <ButtonText>Cancel</ButtonText>
-            </Button>
-            <Button
-              className="bg-blue-500"
-              onPress={() => updateProfile()}
-              disabled={loading}
-            >
-              <ButtonText>{loading ? 'Saving...' : 'Save'}</ButtonText>
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Password Dialog */}
-      <AlertDialog isOpen={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
-        <AlertDialogBackdrop />
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <Heading size="lg">Change Password</Heading>
-            <AlertDialogCloseButton onPress={() => setShowPasswordDialog(false)}>
-              <Icon as={CloseIcon} />
-            </AlertDialogCloseButton>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <VStack space="md" className="mt-4">
-              <Input>
-                <InputField
-                  placeholder="New Password"
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-
-                />
-              </Input>
-              <Input>
-                <InputField
-                  placeholder="Confirm Password"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
-              </Input>
-            </VStack>
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button
-              variant="outline"
-              action="secondary"
-              onPress={() => setShowPasswordDialog(false)}
-            >
-              <ButtonText>Cancel</ButtonText>
-            </Button>
-            <Button
-              className="bg-blue-500"
-              onPress={() => updatePassword(newPassword, confirmPassword)}
-              disabled={loading}
-            >
-              <ButtonText>{loading ? 'Saving...' : 'Update'}</ButtonText>
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Account Dialog */}
-      <AlertDialog isOpen={showDeleteDialog} onClose={handleDeleteAccount} size="md">
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <Heading className="text-typography-950 font-semibold" size="md">
-              Notification
+            <Heading size="lg">
+              {activeDialog === 'displayName' && 'Change Display Name'}
+              {activeDialog === 'password' && 'Change Password'}
+              {activeDialog === 'deleteAccount' && 'Notification'}
+              {activeDialog === 'manageKeys' && 'Notification'}
             </Heading>
+            {activeDialog !== 'deleteAccount' && (
+              <AlertDialogCloseButton onPress={() => setActiveDialog(null)}>
+                <Icon as={CloseIcon} />
+              </AlertDialogCloseButton>
+            )}
           </AlertDialogHeader>
-          <AlertDialogBody className="mt-3 mb-4">
-            <Text size="sm">
-              Delete the account cannot be undone. Are you sure you want to delete your account?
-            </Text>
-          </AlertDialogBody>
-          <AlertDialogFooter className="">
-            <Button
-              variant="outline"
-              action="secondary"
-              onPress={() => setShowDeleteDialog(false)}
-              size="sm"
-            >
-              <ButtonText>Cancel</ButtonText>
-            </Button>
-            <Button size="sm" onPress={handleDeleteAccount}>
-              <ButtonText>Okay</ButtonText>
-            </Button>
+
+          {activeDialog === 'displayName' && (
+            <AlertDialogBody>
+              <Input className="mt-4">
+                <InputField
+                  placeholder="Enter new display name"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                />
+              </Input>
+            </AlertDialogBody>
+          )}
+
+          {activeDialog === 'password' && (
+            <AlertDialogBody>
+              <VStack space="md" className="mt-4">
+                <Input>
+                  <InputField
+                    placeholder="New Password"
+                    secureTextEntry
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                  />
+                </Input>
+                <Input>
+                  <InputField
+                    placeholder="Confirm Password"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                </Input>
+              </VStack>
+            </AlertDialogBody>
+          )}
+
+          {activeDialog === 'deleteAccount' && (
+            <AlertDialogBody className="mt-3 mb-4">
+              <Text size="sm">
+                Delete the account cannot be undone. Are you sure you want to delete your account?
+              </Text>
+            </AlertDialogBody>
+          )}
+
+          {activeDialog === 'manageKeys' && (
+            <AlertDialogBody className="mt-3 mb-4">
+              <Text size="sm">
+                Sync your keys or share them for new devices?
+              </Text>
+            </AlertDialogBody>
+          )}
+
+          <AlertDialogFooter>
+            {activeDialog === 'displayName' && (
+              <>
+                <Button
+                  variant="outline"
+                  action="secondary"
+                  onPress={() => setActiveDialog(null)}
+                >
+                  <ButtonText>Cancel</ButtonText>
+                </Button>
+                <Button
+                  className="bg-blue-500"
+                  onPress={() => updateProfile()}
+                  disabled={loading}
+                >
+                  <ButtonText>{loading ? 'Saving...' : 'Save'}</ButtonText>
+                </Button>
+              </>
+            )}
+
+            {activeDialog === 'password' && (
+              <>
+                <Button
+                  variant="outline"
+                  action="secondary"
+                  onPress={() => setActiveDialog(null)}
+                >
+                  <ButtonText>Cancel</ButtonText>
+                </Button>
+                <Button
+                  className="bg-blue-500"
+                  onPress={() => updatePassword(newPassword, confirmPassword)}
+                  disabled={loading}
+                >
+                  <ButtonText>{loading ? 'Saving...' : 'Update'}</ButtonText>
+                </Button>
+              </>
+            )}
+
+            {activeDialog === 'deleteAccount' && (
+              <>
+                <Button
+                  variant="outline"
+                  action="secondary"
+                  onPress={() => setActiveDialog(null)}
+                  size="sm"
+                >
+                  <ButtonText>Cancel</ButtonText>
+                </Button>
+                <Button size="sm" onPress={handleDeleteAccount}>
+                  <ButtonText>Okay</ButtonText>
+                </Button>
+              </>
+            )}
+
+            {activeDialog === 'manageKeys' && (
+              <>
+                <Button size="sm" onPress={handleScanningQRCode}>
+                  <ButtonText>Scan QR Code</ButtonText>
+                </Button>
+                <Button size="sm" onPress={handleSharingQRCode}>
+                  <ButtonText>Sharing QR Code</ButtonText>
+                </Button>
+                <Button
+                  variant="outline"
+                  action="secondary"
+                  onPress={() => setActiveDialog(null)}
+                  size="sm"
+                >
+                  <ButtonText>Cancel</ButtonText>
+                </Button>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
-        
       </AlertDialog>
-      {/* <AlertDialogBackdrop /> */}
       <Actionsheet isOpen={showActionsheet} onClose={() => setShowActionsheet(false)}>
         <ActionsheetBackdrop />
         <ActionsheetContent>
@@ -574,16 +595,16 @@ export default function Settings() {
         </ActionsheetContent>
       </Actionsheet>
       {/* Manage Keys Button */}
-      <AlertDialog isOpen={showManageKeysDialog} onClose={() => setShowManageKeysDialog(false)} size="md">
+      <AlertDialog isOpen={activeDialog === 'manageKeys'} onClose={() => setActiveDialog(null)} size="md">
         <AlertDialogContent>
           <AlertDialogHeader>
             <Heading className="text-typography-950 font-semibold" size="md">
-              Notification
+              {activeDialog === 'manageKeys' ? 'Notification' : 'Notification'}
             </Heading>
           </AlertDialogHeader>
           <AlertDialogBody className="mt-3 mb-4">
             <Text size="sm">
-              Sync your keys or share them for new devices?
+              {activeDialog === 'manageKeys' ? 'Sync your keys or share them for new devices?' : ''}
             </Text>
           </AlertDialogBody>
           <AlertDialogFooter className="">
@@ -596,7 +617,7 @@ export default function Settings() {
             <Button
               variant="outline"
               action="secondary"
-              onPress={() => setShowManageKeysDialog(false)}
+              onPress={() => setActiveDialog(null)}
               size="sm"
             >
               <ButtonText>Cancel</ButtonText>

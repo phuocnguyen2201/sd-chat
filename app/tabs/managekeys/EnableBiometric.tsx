@@ -9,20 +9,46 @@ import { View, Alert } from 'react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function EnableBiometric() {
-    const [showManageKeysDialog, setShowManageKeysDialog] = useState(false);
+    const [activeDialog, setActiveDialog] = useState<'touchID' | 'faceID' | null>(null);
 
     const enableBiometric = async () => {
         const bio_status = await AsyncStorage.getItem('biometricEnabled');
         if (bio_status === 'true') {
             Alert.alert('Biometric authentication is already enabled.');
-            setShowManageKeysDialog(false);
+            setActiveDialog(null);
             return;
         }
 
         await AsyncStorage.setItem('biometricEnabled', 'true');
-
-        setShowManageKeysDialog(false);
+        setActiveDialog(null);
     };
+
+    const enableFaceID = async () => {
+        const bio_status = await AsyncStorage.getItem('faceIDEnabled');
+        if (bio_status === 'true') {
+            Alert.alert('Face ID authentication is already enabled.');
+            setActiveDialog(null);
+            return;
+        }
+
+        await AsyncStorage.setItem('faceIDEnabled', 'true');
+        setActiveDialog(null);
+    }
+
+    const dialogRef = {
+        touchID: {
+            title: 'Enable Touch ID',
+            message: 'Allow Touch ID authentication to secure your keys and enhance security.',
+            onConfirm: enableBiometric,
+        },
+        faceID: {
+            title: 'Enable Face ID',
+            message: 'Allow Face ID authentication to secure your keys and enhance security.',
+            onConfirm: enableFaceID,
+        },
+    } as const;
+
+    const activeDialogData = activeDialog ? dialogRef[activeDialog] : null;
 
     return (
         <ScrollView className="flex-1 bg-white dark:bg-black" contentContainerStyle={{ alignItems: 'center' }}>
@@ -32,11 +58,18 @@ export default function EnableBiometric() {
                     <Text className="text-gray-700 dark:text-gray-300">To enable biometric authentication, please follow the instructions below.</Text>
 
                     <View className="mt-6 space-y-3 pb-4">
-                        <Button onPress={() => setShowManageKeysDialog(true)}
+                        <Button onPress={() => setActiveDialog('touchID')}
                             size="md"
                             action="primary"
                             className="bg-blue-500 mb-4">
-                            <ButtonText className="text-white">Enable Biometric</ButtonText>
+                            <ButtonText className="text-white">Enable Touch ID</ButtonText>
+                        </Button>
+
+                        <Button onPress={() => setActiveDialog('faceID')}
+                            size="md"
+                            action="primary"
+                            className="bg-blue-500 mb-4">
+                            <ButtonText className="text-white">Enable Face ID</ButtonText>
                         </Button>
 
                         <Button size="md"
@@ -49,24 +82,24 @@ export default function EnableBiometric() {
                 </View>
 
                 {/* Manage Keys Dialog */}
-                <AlertDialog isOpen={showManageKeysDialog} onClose={() => setShowManageKeysDialog(false)} size="md">
+                <AlertDialog isOpen={activeDialog !== null} onClose={() => setActiveDialog(null)} size="md">
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <Heading className="font-semibold text-xl text-gray-900 dark:text-gray-100">Notification</Heading>
+                            <Heading className="font-semibold text-xl text-gray-900 dark:text-gray-100">{activeDialogData?.title ?? 'Notification'}</Heading>
                         </AlertDialogHeader>
                         <AlertDialogBody className="mt-3 mb-4">
                             <Text size="sm" className="text-gray-700 dark:text-gray-300">
-                                Allow biometric authentication to secure your keys and enhance security.
+                                {activeDialogData?.message ?? 'Allow biometric authentication to secure your keys and enhance security.'}
                             </Text>
                         </AlertDialogBody>
                         <AlertDialogFooter className="flex-row space-x-3">
-                            <Button size="sm" onPress={enableBiometric} className="bg-blue-600 dark:bg-blue-500 rounded-md py-2 px-4">
+                            <Button size="sm" onPress={activeDialogData?.onConfirm} className="bg-blue-600 dark:bg-blue-500 rounded-md py-2 px-4">
                                 <ButtonText className="text-white">Allow</ButtonText>
                             </Button>
                             <Button
                                 variant="outline"
                                 action="secondary"
-                                onPress={() => setShowManageKeysDialog(false)}
+                                onPress={() => setActiveDialog(null)}
                                 size="sm"
                                 className="border border-gray-300 dark:border-gray-700 rounded-md py-2 px-4"
                             >
