@@ -120,7 +120,7 @@ export default function Bootstrap() {
 
     const navigate = async () => {
       hasNavigated.current = true;
-      const skipBiometricAuthen = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.SKIP)
+      const skipBiometricAuthen = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.SKIP+user?.id)
       //console.log('Is network connected?', networkState.isConnected);
       
       if (!user) {

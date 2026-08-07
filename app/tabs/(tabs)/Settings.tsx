@@ -163,47 +163,6 @@ export default function Settings() {
     }
   }
 
-  async function handleSharingQRCode() {
-    try {
-      const isBiometricAvailable = await AsyncStorage.getItem('biometricEnabled');
-
-      if (isBiometricAvailable !== 'true') {
-        Alert.alert('Error', 'Biometric authentication is not enabled. Please enable it first.');
-        setActiveDialog(null);
-        return;
-      }
-
-      const isAvailable = await checkBiometricAvailability();
-      if (!isAvailable) {
-        setActiveDialog(null);
-        return;
-      }
-      router.push('/tabs/managekeys/ManageKeys');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to sync keys');
-    }
-    finally{
-      setActiveDialog(null);
-    }
-  }
-  async function handleScanningQRCode(): Promise<void> {
-    try {
-      const success = true;
-      console.log('Scanning QR code...');
-      if (success) {
-        Alert.alert('Success', 'Keys scanned successfully');
-      } else {
-        Alert.alert('Error', 'Failed to scan keys');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to scan keys');
-      console.warn(e);
-    }
-    finally{
-      setActiveDialog(null);
-    }
-  }
-
   function pickImage() {
     handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
       if (result != null)
@@ -332,7 +291,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => setActiveDialog('manageKeys')}
+              onPress={() => router.push({pathname:'/tabs/managekeys/ManageKeys'})}
             >
               <ButtonText>Manage Keys</ButtonText>
             </Button>
@@ -444,7 +403,6 @@ export default function Settings() {
               {activeDialog === 'displayName' && 'Change Display Name'}
               {activeDialog === 'password' && 'Change Password'}
               {activeDialog === 'deleteAccount' && 'Notification'}
-              {activeDialog === 'manageKeys' && 'Notification'}
             </Heading>
             {activeDialog !== 'deleteAccount' && (
               <AlertDialogCloseButton onPress={() => setActiveDialog(null)}>
@@ -495,15 +453,6 @@ export default function Settings() {
               </Text>
             </AlertDialogBody>
           )}
-
-          {activeDialog === 'manageKeys' && (
-            <AlertDialogBody className="mt-3 mb-4">
-              <Text size="sm">
-                Sync your keys or share them for new devices?
-              </Text>
-            </AlertDialogBody>
-          )}
-
           <AlertDialogFooter>
             {activeDialog === 'displayName' && (
               <>
@@ -558,25 +507,6 @@ export default function Settings() {
                 </Button>
               </>
             )}
-
-            {activeDialog === 'manageKeys' && (
-              <>
-                <Button size="sm" onPress={handleScanningQRCode}>
-                  <ButtonText>Scan QR Code</ButtonText>
-                </Button>
-                <Button size="sm" onPress={handleSharingQRCode}>
-                  <ButtonText>Sharing QR Code</ButtonText>
-                </Button>
-                <Button
-                  variant="outline"
-                  action="secondary"
-                  onPress={() => setActiveDialog(null)}
-                  size="sm"
-                >
-                  <ButtonText>Cancel</ButtonText>
-                </Button>
-              </>
-            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -593,41 +523,7 @@ export default function Settings() {
             <ActionsheetItemText>Select from album</ActionsheetItemText>
           </ActionsheetItem>
         </ActionsheetContent>
-      </Actionsheet>
-      {/* Manage Keys Button */}
-      <AlertDialog isOpen={activeDialog === 'manageKeys'} onClose={() => setActiveDialog(null)} size="md">
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <Heading className="text-typography-950 font-semibold" size="md">
-              {activeDialog === 'manageKeys' ? 'Notification' : 'Notification'}
-            </Heading>
-          </AlertDialogHeader>
-          <AlertDialogBody className="mt-3 mb-4">
-            <Text size="sm">
-              {activeDialog === 'manageKeys' ? 'Sync your keys or share them for new devices?' : ''}
-            </Text>
-          </AlertDialogBody>
-          <AlertDialogFooter className="">
-             <Button size="sm" onPress={handleScanningQRCode}>
-              <ButtonText>Scan QR Code</ButtonText>
-            </Button>
-            <Button size="sm" onPress={handleSharingQRCode}>
-              <ButtonText>Sharing QR Code</ButtonText>
-            </Button>
-            <Button
-              variant="outline"
-              action="secondary"
-              onPress={() => setActiveDialog(null)}
-              size="sm"
-            >
-              <ButtonText>Cancel</ButtonText>
-            </Button>
-
-          </AlertDialogFooter>
-        </AlertDialogContent>
-        
-      </AlertDialog>
-      
+      </Actionsheet>    
     </ScrollView>
   );
 }

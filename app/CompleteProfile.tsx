@@ -37,13 +37,13 @@ export default function CompleteProfile() {
   const Const = Constants.ASYNC_STORAGE_KEYS;
   const { user, profile, refreshProfile } = useSession();
 
-  const [displayName, setDisplayName] = useState<string>('');
+  const [ displayName, setDisplayName] = useState<string>('');
 
   const [ loading, setLoading ] = useState<boolean>(false);
   
-  const [avatar, setAvatar] = useState<string>('');
+  const [ avatar, setAvatar] = useState<string>('');
 
-  const [showActionsheet, setShowActionsheet] = useState<boolean>(false);
+  const [ showActionsheet, setShowActionsheet] = useState<boolean>(false);
 
   function pickImage() {
     handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { Alert, ScrollView } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,8 @@ import { Text } from '@/components/ui/text';
 import { SnapShot } from '@/utility/localstorage/snapshot';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import QRCode from 'react-native-qrcode-svg';
+import { Button, ButtonText } from '@/components/ui/button';
+
 export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
@@ -38,11 +40,23 @@ export default function ManageKeys() {
                 <Text>Scan QR Code to manage your keys. This feature allows you to securely share and manage your encryption keys with others by scanning a QR code.</Text>
             </Box>
             <Box className="items-center mb-6 mt-6 border border-gray-200">
-                {(keysAsString !== '' && keysAsString !== null) ? <QRCode value={keysAsString} size={200} /> : <Text>No keys available to generate QR code.</Text>}
+                {(keysAsString !== '') ? <QRCode value={keysAsString} size={200} /> : <Text>No keys available to generate QR code.</Text>}
             </Box>
             <Box className="items-center mb-6 mt-6 border border-gray-200">
                 <Text>Note: Ensure that you only share your keys with trusted parties. Sharing your keys with untrusted individuals may compromise the security of your encrypted messages.</Text>  
             </Box>
+            <Button onPress={() => {}}
+                size="md"
+                action="primary"
+                className="bg-blue-500 mb-4">
+                <ButtonText className="text-white">Scan QR</ButtonText>
+            </Button>
+            <Button onPress={() => {}}
+                size="md"
+                action="primary"
+                className="bg-blue-500 mb-4">
+                <ButtonText className="text-white">Regenerate QR</ButtonText>
+            </Button>
         </ScrollView>
     )
 
