@@ -1,5 +1,9 @@
 appId: "com.phuocng23000.sdchat"
 ---
+- launchApp
+- extendedWaitUntil: 
+    visible: "Authentication.*"
+    timeout: 50000
 - tapOn: "Enter your email"
 - inputRandomEmail
 - tapOn: "Enter your password"

@@ -291,7 +291,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => router.push({pathname:'/tabs/managekeys/ManageKeys'})}
+              onPress={() => router.push({pathname:'/tabs/managekeys/BiometricAuthentication'})}
             >
               <ButtonText>Manage Keys</ButtonText>
             </Button>
@@ -309,7 +309,11 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => router.push('/tabs/managekeys/EnableBiometric')}
+              onPress={() => router.push({
+                pathname:'/tabs/managekeys/EnableBiometric',
+                params:{
+                  previousScreen: 'setting'
+                }})}
             >
               <ButtonText>Manage Biometrics</ButtonText>
             </Button>

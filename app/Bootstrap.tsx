@@ -121,6 +121,8 @@ export default function Bootstrap() {
     const navigate = async () => {
       hasNavigated.current = true;
       const skipBiometricAuthen = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.SKIP+user?.id)
+      const touchIdEnabled = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.TOUCH_ID+user?.id)
+      const faceIdEnabled = await AsyncStorage.getItem(Constants.ASYNC_STORAGE_KEYS.FACE_ID+user?.id)
       //console.log('Is network connected?', networkState.isConnected);
       
       if (!user) {
@@ -136,7 +138,7 @@ export default function Bootstrap() {
         return;
       }
 
-      if (skipBiometricAuthen !== 'true') {
+      if (skipBiometricAuthen !== 'true' && (touchIdEnabled !== 'true' || faceIdEnabled !== 'true')) {
         router.replace('/tabs/managekeys/EnableBiometric')
         return;
       }

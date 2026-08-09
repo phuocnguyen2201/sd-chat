@@ -29,7 +29,7 @@ export default function EnableBiometric() {
         await AsyncStorage.setItem(Const.TOUCH_ID+user?.id, 'true');
         setActiveDialog(null);
 
-        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen === 'completeProfile')
+        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen !== 'setting')
             router.replace('/tabs/(tabs)/Chat')
     };
 
@@ -44,7 +44,7 @@ export default function EnableBiometric() {
         await AsyncStorage.setItem(Const.FACE_ID+user?.id, 'true');
         setActiveDialog(null);
 
-        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen === 'completeProfile')
+        if(param?.previousScreen !== '' && param?.previousScreen !== null && param?.previousScreen !== 'setting')
             router.replace('/tabs/(tabs)/Chat')
     }
     const handleSkip = async () => {
@@ -90,6 +90,13 @@ export default function EnableBiometric() {
                             action="primary"
                             className="bg-blue-500 mb-4">
                             <ButtonText className="text-white">Enable Face ID</ButtonText>
+                        </Button>
+
+                        <Button onPress={() => {}}
+                            size="md"
+                            action="primary"
+                            className="bg-blue-500 mb-4">
+                            <ButtonText className="text-white">Enable Pin Code</ButtonText>
                         </Button>
 
                         <Button size="md"

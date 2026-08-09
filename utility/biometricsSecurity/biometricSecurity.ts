@@ -1,29 +1,26 @@
-import ReactNativeBiometrics, { BiometryTypes } from 'react-native-biometrics';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { Alert } from 'react-native';
 
-export const checkBiometricAvailability = async (): Promise<boolean> => {
+export const checkBiometricAvailability = async () => {
   try {
-    const rnBiometrics = new ReactNativeBiometrics();
 
-    const { biometryType } = await rnBiometrics.isSensorAvailable();
-    if (biometryType === BiometryTypes.TouchID || 
-         biometryType === BiometryTypes.FaceID || 
-         biometryType === BiometryTypes.Biometrics) {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) return { success: false, error: 'Hardware not supported' };
 
-        const { success } = await rnBiometrics.simplePrompt({ promptMessage: 'Confirm your identity' });
-        
-        if (!success) {
-            Alert.alert('Error', 'Biometric authentication failed');
-            return false;
-        }
-        return true;
+      // 2. Check if the user has fingerprints or FaceID enrolled
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) return { success: false, error: 'No biometrics enrolled' };
 
-    } else {
-        Alert.alert('Error', 'Biometric authentication is not available on this device');
-        return false;
-    }
+      // 3. Trigger authentication
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate with Face ID / Fingerprint',
+        fallbackLabel: 'Use Passcode',
+        disableDeviceFallback: false, // Set to true if you want to FORBID PIN fallback
+      });
+
+      return result;
   } catch (error) {
     Alert.alert('Error', 'Failed to check biometric availability');
-    return false;
+    return { success: false, error: error };
   }
 };

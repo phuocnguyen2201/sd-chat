@@ -17,7 +17,8 @@ export default function AppLayout() {
       <Stack.Screen name="msg/[room_id]" />
       <Stack.Screen name="msg/ChatRoomEditing" options={{ title: 'Edit Chat Room' }} />
       <Stack.Screen name="managekeys/ManageKeys" options={{ title: 'Manage Keys' }} />
-      <Stack.Screen name="managekeys/EnableBiometric" options={{ title: 'Biometric Authentication' }} />
+      <Stack.Screen name="managekeys/BiometricAuthentication" options={{ title: 'Biometric Authentication' }} />
+      <Stack.Screen name='managekeys/ScanningKeys' options={{ title: 'Scan keys' }}/>
     </Stack>
   );
 }

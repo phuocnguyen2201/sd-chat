@@ -126,9 +126,6 @@ export default function CompleteProfile() {
         else {
           router.replace({
             pathname: '/tabs/managekeys/EnableBiometric',
-            params: {
-              previousScreen: 'completeProfile'
-            }
           })
         }
         

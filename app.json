@@ -2,7 +2,7 @@
   "expo": {
     "name": "SD chat",
     "slug": "sd-chat",
-    "version": "2.1.4",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "starterkitexpo",
@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.phuocng23000.sdchat",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "This app uses Face ID to securely log you into your account."
       }
     },
     "android": {
@@ -41,7 +42,21 @@
       "expo-notifications",
       "expo-secure-store",
       "expo-sqlite",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "barcodeScannerEnabled": true
+        }
+
+      ]
     ],
     "experiments": {
       "typedRoutes": true

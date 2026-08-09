@@ -7,23 +7,26 @@ import { SnapShot } from '@/utility/localstorage/snapshot';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import QRCode from 'react-native-qrcode-svg';
 import { Button, ButtonText } from '@/components/ui/button';
+import { router } from 'expo-router';
 
 export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
     const [keysAsString, setKeysAsString] = useState('');
 
+
     const verifyKeys = async (conversationId: string) => {
         const data: Uint8Array | null = await ConversationKeyManager.getKey(conversationId);
         return data !== null && data !== undefined && data instanceof Uint8Array ? data : null;
     }
+    
     
     const getKeysAsString = async () => {
         const keys = await SnapShot.getMessagesSnapshot();
         for (const snapshot of keys) {
             const hasKey = await verifyKeys(snapshot.conversation_id);
             if (hasKey) {
-                setKeysAsString(previous => previous + snapshot.conversation_id + ';\n' + hasKey + ':\n');
+                setKeysAsString(previous => previous + snapshot.conversation_id + ';\n' + hasKey + ';\n');
             }
         }
     };
@@ -45,7 +48,7 @@ export default function ManageKeys() {
             <Box className="items-center mb-6 mt-6 border border-gray-200">
                 <Text>Note: Ensure that you only share your keys with trusted parties. Sharing your keys with untrusted individuals may compromise the security of your encrypted messages.</Text>  
             </Box>
-            <Button onPress={() => {}}
+            <Button onPress={() => {router.push({pathname:'/tabs/managekeys/ScanningKeys'});}}
                 size="md"
                 action="primary"
                 className="bg-blue-500 mb-4">
