@@ -6,15 +6,29 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
+import { useSession } from '@/utility/session/SessionProvider';
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogCloseButton,
+  AlertDialogBody,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
+import { Heading } from '@/components/ui/heading';
+import { Icon, CloseIcon } from '@/components/ui/icon';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 type ReceivedPair = [string, Uint8Array];
 
 export default function ScanningKeys() {
 
     const [permission, requestPermission] = useCameraPermissions();
-    const [listReceived, SetListReceived] = useState<ReceivedPair[]>([]);
     const [scanningActive, setScanningActive] = useState(true);
-    const [lastScanText, setLastScanText] = useState<string | null>(null);
+    const {user} = useSession();
+    const param = useLocalSearchParams();
 
     const parseScannedData = (rawData: string): ReceivedPair[] => {
         const parts = rawData
@@ -25,39 +39,36 @@ export default function ScanningKeys() {
         const pairs: ReceivedPair[] = [];
         for (let i = 0; i + 1 < parts.length; i += 2) {
             const textValue = parts[i];
-            const binaryValue = new TextEncoder().encode(parts[i + 1]);
+            const binaryValue = MessageEncryption.base64ToBytes(parts[i + 1]);
             pairs.push([textValue, binaryValue]);
         }
         return pairs;
     };
 
-    const pairEquals = (a: ReceivedPair, b: ReceivedPair) => {
-        if (a[0] !== b[0]) return false;
-        if (a[1].length !== b[1].length) return false;
-        return a[1].every((byte, index) => byte === b[1][index]);
-    };
+    const importKeysToNewDevice = (newPairs: ReceivedPair[]) => {
 
-    const appendNewPairs = (newPairs: ReceivedPair[]) => {
-        SetListReceived(prev => {
-            const next = [...prev];
-            newPairs.forEach(pair => {
-                const exists = prev.some(existing => pairEquals(existing, pair));
-                if (!exists) {
-                    next.push(pair);
+        if(user?.id === newPairs[0][0]){
+            //import account private key
+            MessageEncryption.setPrivateKey(newPairs[0][1]);
+        }
+        newPairs.forEach((item, index) => {
+            ConversationKeyManager.getKey(item[0]).then((conversationId)=>{
+                if (conversationId == null) {
+                    ConversationKeyManager.setConversationKey(item[0], item[1])
                 }
-            });
-            return next;
-        });
-    };
+            })
+            .finally(()=>{
+                setScanningActive(false)
+            })
+        })
+    }
 
     const stopScanning = (scannedText: string) => {
         setScanningActive(false);
-        setLastScanText(scannedText);
     };
 
     const restartScanning = () => {
         setScanningActive(true);
-        setLastScanText(null);
     };
 
     const renderCamera = () => {
@@ -80,12 +91,6 @@ export default function ScanningKeys() {
     useEffect(() => {
         renderCamera();
     }, [permission]);
-
-    useEffect(() => {
-        if (listReceived.length > 0) {
-            console.log('Received pairs:', listReceived);
-        }
-    }, [listReceived]);
 
     return(
         <ScrollView
@@ -112,13 +117,15 @@ export default function ScanningKeys() {
                             barcodeTypes: ['qr'],
                         }}
                         onBarcodeScanned={(data) => {
+
                             if (data?.data) {
                                 const scannedPairs = parseScannedData(data.data);
                                 if (scannedPairs.length > 0) {
-                                    appendNewPairs(scannedPairs);
-                                    stopScanning(data.data);
+                                    importKeysToNewDevice(scannedPairs);
                                 }
                             }
+                            
+
                         }}
                     />
                 )}
@@ -136,20 +143,28 @@ export default function ScanningKeys() {
                 ) : (
                     !scanningActive && (
                         <Box style={{ width: '100%' }}>
-                            <Text className="mb-4 text-center text-sm text-gray-600 dark:text-gray-300">
-                                Scanning stopped after successful scan:
-                                {' '}
-                                {lastScanText ?? 'No data'}
-                            </Text>
-                            <Button
-                                onPress={restartScanning}
-                                size="md"
-                                action="primary"
-                                className="bg-blue-500 mt-2"
-                                style={{ width: '100%' }}
-                            >
-                                <ButtonText className="text-white">Scan again</ButtonText>
-                            </Button>
+                            <AlertDialog isOpen={!scanningActive} onClose={() => setScanningActive(true)}>
+                                <AlertDialogBackdrop />
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <Heading size="lg">
+                                        Scan completed
+                                    </Heading>
+                                    <AlertDialogCloseButton onPress={() => setScanningActive(true)}>
+                                        <Icon as={CloseIcon} />
+                                    </AlertDialogCloseButton>
+                                </AlertDialogHeader>
+                                 <AlertDialogFooter>
+                                    <Button
+                                    variant="outline"
+                                    action="secondary"
+                                    onPress={() => router.replace({pathname:'/tabs/(tabs)/Settings'})}
+                                    >
+                                    <ButtonText>Ok</ButtonText>
+                                    </Button>
+                                 </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </Box>
                     )
                 )}

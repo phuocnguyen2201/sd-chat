@@ -89,7 +89,8 @@ export class MessageEncryption {
     }
       // Create cipher
       if (!conversationKey || conversationKey.length !== this.KEY_SIZE) {
-        throw new Error('Invalid conversation key length');
+
+        throw new Error(''+conversationKey.length);
       }
       const cipherKey = new ChaCha20Poly1305(conversationKey);
         
@@ -136,6 +137,18 @@ export class MessageEncryption {
       publicKey: this.bytesToBase64(keyPair.publicKey),
       privateKey: this.bytesToBase64(keyPair.secretKey)
     };
+  }
+
+  static getPrivateKey(): string{
+    const privateKey = SecureStore.getItem(this.USER_KEY_STORAGE,{ keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY})
+    
+    return privateKey!=null? privateKey: '';
+  }
+
+  static setPrivateKey(key: Uint8Array): void{
+    SecureStore.setItem(this.USER_KEY_STORAGE, this.bytesToBase64(key), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+    })
   }
 
   static async wrapConversationKey(

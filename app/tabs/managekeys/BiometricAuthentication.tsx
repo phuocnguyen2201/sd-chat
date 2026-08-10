@@ -51,13 +51,6 @@ export default function BiometricAuthentication() {
                             <ButtonText className="text-white"><ScanFace color="white" size={18}/> Face ID</ButtonText>
                         </Button>
 
-                        <Button onPress={() => {router.push({pathname:'/tabs/managekeys/ManageKeys'})}}
-                            size="md"
-                            action="primary"
-                            className="bg-blue-500 mb-4">
-                            <ButtonText className="text-white">Enable Pin Code</ButtonText>
-                        </Button>
-
                         <Button size="md"
                             action="primary"
                             className="bg-blue-500" onPress={() => router.push('/tabs/(tabs)/Settings')}>

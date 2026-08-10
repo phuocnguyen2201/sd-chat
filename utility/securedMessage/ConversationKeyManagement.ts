@@ -87,4 +87,10 @@ export class ConversationKeyManager {
       this.keyCache.clear();
     }
   }
+  static async deleteKey(conversationId: string){
+    const hashKey = await this.makeKey(conversationId)
+    if(hashKey){
+      await SecureStore.deleteItemAsync(hashKey)
+    }
+  }
 }

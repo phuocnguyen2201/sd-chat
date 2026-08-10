@@ -8,12 +8,13 @@ import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKey
 import QRCode from 'react-native-qrcode-svg';
 import { Button, ButtonText } from '@/components/ui/button';
 import { router } from 'expo-router';
-
+import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { useSession } from '@/utility/session/SessionProvider';
 export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
     const [keysAsString, setKeysAsString] = useState('');
-
+    const {user} = useSession();
 
     const verifyKeys = async (conversationId: string) => {
         const data: Uint8Array | null = await ConversationKeyManager.getKey(conversationId);
@@ -23,10 +24,17 @@ export default function ManageKeys() {
     
     const getKeysAsString = async () => {
         const keys = await SnapShot.getMessagesSnapshot();
+        const privKey = MessageEncryption.getPrivateKey();
+        
+        //Synchronize the private key of the account
+        if (user?.id && privKey != '') {
+            setKeysAsString(user?.id+';\n'+ privKey+';\n')
+        }
         for (const snapshot of keys) {
             const hasKey = await verifyKeys(snapshot.conversation_id);
             if (hasKey) {
-                setKeysAsString(previous => previous + snapshot.conversation_id + ';\n' + hasKey + ';\n');
+                const unibit8ToString = MessageEncryption.bytesToBase64(hasKey);
+                setKeysAsString(previous => previous + snapshot.conversation_id + ';\n' + unibit8ToString + ';\n');
             }
         }
     };
