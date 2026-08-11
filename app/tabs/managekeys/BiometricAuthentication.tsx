@@ -6,14 +6,14 @@ import { useState } from "react";
 import { View, Alert } from 'react-native';
 import { Constants } from '@/constants/Constants';
 import { router, useLocalSearchParams } from 'expo-router';
-import { checkBiometricAvailability } from '@/utility/biometricsSecurity/biometricSecurity';
+import { BiometricSecurity } from '@/utility/biometricsSecurity/biometricSecurity';
 import { Fingerprint, ScanFace } from 'lucide-react-native';
 
 export default function BiometricAuthentication() {
 
     const isBiometricAuthenValid = async () => {
         try {
-            const result = await checkBiometricAvailability();
+            const result = await BiometricSecurity.checkBiometricAvailability();
             
             if (result?.success) {
                router.push({pathname:'/tabs/managekeys/ManageKeys'})

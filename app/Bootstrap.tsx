@@ -138,7 +138,11 @@ export default function Bootstrap() {
         return;
       }
 
-      if (skipBiometricAuthen !== 'true' && (touchIdEnabled !== 'true' || faceIdEnabled !== 'true')) {
+      if (
+        skipBiometricAuthen !== 'true' && 
+        touchIdEnabled !== 'true' && 
+        faceIdEnabled !== 'true'
+      ) {
         router.replace('/tabs/managekeys/EnableBiometric')
         return;
       }
