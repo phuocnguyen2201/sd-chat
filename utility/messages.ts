@@ -149,10 +149,8 @@ export const authAPI = {
       if (deleteConversation) throw deleteConversation;
       }
 
-
-
-
-
+      await supabase.auth.signOut()
+      
       const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
       if (deleteError) throw deleteError.message
 
@@ -162,7 +160,7 @@ export const authAPI = {
         .eq('id', user.id)  
 
       if (profileError) throw profileError
-      await supabase.auth.signOut()
+      
       return true
     } catch (error) {
       console.error('Error deleting account:', error)
