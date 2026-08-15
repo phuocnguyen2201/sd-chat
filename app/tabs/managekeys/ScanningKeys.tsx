@@ -4,8 +4,8 @@ import { Text } from '@/components/ui/text';
 import { Button, ButtonText } from '@/components/ui/button';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Alert, ScrollView } from 'react-native';
+import { router } from 'expo-router';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { useSession } from '@/utility/session/SessionProvider';
 import {
@@ -14,61 +14,109 @@ import {
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogCloseButton,
-  AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import { Heading } from '@/components/ui/heading';
 import { Icon, CloseIcon } from '@/components/ui/icon';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { KeyObject } from '@/utility/types/user';
 
-type ReceivedPair = [string, Uint8Array];
+type LegacyReceivedPair = [string, Uint8Array];
 
 export default function ScanningKeys() {
 
     const [permission, requestPermission] = useCameraPermissions();
     const [scanningActive, setScanningActive] = useState(true);
-    const {user} = useSession();
-    const param = useLocalSearchParams();
+    const { user } = useSession();
 
-    const parseScannedData = (rawData: string): ReceivedPair[] => {
+    const parseScannedData = (rawData: string): KeyObject | null => {
+        try {
+            const parsed = JSON.parse(rawData) as Partial<KeyObject>;
+            if (
+                parsed &&
+                typeof parsed === 'object' &&
+                Array.isArray(parsed.list) &&
+                parsed.req == 'sync_key'
+            ) {
+                return {
+                    req: typeof parsed.req === 'string' ? parsed.req : '',
+                    private_key: typeof parsed.private_key === 'string' ? parsed.private_key : '',
+                    list: parsed.list
+                        .filter((item): item is { id: string; key: string } => !!item && typeof item.id === 'string' && typeof item.key === 'string')
+                        .map((item) => ({ id: item.id, key: item.key })),
+                };
+            }
+
+        } catch {
+            // fall through to legacy format parsing below
+        }
+
         const parts = rawData
             .split(';')
             .map(item => item.trim())
             .filter(item => item.length > 0);
 
-        const pairs: ReceivedPair[] = [];
+        const legacyPairs: LegacyReceivedPair[] = [];
         for (let i = 0; i + 1 < parts.length; i += 2) {
             const textValue = parts[i];
             const binaryValue = MessageEncryption.base64ToBytes(parts[i + 1]);
-            pairs.push([textValue, binaryValue]);
+            legacyPairs.push([textValue, binaryValue]);
         }
-        return pairs;
+
+        if (legacyPairs.length === 0) {
+            return null;
+        }
+
+        const convertedList = legacyPairs.map(([id, keyBytes]) => ({
+            id,
+            key: MessageEncryption.bytesToBase64(keyBytes),
+        }));
+
+        const privateKeyEntry = convertedList[0];
+        return {
+            req: 'sync_key',
+            private_key: privateKeyEntry ? privateKeyEntry.key : '',
+            list: convertedList.slice(1),
+        };
     };
 
-    const importKeysToNewDevice = (newPairs: ReceivedPair[]) => {
-
-        if(user?.id === newPairs[0][0]){
-            //import account private key
-            MessageEncryption.setPrivateKey(newPairs[0][1]);
+    const importKeysToNewDevice = (payload: KeyObject) => {
+        if (!payload || !Array.isArray(payload.list)) {
+            Alert.alert('Error', 'Invalid key payload');
+            return;
         }
-        newPairs.forEach((item, index) => {
-            ConversationKeyManager.getKey(item[0]).then((conversationId)=>{
-                if (conversationId == null) {
-                    ConversationKeyManager.setConversationKey(item[0], item[1])
-                }
-            })
-            .finally(()=>{
-                setScanningActive(false)
-            })
-        })
-    }
 
-    const stopScanning = (scannedText: string) => {
-        setScanningActive(false);
-    };
+        if (!user?.id && payload.req !== 'sync_key') {
+            Alert.alert('Error', 'Session not ready');
+            return;
+        }
 
-    const restartScanning = () => {
-        setScanningActive(true);
+        if(user?.id !== payload.userId){
+            Alert.alert('Error', 'Please login the same account to sync keys');
+            return;
+        }
+
+        if (payload.private_key) {
+            MessageEncryption.setPrivateKey(MessageEncryption.base64ToBytes(payload.private_key));
+        }
+
+        const importTasks = payload.list.map(async (item) => {
+            if (!item?.id || !item?.key) {
+                return;
+            }
+
+            const existingKey = await ConversationKeyManager.getKey(item.id);
+            if (existingKey == null) {
+                await ConversationKeyManager.setConversationKey(item.id, MessageEncryption.base64ToBytes(item.key));
+            }
+        });
+
+        Promise.all(importTasks)
+            .then(() => setScanningActive(false))
+            .catch(() => {
+                Alert.alert('Error', 'Failed to import one or more keys');
+                setScanningActive(false);
+            });
     };
 
     const renderCamera = () => {
@@ -117,15 +165,12 @@ export default function ScanningKeys() {
                             barcodeTypes: ['qr'],
                         }}
                         onBarcodeScanned={(data) => {
-
                             if (data?.data) {
-                                const scannedPairs = parseScannedData(data.data);
-                                if (scannedPairs.length > 0) {
-                                    importKeysToNewDevice(scannedPairs);
+                                const scannedPayload = parseScannedData(data.data);
+                                if (scannedPayload) {
+                                    importKeysToNewDevice(scannedPayload);
                                 }
                             }
-                            
-
                         }}
                     />
                 )}

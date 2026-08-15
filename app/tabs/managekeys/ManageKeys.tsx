@@ -10,6 +10,10 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { router } from 'expo-router';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { useSession } from '@/utility/session/SessionProvider';
+
+import {KeyObject} from '@/utility/types/user'
+import { conversationAPI } from '@/utility/messages';
+import Index from '@/app';
 export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
@@ -20,23 +24,35 @@ export default function ManageKeys() {
         const data: Uint8Array | null = await ConversationKeyManager.getKey(conversationId);
         return data !== null && data !== undefined && data instanceof Uint8Array ? data : null;
     }
-    
-    
+    const data: KeyObject = {
+        req: '',
+        userId: user?.id,
+        private_key: '',
+        list: [],
+    };
     const getKeysAsString = async () => {
         const keys = await SnapShot.getMessagesSnapshot();
         const privKey = MessageEncryption.getPrivateKey();
-        
-        //Synchronize the private key of the account
-        if (user?.id && privKey != '') {
-            setKeysAsString(user?.id+';\n'+ privKey+';\n')
+
+        if (user?.id && privKey !== '') {
+            data.req = 'sync_key';
+            data.private_key = privKey;
         }
+
         for (const snapshot of keys) {
             const hasKey = await verifyKeys(snapshot.conversation_id);
+
             if (hasKey) {
-                const unibit8ToString = MessageEncryption.bytesToBase64(hasKey);
-                setKeysAsString(previous => previous + snapshot.conversation_id + ';\n' + unibit8ToString + ';\n');
+                const keyInString =
+                    MessageEncryption.bytesToBase64(hasKey);
+
+                (data.list).push({
+                    id: snapshot.conversation_id,
+                    key: keyInString,
+                });
             }
         }
+        setKeysAsString(JSON.stringify(data))
     };
 
     useEffect(() => {

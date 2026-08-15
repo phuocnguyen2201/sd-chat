@@ -47,3 +47,10 @@ export type UserContextType = {
   refreshProfile: () => Promise<void>;
   logout: () => Promise<void>;
 };
+export type KeyObject = {
+  req: string;
+  userId?: string;
+  private_key:string;
+  list: list[]
+}
+type list = {id:string, key:string}
