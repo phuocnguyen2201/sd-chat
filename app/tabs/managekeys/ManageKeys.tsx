@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ScrollView } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,10 +10,8 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { router } from 'expo-router';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { useSession } from '@/utility/session/SessionProvider';
-
 import {KeyObject} from '@/utility/types/user'
-import { conversationAPI } from '@/utility/messages';
-import Index from '@/app';
+
 export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
@@ -72,7 +70,7 @@ export default function ManageKeys() {
             <Box className="items-center mb-6 mt-6 border border-gray-200">
                 <Text>Note: Ensure that you only share your keys with trusted parties. Sharing your keys with untrusted individuals may compromise the security of your encrypted messages.</Text>  
             </Box>
-            <Button onPress={() => {router.push({pathname:'/tabs/managekeys/ScanningKeys'});}}
+            <Button onPress={() => { router.push({ pathname:'/tabs/managekeys/ScanningKeys'} ); }}
                 size="md"
                 action="primary"
                 className="bg-blue-500 mb-4">

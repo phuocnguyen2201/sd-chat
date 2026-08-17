@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Spinner } from '@/components/ui/spinner';
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/componen
 import { supabase } from '@/utility/connection';
 import { ScrollView, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import {
   AlertDialog,
   AlertDialogBackdrop,
@@ -38,10 +38,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
-
-import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
-import { checkBiometricAvailability } from '@/utility/biometricsSecurity/biometricSecurity';
 
 
 export default function Settings() {

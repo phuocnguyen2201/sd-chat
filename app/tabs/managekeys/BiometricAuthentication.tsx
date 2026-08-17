@@ -2,10 +2,8 @@ import { Heading } from '@/components/ui/heading';
 import { ScrollView } from "@/components/ui/scroll-view";
 import { Button, ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { useState } from "react";
 import { View, Alert } from 'react-native';
-import { Constants } from '@/constants/Constants';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { checkBiometricAvailability } from '@/utility/biometricsSecurity/biometricSecurity';
 import { Fingerprint, ScanFace } from 'lucide-react-native';
 

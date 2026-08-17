@@ -1,9 +1,8 @@
 // chat room can edit room name and avatar and 2 panels to display images and files
-import React, { useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
-import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/utility/connection';
 import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
 import {
@@ -16,8 +15,8 @@ import {
   ActionsheetBackdrop,
 } from '@/components/ui/actionsheet';
 import { Spinner } from '@/components/ui/spinner';
-import { conversationAPI, messageAPI } from '@/utility/messages';
-import { Conversation, Files, Message } from '@/utility/types/supabse';
+import { conversationAPI } from '@/utility/messages';
+import { Files, Message } from '@/utility/types/supabse';
 import { filesAPI } from '@/utility/handleStorage';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { Link } from 'expo-router';
