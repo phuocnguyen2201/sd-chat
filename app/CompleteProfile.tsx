@@ -110,7 +110,6 @@ export default function CompleteProfile() {
       
       if (response.error) {
         console.error('Error creating profile:', response.error);
-        return;
       }
       else {
         const touchID = await AsyncStorage.getItem(Const.TOUCH_ID+user?.id);
@@ -132,7 +131,7 @@ export default function CompleteProfile() {
     };
 
     useEffect(() => {
-      if(profile && profile.files_profiles) {
+      if(profile && profile?.files_profiles) {
         const avatar = utilityFunction.buildFileUrl(profile.files_profiles[0])
         setAvatar(avatar)
       }
