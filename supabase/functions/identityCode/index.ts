@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import * as crypto from "node:crypto";
 
 Deno.serve(async (req: Request) => {
   try {
@@ -8,7 +9,8 @@ Deno.serve(async (req: Request) => {
         const characters       = 'abcdefghijklmnopqrstuvwxyz';
         const charactersLength = characters.length;
         for ( var i = 0; i < length; i++ ) {
-            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            const buf = crypto.randomBytes(1);
+            result += characters.charAt(Math.floor(buf * charactersLength));
         }
         return result;
     }
