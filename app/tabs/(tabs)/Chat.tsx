@@ -40,9 +40,7 @@ export default function Chat() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredChatRooms, setFilteredChatRooms] = useState<Conversation[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
-  const [newChat, setNewChat] = useState<string>('');
   const insets = useSafeAreaInsets();
-  const [cancelSeachButton, setCancelSearchButton]= useState(false);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
 
@@ -262,13 +260,6 @@ export default function Chat() {
       subscription.unsubscribe();
     };
   }, [userId]);
-
-  // Refresh list chat if new conversation has been created
-  useEffect(() => {
-    if (newChat !== '') {
-      //fetchChatRooms();
-    }
-  }, [newChat]);
 
   // Update filtered lists when search query, users, chat rooms or userId change
   useEffect(() => {
