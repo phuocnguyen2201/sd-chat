@@ -1,5 +1,7 @@
 # Chat Tab
 
+**Source:** [`app/tabs/(tabs)/Chat.tsx`](../../../app/tabs/(tabs)/Chat.tsx)
+
 ## Overview
 The Chat tab is the main interface for viewing and managing conversations. It displays a list of all chat rooms and provides functionality to search, start new conversations, and navigate to individual chat rooms.
 
@@ -8,7 +10,7 @@ The Chat tab is the main interface for viewing and managing conversations. It di
 ### User List
 - **Horizontal Scrollable List**: Displays all available users (excluding the current user) in a horizontal scrollable view
 - **User Avatars**: Shows user avatars with fallback text (first 2 characters of display name)
-- **Online Status**: Green badge indicator showing user online status
+- **Availability Indicator**: Displays a green avatar badge; this is a visual indicator, not a documented presence subscription.
 - **Start New Chat**: Tap on any user to start or continue a conversation
 
 ### Conversation List
@@ -25,12 +27,8 @@ The Chat tab is the main interface for viewing and managing conversations. It di
   - Conversations: Filters by participant name or last message content
 
 ### Push Notifications
-- **Automatic Registration**: Registers for push notifications on component mount
-- **Token Management**: Saves FCM token to user profile if not already present
-- **Notification Handling**: 
-  - Listens for incoming notifications
-  - Refreshes conversation list when notifications are received
-  - Navigates to conversation when notification is tapped
+- Registration and notification-response routing are handled by [`Bootstrap`](../Bootstrap.md).
+- The Chat screen refreshes its conversation list when a notification is received.
 
 ### Real-time Updates
 - **Conversation Subscriptions**: Subscribes to real-time conversation updates
@@ -61,10 +59,10 @@ Retrieves all conversations for the current user, including participant informat
 - Falls back to database if not cached
 - Uses E2E encryption to unwrap the key using the other participant's public key
 
-#### `handlePushNotification()`
-- Registers device for push notifications
-- Saves FCM token to user profile
-- Skips if token already exists
+#### `createGroupChat(name, recipientIds)`
+- Creates a group conversation.
+- Generates a conversation key and wraps it for each participant.
+- Stores wrapped keys and caches the group key before opening the room.
 
 ## Encryption & Security
 
@@ -91,13 +89,12 @@ When a user taps on a conversation or user:
 - Navigates to `../msg/[room_id]` with parameters:
   - `conversation_id`: The conversation ID
   - `displayName`: Other participant's display name
-  - `conversationKey`: Base64 encoded conversation key
-  - `userId`: Current user's ID
+  - The current conversation key is placed in `SessionProvider`; it is not passed as a route parameter by the current Chat implementation.
 
 ## Dependencies
 - `expo-router`: Navigation
 - `@/utility/messages`: API functions
-- `@/utility/session/UserContext`: User context
+- `@/utility/session/SessionProvider`: Session and conversation-key context
 - `@/utility/push-notification/push-Notification`: Push notification handling
 - `@/utility/securedMessage/secured`: Message encryption
 - `@/utility/securedMessage/ConversationKeyManagement`: Key management

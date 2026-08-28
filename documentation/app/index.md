@@ -1,7 +1,11 @@
-# Index Screen (Authentication)
+# Login Screen
+
+**Source:** [`app/login.tsx`](../../app/login.tsx)
+
+The root `index.tsx` only redirects to `Bootstrap`; authentication is implemented by `login.tsx`.
 
 ## Overview
-The Index screen (`index.tsx`) is the entry point of the application, serving as the authentication interface. It provides login and registration functionality for users to access the chat application.
+The Login screen provides sign-in and registration functionality. After a successful sign-in it refreshes the profile and routes to `Bootstrap`, which owns the authenticated startup decision.
 
 ## Features
 
@@ -13,8 +17,7 @@ The Index screen (`index.tsx`) is the entry point of the application, serving as
 
 ### User Flow
 - **After Login**: 
-  - If profile incomplete → Redirects to Complete Profile
-  - If profile complete → Redirects to Chat tab
+- **After Login**: Refreshes the session profile and redirects to `/Bootstrap`.
 - **After Registration**: 
   - Shows success message
   - Requires email verification
@@ -35,9 +38,8 @@ The Index screen (`index.tsx`) is the entry point of the application, serving as
 Handles user login.
 1. Calls `authAPI.signIn()` with email and password
 2. On success:
-   - Fetches user profile
-   - Checks if display name exists
-   - Redirects to Complete Profile or Chat tab accordingly
+  - Refreshes the profile through `SessionProvider`
+  - Redirects to `Bootstrap`
 3. On error: Displays error message in alert dialog
 
 #### `signUpAsync()`
@@ -90,11 +92,10 @@ Generates a new encryption key pair for the user.
 ## Navigation Logic
 
 ### Post-Authentication Routing
-The app uses `UserContext` to handle routing:
-1. User signs in/up
-2. User context checks profile
-3. If `displayname` is null → `/CompleteProfile`
-4. If `displayname` exists → `/tabs/(tabs)/Chat`
+1. User signs in.
+2. The screen refreshes the session profile.
+3. The screen redirects to `/Bootstrap`.
+4. `Bootstrap` routes based on profile completion and biometric/skip settings. See [`Bootstrap.md`](Bootstrap.md).
 
 ### Alert Dialog
 - **Purpose**: Display authentication status messages
@@ -123,7 +124,7 @@ The app uses `UserContext` to handle routing:
 ## Dependencies
 - `expo-router`: Navigation
 - `@/utility/messages`: Authentication API (authAPI)
-- `@/utility/session/UserContext`: User context
+- `@/utility/session/SessionProvider`: Session and profile context
 - `@/utility/securedMessage/secured`: Encryption utilities
 
 ## UI Components Used

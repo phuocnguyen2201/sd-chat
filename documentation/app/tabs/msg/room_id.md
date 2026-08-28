@@ -1,5 +1,7 @@
 # Chat Room Screen
 
+**Source:** [`app/tabs/msg/[room_id].tsx`](../../../app/tabs/msg/[room_id].tsx)
+
 ## Overview
 The Chat Room screen (`[room_id].tsx`) is the individual conversation interface where users can send and receive messages in real-time. It supports text messages, image sharing, and file attachments with end-to-end encryption.
 
@@ -37,14 +39,18 @@ The Chat Room screen (`[room_id].tsx`) is the individual conversation interface 
 - **File Display**: Shows download link for file attachments
 - **File Upload**: Uploads files to Supabase storage and sends as message
 - **Download**: Opens file URL in browser for download
+- **Emoji reactions**: Long-press a message to add or update a reaction.
+- **Edit and delete**: Long-press a message to edit or delete it.
+- **Forward**: Long-press a message to forward text or file/image references.
 
 ## Key Components
 
 ### Route Parameters
 - `conversation_id`: The conversation ID
 - `displayName`: Other participant's display name
-- `conversationKey`: Base64 encoded conversation encryption key
-- `userId`: Current user's ID
+- `public_key`: Optional public key used when unwrapping a conversation key
+
+The active conversation key is loaded through `SessionProvider` and `ConversationKeyManager`, rather than passed as `conversationKey` navigation data.
 
 ### State Management
 - `avatarUrl`: URL for zoomed image
@@ -58,9 +64,8 @@ The Chat Room screen (`[room_id].tsx`) is the individual conversation interface 
 
 #### `loadMessages()`
 Loads initial messages from database.
-- Fetches last 50 messages
-- Orders by creation time (ascending)
-- Filters by conversation ID
+- Calls the `get_messages_with_reactions` RPC for the conversation and limits the result to 30 messages.
+- Subscribes to message inserts, updates, and deletes.
 
 #### `handleSend()`
 Sends a new encrypted message.
@@ -116,7 +121,7 @@ Handles file selection and upload.
 
 ### Message Channel
 - **Channel Name**: `public:messages:conversation_id=eq.{conversation_id}`
-- **Event**: `INSERT` on `messages` table
+- **Events**: `INSERT`, `UPDATE`, and `DELETE` on `messages` table
 - **Filter**: Messages for current conversation only
 - **Callback**: Adds new message to state array
 
@@ -178,7 +183,7 @@ Handles file selection and upload.
 - `@supabase/supabase-js`: Database and real-time
 - `@/utility/handleStorage`: Storage operations
 - `@/utility/securedMessage/secured`: Message encryption
-- `@/utility/session/UserContext`: User context
+- `@/utility/session/SessionProvider`: Session and conversation-key context
 - `@/components/ZoomImage`: Image zoom component
 
 ## UI Components Used

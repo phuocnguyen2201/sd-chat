@@ -1,5 +1,7 @@
 # Settings Tab
 
+**Source:** [`app/tabs/(tabs)/Settings.tsx`](../../../app/tabs/(tabs)/Settings.tsx)
+
 ## Overview
 The Settings tab allows users to manage their profile, account settings, and authentication preferences. It provides functionality to update display name, change password, update avatar, and manage account deletion.
 
@@ -18,8 +20,7 @@ The Settings tab allows users to manage their profile, account settings, and aut
 - **Account Deletion**: Permanently delete user account and all associated data
 
 ### Authentication
-- **Sign Out**: Log out from the current session
-- **Session Management**: Clears local storage and redirects to home
+- **Sign Out**: Logs out through Supabase, removes cached `user` and `profile` entries, and redirects to `/`.
 
 ## Key Components
 
@@ -38,11 +39,7 @@ The Settings tab allows users to manage their profile, account settings, and aut
 ### Key Functions
 
 #### `updateProfile()`
-Updates user profile with new display name and avatar URL.
-- Validates user ID
-- Calls `profileAPI.updateProfile()`
-- Shows success message
-- Closes dialog on completion
+Updates the display name through `profileAPI.updateProfile()` and shows a temporary success message.
 
 #### `updatePassword(password, confirmPassword)`
 Updates user password.
@@ -52,13 +49,7 @@ Updates user password.
 - Handles errors gracefully
 
 #### `handleDeleteAccount()`
-Permanently deletes user account.
-- Deletes avatar from storage
-- Deletes encryption private key
-- Deletes all user conversations and messages
-- Deletes user profile
-- Deletes auth user
-- Signs out and redirects to home
+Deletes the avatar when present, removes the local encryption private key, calls `authAPI.deleteAccount()`, then redirects to `/`. Backend cleanup is owned by the API/database layer.
 
 #### `pickImage()`
 Opens image picker to select photo from gallery.
@@ -84,8 +75,8 @@ Opens camera to take new photo.
 
 ### Avatar Storage
 - **Path Structure**: `avatars/{userId}/{timestamp}-{filename}`
-- **URL Expiration**: 365 days signed URL
-- **Cleanup**: Old avatar is deleted before uploading new one
+- **URL Expiration**: Determined by the storage helper
+- **Cleanup**: Existing profile-file records are updated when possible
 
 ## Dialogs & Modals
 
@@ -137,7 +128,7 @@ Opens camera to take new photo.
 - `expo-image-picker`: Image selection and camera access
 - `@/utility/messages`: API functions (authAPI, profileAPI)
 - `@/utility/handleStorage`: Storage operations
-- `@/utility/session/UserContext`: User context
+- `@/utility/session/SessionProvider`: Session and theme context
 - `@/utility/securedMessage/secured`: Encryption utilities
 - `@supabase/supabase-js`: Supabase client
 - `@react-native-async-storage/async-storage`: Local storage

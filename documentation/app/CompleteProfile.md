@@ -1,5 +1,7 @@
 # Complete Profile Screen
 
+**Source:** [`app/CompleteProfile.tsx`](../../app/CompleteProfile.tsx)
+
 ## Overview
 The Complete Profile screen is shown to new users after registration to collect essential profile information. It requires users to set a display name and optionally upload an avatar before they can access the main chat interface.
 
@@ -17,7 +19,7 @@ The Complete Profile screen is shown to new users after registration to collect 
 - **Avatar Preview**: Shows selected avatar before saving
 
 ### Navigation Flow
-- **On Success**: Redirects to Chat tab after profile completion
+- **On Success**: Redirects to Chat when biometric setup is satisfied; otherwise redirects to `/tabs/managekeys/EnableBiometric`
 - **Back to Home**: Option to sign out and return to login screen
 
 ## Key Components
@@ -71,8 +73,8 @@ Handles camera photo capture.
 ### Storage
 - **Bucket**: `avatars`
 - **Path**: `avatars/{userId}/{timestamp}-{filename}`
-- **URL Expiration**: 365 days signed URL
-- **Cleanup**: Old avatar deleted before new upload
+- **URL Expiration**: Determined by the storage helper
+- **Cleanup**: Storage behavior is handled by `storageAPIs`
 
 ## UI Components
 
@@ -91,14 +93,12 @@ Handles camera photo capture.
 ## Navigation Logic
 
 ### Conditional Routing
-The app uses `UserContext` to determine if profile is complete:
-- If `displayname` is null/empty → Show Complete Profile screen
-- If `displayname` exists → Show Chat tab
+`Bootstrap` routes users with a missing `displayname` here. This screen saves the display name and then checks the user-specific biometric and skip flags.
 
 ### After Profile Completion
-- Profile is saved to database
-- User context is refreshed
-- Navigation redirects to `/tabs/(tabs)/Chat`
+- Profile is saved through `profileAPI.updateProfile()`.
+- When Touch ID or Face ID is enabled and the skip flag is set, navigation goes to `/tabs/(tabs)/Chat`.
+- Otherwise navigation goes to `/tabs/managekeys/EnableBiometric`.
 
 ## Error Handling
 - **API Errors**: Logged to console, prevents navigation on failure
@@ -110,7 +110,7 @@ The app uses `UserContext` to determine if profile is complete:
 - `expo-image-picker`: Image selection and camera
 - `@/utility/messages`: Profile API (profileAPI)
 - `@/utility/handleStorage`: Storage operations
-- `@/utility/session/UserContext`: User context
+- `@/utility/session/SessionProvider`: Session and profile context
 - `@supabase/supabase-js`: Supabase client
 
 ## UI Components Used
