@@ -9,7 +9,6 @@ import { VStack } from '@/components/ui/vstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
-import { filesAPI } from '@/utility/handleStorage';
 import { router } from 'expo-router';
 import { Divider } from '@/components/ui/divider';
 import { Files, UserProfile } from '@/utility/types/supabse';
@@ -17,7 +16,7 @@ import { Pressable } from 'react-native';
 import { Spinner } from '@/components/ui/spinner';
 
 import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
-import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import {
   Actionsheet,
   ActionsheetContent,
