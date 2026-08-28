@@ -405,28 +405,25 @@ export default function Chat() {
       const data = room.conversation_participants || [];
       const groupChatName = room?.name??'';
       const groupChatCreatorId = room?.created_by || '';
-      let otherPublicKey = null;
 
-      if(isGroup) {
-        // For group chat, we may need to handle differently in future
-        otherPublicKey = data?.filter((participant: any) => participant.profiles?.id === groupChatCreatorId)?.[0]?.profiles?.public_key || null;
+      // For group chat, we may need to handle differently in future
+      let otherPublicKey = isGroup? data?.find((participant: any) => participant.profiles?.id === groupChatCreatorId)?.[0]?.profiles?.public_key || null: null;
+
+      // For 1-1 chat, get the other participant's public key for the first time conversation initialization
+      if(data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null){
+        const firstInitConversationKey = await profileAPI.getParticipantsPublicKey([data?.[0]?.profiles?.id, data?.[1]?.profiles?.id])
+        otherPublicKey = 
+          firstInitConversationKey.data?.[0]?.id == userId
+          ? firstInitConversationKey.data?.[1]?.public_key
+          : firstInitConversationKey.data?.[0]?.public_key || null;
       }
-      else {
-        // For 1-1 chat, get the other participant's public key for the first time conversation initialization
-        if(data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null){
-          const firstInitConversationKey = await profileAPI.getParticipantsPublicKey([data?.[0]?.profiles?.id, data?.[1]?.profiles?.id])
-          otherPublicKey = 
-            firstInitConversationKey.data?.[0]?.id == userId
-            ? firstInitConversationKey.data?.[1]?.public_key
-            : firstInitConversationKey.data?.[0]?.public_key || null;
-        }
-        else
-          otherPublicKey = 
-            data?.[1]?.profiles?.id == userId
-            ? data?.[0]?.profiles?.public_key
-            : data?.[1]?.profiles?.public_key;
-            //console.log('Other participant public key:', otherPublicKey);
-      }
+      else
+        otherPublicKey = 
+          data?.[1]?.profiles?.id == userId
+          ? data?.[0]?.profiles?.public_key
+          : data?.[1]?.profiles?.public_key;
+          //console.log('Other participant public key:', otherPublicKey);
+    
       const conversationKeyBytes = await getConversationKeyForOtherParticipants(
           otherPublicKey,
           room.id
@@ -531,11 +528,10 @@ export default function Chat() {
         <Box className="border-b border-gray-100 py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="md" testID={automationLocatorsDataState.homeScreen.userList} className="mr-4">
-              {filteredUsers &&
-                filteredUsers.map((users, index: number) => (
+              {filteredUsers?.map((users, index: number) => (
                   <Pressable
                     className="pr-4 items-center"
-                    key={`${users.id}-${index}` || `user-${index}`}
+                    key={`${users.id}-${index}`}
                     onPress={() => handleUserPress(users)}
                   >
                     <Avatar size="lg" className="mb-2">
@@ -549,7 +545,7 @@ export default function Chat() {
                       <AvatarBadge className="bg-green-500" />
                     </Avatar>
                     <Text className="text-xs text-center max-w-[70px]" numberOfLines={1}>
-                      {users.displayname || 'U'}
+                      {users?.displayname || 'U'}
                     </Text>
                   </Pressable>
                 ))}
@@ -564,7 +560,7 @@ export default function Chat() {
             contentContainerStyle={{ flexGrow: 1 }}
           >
             <VStack space="xs" className="pb-6">
-              {filteredChatRooms && filteredChatRooms.length > 0 ? (
+              {filteredChatRooms?.length > 0 ? (
                 filteredChatRooms.map((room, index: number) => {
                   
                   // if group chat, show group name
@@ -604,7 +600,7 @@ export default function Chat() {
 
                   return (
                     <Pressable
-                      key={`${room.id}-${index}` || room.conversation_id || `room-${index}`}
+                      key={`room-${room.id}-${index}`}
                       onPress={() => handleConversationPress(room)}
                       className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
                     >
