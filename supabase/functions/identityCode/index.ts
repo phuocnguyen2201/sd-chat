@@ -5,13 +5,14 @@ Deno.serve(async (req: Request) => {
   try {
     const randomIdentityCode = (length = 4) => {
         let result           = '';
-        const characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const characters       = 'abcdefghijklmnopqrstuvwxyz';
         const charactersLength = characters.length;
         for ( var i = 0; i < length; i++ ) {
             result += characters.charAt(Math.floor(Math.random() * charactersLength));
         }
         return result;
     }
+    randomIdentityCode();
   } catch (error) {
     console.error("Unexpected error in function:", error);
     return new Response(JSON.stringify({ error: "Internal server error", message: String(error) }), {
