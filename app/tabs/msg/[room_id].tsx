@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
@@ -29,10 +29,8 @@ import {
 } from '@/components/ui/popover';
 import {
   AlertDialog,
-  AlertDialogBackdrop,
   AlertDialogContent,
   AlertDialogHeader,
-  AlertDialogCloseButton,
   AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
@@ -45,6 +43,7 @@ import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
 import ForwardMessage from '@/components/ForwardMessage';
 import { Files, Message } from '@/utility/types/supabse';
+import { Constants } from '@/constants/Constants';
 
 /**
  * Chat Room Screen
@@ -80,7 +79,6 @@ export default function ChatScreen() {
 
   const [activeMessage, setActiveMessage] = useState<string>('');
   const [activeReaction, setActiveReaction] = useState<string>('');
-  const [activeMsgType, setActiveMsgType] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -152,32 +150,34 @@ export default function ChatScreen() {
 
     loadKey();
   }, [conversation_id, userId, currentConversationId, conversationKey, getConversationKey, setCurrentConversation]);
-
+  const headerOptions = () => {
+    if (displayName) {
+        navigation.setOptions({ headerTitle: displayName });
+        // set button to edit chat room
+        navigation.setOptions({
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                router.push({
+                      pathname: '/tabs/msg/ChatRoomEditing',
+                      params: {
+                        conversation_id: conversation_id,
+                        displayName: displayName,
+                      },
+                    });
+              
+              }}
+              className="px-3 py-1 bg-blue-500 rounded-lg"
+            >
+              <Icon as={MoveRightIcon} size="md" className="text-white" />
+            </Pressable>
+          ),
+        }); 
+      }
+    }
   // Set navigation header
   useEffect(() => {
-    if (displayName) {
-      navigation.setOptions({ headerTitle: displayName });
-      // set button to edit chat room
-      navigation.setOptions({
-        headerRight: () => (
-          <Pressable
-            onPress={() => {
-               router.push({
-                    pathname: '/tabs/msg/ChatRoomEditing',
-                    params: {
-                      conversation_id: conversation_id,
-                      displayName: displayName,
-                    },
-                  });
-             
-            }}
-            className="px-3 py-1 bg-blue-500 rounded-lg"
-          >
-            <Icon as={MoveRightIcon} size="md" className="text-white" />
-          </Pressable>
-        ),
-      }); 
-    }
+    headerOptions();
   }, [navigation, displayName]);
 
   // Load messages
@@ -315,6 +315,82 @@ export default function ChatScreen() {
     }
   }
 
+  //Forward text message with encryption
+  const forwardTextMessage = async (messageToForward: Message, forwardConversationId: string) => {
+    // Find the right conversation key
+    const forwardPartyKey = await getConversationKey(forwardConversationId);
+
+    // Encrypt and send the forwarded message
+    const encryptedMessage = MessageEncryption.encryptMessage(messageToForward?.content ?? '', forwardPartyKey!);
+    const msg: Message = {
+      conversation_id: forwardConversationId as string || '',
+      sender_id: userId,
+      content: encryptedMessage.ciphertext,
+      nonce: encryptedMessage.nonce,
+      key_nonce: encryptedMessage.keyNonce,
+      wrapped_key: encryptedMessage.wrappedKey,
+      message_type: messageToForward.message_type,
+      is_forward: true
+    }
+    const { error } = await messageAPI.forwardMessage(msg)
+
+    if (error) {
+      console.warn('Error forwarding message', error.message);
+      Alert.alert('Error', 'Failed to forward message to some recipients');
+    }
+  };
+
+  //Forward file or image message with file reference
+  const forwardFileOrImageMessage = async (messageToForward: Message, forwardConversationId: string) => {
+    //Forward the message first and get the id for the new conversation.
+    const newFwdMessage: Message = {
+      sender_id: userId,
+      conversation_id: forwardConversationId as string || '',
+      message_type: messageToForward?.message_type,
+      content: messageToForward?.content,
+      is_forward: true
+    }
+    // insert new message first
+    const { data: dataFwdMsg, error: fwdError } = await messageAPI.forwardMessage(newFwdMessage)
+
+    if (fwdError) throw fwdError;
+
+    // Retrieve the files or images information to create reference in table files for new conversation.
+    const {data: msg, error: msgError} = await messageAPI.getMessageWithFileOrImage(messageToForward?.id || '', conversation_id || '');
+
+    if (msgError) throw msgError;
+
+    if (msg && msg.files) {
+      
+      
+      const retrievedFileInformation = msg.files[0];
+      //New Files or images information as reference for new conversation.
+      const newFwdFileOrImage: Files = {
+        message_id: dataFwdMsg?.id, //Upate new message id
+        bucket_name: retrievedFileInformation?.bucket_name,
+        filepath: retrievedFileInformation?.filepath,
+        filename: retrievedFileInformation?.filename,
+        file_size: retrievedFileInformation?.file_size || 0,
+        original_name: retrievedFileInformation?.original_name || '',
+        token: retrievedFileInformation?.token,
+        mime_type: retrievedFileInformation?.mime_type,
+        created_at: new Date().toISOString(),
+        expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+        status: true
+      
+      }
+
+      //Insert a new message to new conversation.
+      const { error: fwdFileError} = await filesAPI.insertFilesMessages(newFwdFileOrImage);
+      
+
+      if (fwdFileError) {
+        console.warn('Error forwarding message', fwdFileError?.message);
+        Alert.alert('Error', 'Failed to forward message to some recipients');
+      }
+    }
+  };
+
   //Handle forward message
   const handleForwardMessage = async (recipientId: Array<string>) => {
 
@@ -329,90 +405,15 @@ export default function ChatScreen() {
     try {
       recipientId && recipientId.map(async (recipient) => {
         // get the conversation ID
-      const conversation = await conversationAPI.verifyDMConversation(recipient!);
-      
-      if (conversation !== null && conversation.data?.conversation_id) {
-        //For text message when fwd, must encryption the message with new receiver's public keys.
-        if(messageToForward?.message_type === 'text') {
-          // Find the right conversation key
-          const forwardPartyKey = await getConversationKey(conversation.data.conversation_id);
-
-          // Encrypt and send the forwarded message
-          const encryptedMessage = MessageEncryption.encryptMessage(messageToForward?.content ?? '', forwardPartyKey!);
-          const msg: Message = {
-            conversation_id: conversation?.data?.conversation_id as string || '',
-              sender_id: userId,
-              content: encryptedMessage.ciphertext,
-              nonce: encryptedMessage.nonce,
-              key_nonce: encryptedMessage.keyNonce,
-              wrapped_key: encryptedMessage.wrappedKey,
-              message_type: messageToForward.message_type,
-              is_forward: true
-          }
-          const { error } = await messageAPI.forwardMessage(msg)
-
-          if (error) {
-            console.warn('Error forwarding message', error.message);
-            Alert.alert('Error', 'Failed to forward message to some recipients');
+        const conversation = await conversationAPI.verifyDMConversation(recipient!);
+        
+        if (conversation !== null && conversation.data?.conversation_id) {
+          if (messageToForward?.message_type === 'text') {
+            await forwardTextMessage(messageToForward, conversation.data.conversation_id);
+          } else {
+            await forwardFileOrImageMessage(messageToForward, conversation.data.conversation_id);
           }
         }
-        else {
-          //Forward type file or message. Files or Images location will remaining the same, just add a new record so the new conversation can reference to the images or files.
-          //Filter the message wanted to forward
-          
-          //console.log(fwdMsg)
-          /* When nonce, key_nonce and wrapped_key is null, which mean the msg is either file or images*/
-          if(!messageToForward?.key_nonce && !messageToForward?.wrapped_key) {
-
-            //Forward the message first and get the id for the new conversation.
-            const newFwdMessage: Message = {
-              sender_id: userId,
-              conversation_id: conversation.data.conversation_id as string || '',
-              message_type: messageToForward?.message_type,
-              content: messageToForward?.content,
-              is_forward: true
-            }
-            // insert new message first
-            const { data: dataFwdMsg, error: fwdError } = await messageAPI.forwardMessage(newFwdMessage)
-
-            if (fwdError) throw fwdError;
-
-            // Retrieve the files or images information to create reference in table files for new conversation.
-            const {data: msg, error: msgError} = await messageAPI.getMessageWithFileOrImage(messageToForward?.id || '', conversation_id || '');
-
-            if(msgError) throw msgError;
-
-            if(msg && msg.files) {
-              
-              const retrievedFileInformation = msg.files[0];
-
-              //New Files or images information as reference for new conversation.
-              const newFwdFileOrImage: Files = {
-                message_id: dataFwdMsg?.id, //Upate new message id
-                bucket_name: retrievedFileInformation?.bucket_name,
-                filepath: retrievedFileInformation?.filepath,
-                filename: retrievedFileInformation?.filename,
-                file_size: retrievedFileInformation?.file_size || 0,
-                original_name: retrievedFileInformation?.original_name || '',
-                token: retrievedFileInformation?.token,
-                mime_type: retrievedFileInformation?.mime_type,
-              
-              }
-
-              //Insert a new message to new conversation.
-              const { data, error: fwdFileError} = await filesAPI.insertFilesMessages(newFwdFileOrImage);
-             
-
-              if (fwdFileError) {
-                console.warn('Error forwarding message', fwdFileError?.message);
-                Alert.alert('Error', 'Failed to forward message to some recipients');
-              }
-            }
-           
-          }
-
-        }
-      }
       });
 
     } catch (error) {
@@ -643,6 +644,7 @@ export default function ChatScreen() {
               //console.log('Rendering message from:', m.displayname);
               let url: string = '';
               const data = m.files?.[0] ?? null;
+          
               if(m && m.message_type && m.files  && (m.message_type.includes('image')|| m.message_type.includes('file'))){
                 url = utilityFunction.buildFileUrl(data);
               }
@@ -737,7 +739,7 @@ export default function ChatScreen() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <LinkText className={`${isCurrentUser? 'text-white': 'text-black'} text-xl`}>{data?.filename|| ''}</LinkText>
+                          <LinkText className={`${isCurrentUser? 'text-white': 'text-black'} text-xl`}>{data?.filename || ''}</LinkText>
                           <Icon
                             as={ArrowBigDown}
                             size="lg"

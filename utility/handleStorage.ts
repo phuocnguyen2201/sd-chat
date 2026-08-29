@@ -54,7 +54,7 @@ export const storageAPIs = {
       token: token,
       bucket_name: Constants.STORAGE_BUCKETS.MESSAGES,
       created_at: new Date().toISOString(),
-      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
       message_id: newImage.id,
     }
@@ -111,11 +111,12 @@ export const storageAPIs = {
       token: token,
       bucket_name: Constants.STORAGE_BUCKETS.FILES,
       created_at: new Date().toISOString(),
-      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
       message_id: newFile.id,
       file_size: file.size || 0
     }
+
     await filesAPI.insertFilesMessages(fileData);
     return { success: true, message: 'File uploaded and sent!' };
   } catch (e) {
@@ -164,7 +165,7 @@ export const storageAPIs = {
       file_size: image.fileSize || 0,
       bucket_name: Constants.STORAGE_BUCKETS.AVATARS,
       created_at: new Date().toISOString(),
-      expires_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
+      expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true
     }
 
@@ -308,17 +309,15 @@ export const filesAPI = {
       return { data: null, error: error as Error }
     }
   },
-  async insertFilesMessages(insert: Files) : Promise<ApiResponse<Files>>{
+  async insertFilesMessages(insert: Files) : Promise<ApiResponse<Files[]>>{
     try {
       const {data, error} = await supabase
       .from('files')
       .insert(insert)
-      .select()
-      .single()
       
       if(error) throw error;
 
-      return { data, error: null }
+      return { data , error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }

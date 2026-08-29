@@ -150,7 +150,7 @@ export interface Files{
   mime_type: string
   file_size?: number | 0
   created_at?: string
-  expires_date?: string
+  expiry_date?: string
   status?: boolean
 }
 
