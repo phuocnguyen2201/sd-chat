@@ -103,7 +103,7 @@ export default function Settings() {
       setTimeout(() => setSuccessMessage(''), 3000);
     });
 
-    if (!response) {
+    if (await !response) {
       Alert.alert('Error', 'Failed to fetch account information');
       throw new Error('Profile update failed');
     }
@@ -119,7 +119,7 @@ export default function Settings() {
         return;
       }
       const response = authAPI.updatePassword(password);
-      if (!response) {
+      if (await !response) {
         Alert.alert('Error', 'Failed to update password');
         throw new Error('Password update failed');
       }

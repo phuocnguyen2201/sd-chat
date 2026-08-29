@@ -246,7 +246,6 @@ export default function Chat() {
   // Load data on mount
   useEffect(() => {
     if (!userId) return;
-    snapshotDB;
     createSnapshotTable();
     
     fetchChatRooms();
