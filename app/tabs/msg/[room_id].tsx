@@ -391,6 +391,74 @@ export default function ChatScreen() {
     }
   };
 
+  //Render message content based on type
+  const renderMessageContent = (m: Message, url: string, data: Files | null, isCurrentUser: boolean) => {
+    // Image message
+    if (m && m.message_type && m.message_type.includes('image')) {
+      if (url !== 'INACTIVE') {
+        return (
+          <Pressable
+            onPress={() => {
+              setActiveImageUrl(url);
+              setModalVisible(true);
+            }}
+            onLongPress={() => {
+              setShowReaction(true);
+              setActiveMessage(m.id ?? '');
+            }}
+          >
+            <Image
+              source={{ uri: url }}
+              className="w-48 h-48 rounded-lg"
+              alt="image"
+              onError={(e) => console.log('Image error:', e.nativeEvent.error)}
+            />
+          </Pressable>
+        );
+      }
+      return <Text>File/ image not available</Text>;
+    }
+
+    // File message
+    if (m && m.message_type && m.message_type.includes('file')) {
+      return (
+        <Link
+          href={url as '/'}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <LinkText className={`${isCurrentUser ? 'text-white' : 'text-black'} text-xl`}>
+            {data?.filename || ''}
+          </LinkText>
+          <Icon
+            as={ArrowBigDown}
+            size="lg"
+            className={`mt-0.5 text-info-600 ${isCurrentUser ? 'text-white' : 'text-black'}`}
+          />
+        </Link>
+      );
+    }
+
+    // Text message
+    return (
+      <Text
+        className={`text-lg ${isCurrentUser ? 'text-white' : 'text-black'} font-semibold`}
+      >
+        {m.message_type === 'text'
+          ? MessageEncryption.decryptMessage(
+              {
+                ciphertext: m.content ?? '',
+                nonce: m.nonce ?? '',
+                wrappedKey: m.wrapped_key ?? '',
+                keyNonce: m.key_nonce ?? '',
+              },
+              conversationKey
+            )
+          : null}
+      </Text>
+    );
+  };
+
   //Handle forward message
   const handleForwardMessage = async (recipientId: Array<string>) => {
 
@@ -612,6 +680,41 @@ export default function ChatScreen() {
     );
   }
 
+  //Get decrypted message text or empty string
+  const getDecryptedMessageText = (message: Message): string => {
+    if (message.message_type === 'text') {
+      return MessageEncryption.decryptMessage(
+        {
+          ciphertext: message?.content ?? '',
+          nonce: message.nonce ?? '',
+          wrappedKey: message.wrapped_key ?? '',
+          keyNonce: message.key_nonce ?? '',
+        },
+        conversationKey
+      );
+    }
+    return '';
+  };
+
+  //Get message preview for forwarding
+  const getMessagePreview = (): string => {
+    const activeMsg = messages.find((msg) => msg.id === activeMessage);
+    
+    if (activeMsg?.message_type === 'text') {
+      return MessageEncryption.decryptMessage(
+        {
+          ciphertext: activeMsg.content || '',
+          nonce: activeMsg.nonce || '',
+          wrappedKey: activeMsg.wrapped_key || '',
+          keyNonce: activeMsg.key_nonce || '',
+        },
+        conversationKey
+      );
+    }
+    
+    return activeMsg?.content?.toUpperCase() || '';
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={'padding'}
@@ -673,15 +776,7 @@ export default function ChatScreen() {
                           onReaction = {handleReaction}
                           id_darkMode = {isDarkMode == 'dark'? true: false}
                           onEdit={() => {
-                            setNewMessage(m.message_type == 'text' ? MessageEncryption.decryptMessage(
-                              {
-                                ciphertext: m?.content?? '',
-                                nonce: m.nonce?? '',
-                                wrappedKey: m.wrapped_key?? '',
-                                keyNonce: m.key_nonce?? '',
-                              },
-                              conversationKey
-                            ): '');
+                            setNewMessage(getDecryptedMessageText(m));
                             setActiveMessage(m?.id ?? '');
                             setShowReaction(false);
                           }}
@@ -713,54 +808,7 @@ export default function ChatScreen() {
                           : 'bg-gray-200 rounded-bl-none'
                       }`}> 
                       {m.is_forward ? <Text><Icon as={ForwardIcon} size="md" className={`${isCurrentUser? 'text-white': 'text-gray-700'}`} /></Text> : null}
-                      {m && m.message_type && m?.message_type.includes('image') ? 
-                         url != 'INACTIVE' ?
-                        <Pressable
-                          onPress={() => {
-                            setActiveImageUrl(url)
-                            setModalVisible(true);
-                          }}
-                          onLongPress={() => {
-                            setShowReaction(true);
-                            setActiveMessage(m.id ?? '');
-                          }}
-                        > 
-                          <Image
-                            source={{uri: url }}
-                            className="w-48 h-48 rounded-lg"
-                            alt="image"
-                            onError={(e) => console.log('Image error:', e.nativeEvent.error)}
-                          />
-                        </Pressable>
-                        :<Text>File/ image not available</Text>
-                       : m && m.message_type && m.message_type.includes('file') ? 
-                        <Link
-                          href={url as '/'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <LinkText className={`${isCurrentUser? 'text-white': 'text-black'} text-xl`}>{data?.filename || ''}</LinkText>
-                          <Icon
-                            as={ArrowBigDown}
-                            size="lg"
-                            className={`mt-0.5 text-info-600 ${isCurrentUser? 'text-white': 'text-black'}`}
-                          />
-                        </Link>
-                       : 
-                        <Text
-                          className={`text-lg ${isCurrentUser? 'text-white': 'text-black'} font-semibold`}
-                        >
-                          { m.message_type == 'text' ? MessageEncryption.decryptMessage(
-                            {
-                              ciphertext: m.content ?? '',
-                              nonce: m.nonce ?? '',
-                              wrappedKey: m.wrapped_key ?? '',
-                              keyNonce: m.key_nonce ?? '',
-                            },
-                            conversationKey
-                          ): null }
-                        </Text>
-                      }
+                      {renderMessageContent(m, url, data, isCurrentUser)}
                     </Box>
                   </Box>
                   {/*Reaction loading*/}
@@ -860,19 +908,7 @@ export default function ChatScreen() {
           onForward = {(message, recipientIds) => {
             handleForwardMessage(recipientIds);
           }}
-          messagePreview = {
-            messages.find((msg) => msg.id === activeMessage && msg.message_type == "text")
-              ? MessageEncryption.decryptMessage(
-                  {
-                    ciphertext: messages.find((msg) => msg.id === activeMessage)?.content || '',
-                    nonce: messages.find((msg) => msg.id === activeMessage)?.nonce || '',
-                    wrappedKey: messages.find((msg) => msg.id === activeMessage)?.wrapped_key || '',
-                    keyNonce: messages.find((msg) => msg.id === activeMessage)?.key_nonce || '',
-                  },
-                  conversationKey
-                )
-              : messages.find((msg) => msg.id === activeMessage)?.content?.toUpperCase() || ''
-          }
+          messagePreview = {getMessagePreview()}
         /> 
         {/* Input Bar - Fixed above keyboard */}
         <Box className={`absolute left-0 right-0 bottom-5 p-3 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} border-t `}>
