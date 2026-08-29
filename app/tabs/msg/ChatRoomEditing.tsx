@@ -121,7 +121,7 @@ export default function ChatRoomEditing() {
 
     if(!name) return;
 
-    const { data, error} = await supabase
+    const { error } = await supabase
     .from('conversations')
     .update({name: name})
     .eq('id', conversation_id)
@@ -168,6 +168,46 @@ export default function ChatRoomEditing() {
     loadFilesAndImages();
 
   },[avatarUri, message])
+
+  const renderMessageContent = (m: Message, msgType: string, url: string) => {
+    if (msgType.includes('image')) {
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            setActiveImageUrl(url);
+            setModalVisible(true);
+          }}
+        >
+          <Image
+            source={{ uri: url }}
+            className="w-42 h-48 rounded-lg"
+            alt="image"
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    if (msgType.includes('file')) {
+      return (
+        <Link
+          href={url as '/'}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <LinkText className={`${isDarkMode == 'dark' ? 'text-white' : 'text-black'} text-xl`}>
+            {m?.files?.[0]?.filename || ''}
+          </LinkText>
+          <Icon
+            as={ArrowBigDown}
+            size="lg"
+            className={`mt-0.5 text-info-600 ${isDarkMode == 'dark' ? 'text-white' : 'text-black'}`}
+          />
+        </Link>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <ScrollView className={`${isDarkMode == "dark"? 'bg-black':'bg-white'}`} contentContainerStyle={{ padding: 16 }}>
@@ -231,32 +271,7 @@ export default function ChatRoomEditing() {
                     className: 'col-span-4',
                     }}
                 >   
-                    {msg_type.includes('image') ?
-                        <TouchableOpacity
-                            onPress={() => {
-                                setActiveImageUrl(url);
-                                setModalVisible(true);
-                            }}
-                        >
-                            <Image
-                                source={{ uri: url }}
-                                className="w-42 h-48 rounded-lg"
-                                alt="image"
-                            />
-                        </TouchableOpacity>
-                       : msg_type.includes('file')?
-
-                        <Link
-                            href={url as '/'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            >
-                            <LinkText className={`${isDarkMode == 'dark'?'text-white': 'text-black'} text-xl`}>{m && m?.files?.[0]?.filename || ''}</LinkText>
-                        <Icon
-                            as={ArrowBigDown}
-                            size="lg"
-                            className={`mt-0.5 text-info-600 ${isDarkMode == 'dark'?'text-white': 'text-black'}`}
-                        /></Link> : null}
+                    {renderMessageContent(m, msg_type, url)}
                 </GridItem>
                 
             )

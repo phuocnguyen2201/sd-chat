@@ -57,7 +57,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile } = useSession();
+  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode } = useSession();
 
 
   useEffect(() => {
@@ -169,17 +169,17 @@ export default function Settings() {
 
           storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
           .then((data) => {
-            if (data.msg?.success)
+            const uploadedFile = data.msg?.data;
+            if (data.msg?.success && uploadedFile){
               setAvatar(data.msg?.avatar_url || '');
-
-            if (data.msg?.data) {
-              let avatar: Files = data.msg?.data;
+            
+              const avatar: Files = uploadedFile;
               avatar.profile_id = user?.id;
 
-              filesAPI.selectFileProfile(user?.id??'').then((data) => {
-                if(data && data.data && data.data.id){
+              filesAPI.selectFileProfile(user?.id??'').then((profileData) => {
+                if(profileData && profileData.data && profileData.data.id){
 
-                  avatar.id = data.data.id;
+                  avatar.id = profileData.data.id;
                   filesAPI.updateFileProfile(avatar);
                 }
                 else
@@ -187,7 +187,8 @@ export default function Settings() {
               })
               
             }
-          })
+          }
+          )
           .finally(async () => {
             setShowActionsheet(false);
             setLoading(false);
@@ -199,40 +200,36 @@ export default function Settings() {
 
   function takePicture() {
     handleDeviceFilePath.takePicture().then((result) => {
-      if (result != null)
-      {
+      if (result != null) {
         setLoading(true);
         storageAPIs.resizedImage(result).then((data) => {
-          
           storageAPIs.uploadAvatarToSupabase(data, user?.id || '')
-          .then((data) => {
-            if(data.msg?.success)
-              setAvatar(data.msg?.avatar_url || '');
+            .then((data) => {
+              const uploadedFile = data.msg?.data;
+              if (data.msg?.success && uploadedFile) {
+                setAvatar(data.msg?.avatar_url || '');
 
-             if (data.msg?.data) {
-              let avatar: Files = data.msg?.data;
-              avatar.profile_id = user?.id;
+                const avatar: Files = uploadedFile;
+                avatar.profile_id = user?.id;
 
-              filesAPI.selectFileProfile(user?.id??'').then((data) => {
-                if(data && data.data && data.data.id){
-                  
-                  avatar.id = data.data.id;
-                  filesAPI.updateFileProfile(avatar);
-                }
-                else
-                  filesAPI.insertFileProfile(avatar)
-              })
-              
-            }
-          })
-          .finally(async () => {
-            setShowActionsheet(false);
-            setLoading(false);
-          });
-        })
-
-      }});
-    } 
+                filesAPI.selectFileProfile(user?.id ?? '').then((profileData) => {
+                  if (profileData && profileData.data && profileData.data.id) {
+                    avatar.id = profileData.data.id;
+                    filesAPI.updateFileProfile(avatar);
+                  } else {
+                    filesAPI.insertFileProfile(avatar);
+                  }
+                });
+              }
+            })
+            .finally(async () => {
+              setShowActionsheet(false);
+              setLoading(false);
+            });
+        });
+      }
+    });
+  }
 
   //Toggle dark mode
   const toggleDarkMode = async (toggle: boolean) => {

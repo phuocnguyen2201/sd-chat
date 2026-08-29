@@ -36,7 +36,7 @@ export const storageAPIs = {
 
     if (urlError) throw urlError;
 
-    const token = await utilityFunction.getToken(publicUrl.signedUrl);
+    const token = utilityFunction.getToken(publicUrl.signedUrl);
 
     // Send message with image URL
     const {data: newImage, error: errorImage} = await supabase
@@ -92,7 +92,7 @@ export const storageAPIs = {
 
     if (urlError) throw urlError;
 
-    const token = await utilityFunction.getToken(publicUrl.signedUrl);
+    const token = utilityFunction.getToken(publicUrl.signedUrl);
 
     // Send message with file URL
     const {data: newFile, error: fileError } = await supabase
