@@ -461,7 +461,7 @@ export default function ChatScreen() {
     setLoading(true);
 
     try {
-      const encryptedMSG = await MessageEncryption.encryptMessage(newMessage, conversationKey);
+      const encryptedMSG = MessageEncryption.encryptMessage(newMessage, conversationKey);
       // Check if editing or new message
       if(activeMessage !== '') {
         //console.log('Editing message:', activeMessage);
@@ -613,7 +613,7 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      behavior={'padding'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
       style={{ flex: 1 }}
     >

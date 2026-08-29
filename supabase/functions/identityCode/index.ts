@@ -8,7 +8,7 @@ Deno.serve(async (req: Request) => {
         let result           = '';
         const characters       = 'abcdefghijklmnopqrstuvwxyz';
         const charactersLength = characters.length;
-        for ( var i = 0; i < length; i++ ) {
+        for ( const i = 0; i < length; i++ ) {
             const buf = crypto.randomBytes(1);
             result += characters.charAt(Math.floor(buf * charactersLength));
         }

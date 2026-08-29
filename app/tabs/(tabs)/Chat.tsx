@@ -321,9 +321,7 @@ export default function Chat() {
         conversationId = existing.data.conversation_id;
         // Fetch and cache the key
         const key = await getConversationKeyForOtherParticipants(users.public_key, conversationId);
-        if (key) {
-          await setCurrentConversation(conversationId, key);
-        }
+        if (key) await setCurrentConversation(conversationId, key);
       } else {
         // Create new conversation
         const newConversation = await conversationAPI.getOrCreateDM(users.id);
