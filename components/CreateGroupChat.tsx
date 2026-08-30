@@ -1,13 +1,12 @@
-import React, { useState, useEffect, use } from 'react';
-import { Pressable, PressableProps, ScrollView } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Pressable, ScrollView } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
-import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
-import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import { useSession } from '@/utility/session/SessionProvider';
 
 type CreateGroupChat = {
   isOpen: boolean;
@@ -50,7 +49,7 @@ export default function ForwardMessage({
       }
       setLoadingProfiles(false);
       // Auto-select current user
-      if (profile && profile.id) {
+      if (profile?.id) {
         setSelected([profile.id]);
         setGroupChatName([profile.displayname || profile.username || '']);
       }
