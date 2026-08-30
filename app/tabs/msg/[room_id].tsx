@@ -2,22 +2,22 @@ import { useEffect, useState, useRef } from 'react';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
-import { useLocalSearchParams, Link, useRouter } from 'expo-router';
+import { useLocalSearchParams, Link, useRouter, useNavigation } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
 import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import ZoomImage from '@/components/ZoomImage';
 import { LinkText } from '@/components/ui/link';
-import { ArrowBigDown } from 'lucide-react-native';
+import { ArrowBigDown, ForwardIcon,
+  MoveRightIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
-import { MessageEncryption } from '../../../utility/securedMessage/secured';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { Picker } from 'emoji-mart-native';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
@@ -34,10 +34,6 @@ import {
   AlertDialogBody,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
-import {
-  ForwardIcon,
-  MoveRightIcon
-} from 'lucide-react-native';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
@@ -220,7 +216,7 @@ export default function ChatScreen() {
         },
         (payload) => {
            messageAPI.refreshMessage(payload.new.id).then((newMsg) => {
-            if(newMsg && newMsg.data){
+            if(newMsg?.data){
               setMessages((prev) => [...prev, newMsg.data as unknown as Message]);
             }
           });
@@ -263,7 +259,7 @@ export default function ChatScreen() {
       } catch (e) {
         // fallback for older client versions
         // @ts-ignore
-        channel.unsubscribe && channel.unsubscribe();
+        channel.unsubscribe();
       }
     };
   }, [conversation_id]);
@@ -283,7 +279,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (!messageToDelete || !conversation_id) return;
-    if(conversation_id && messages && messages.length && messageToDelete) {
+    if(conversation_id && messages?.length && messageToDelete) {
       //Ignore it the purpoe is to redener the messageToDelete.
     }
   }, [messages, messageToDelete, conversation_id]);
@@ -394,7 +390,7 @@ export default function ChatScreen() {
   //Render message content based on type
   const renderMessageContent = (m: Message, url: string, data: Files | null, isCurrentUser: boolean) => {
     // Image message
-    if (m && m.message_type && m.message_type.includes('image')) {
+    if (m?.message_type?.includes('image')) {
       if (url !== 'INACTIVE') {
         return (
           <Pressable
@@ -420,7 +416,7 @@ export default function ChatScreen() {
     }
 
     // File message
-    if (m && m.message_type && m.message_type.includes('file')) {
+    if (m?.message_type?.includes('file')) {
       return (
         <Link
           href={url as '/'}
@@ -444,7 +440,7 @@ export default function ChatScreen() {
       <Text
         className={`text-lg ${isCurrentUser ? 'text-white' : 'text-black'} font-semibold`}
       >
-        {m.message_type === 'text'
+        {m?.message_type === 'text'
           ? MessageEncryption.decryptMessage(
               {
                 ciphertext: m.content ?? '',
@@ -466,16 +462,16 @@ export default function ChatScreen() {
       msg.id === activeMessage && msg.conversation_id === conversation_id
     )
 
-    if (messageToForward && messageToForward.id && !messageToForward?.content || !recipientId) {
+    if (messageToForward?.id && !messageToForward?.content || !recipientId) {
       Alert.alert('Error', 'Message or Recipient ID not available');
       return;
     }
     try {
-      recipientId && recipientId.map(async (recipient) => {
+      recipientId?.map(async (recipient) => {
         // get the conversation ID
         const conversation = await conversationAPI.verifyDMConversation(recipient!);
         
-        if (conversation !== null && conversation.data?.conversation_id) {
+        if (conversation?.data?.conversation_id) {
           if (messageToForward?.message_type === 'text') {
             await forwardTextMessage(messageToForward, conversation.data.conversation_id);
           } else {
@@ -748,7 +744,7 @@ export default function ChatScreen() {
               let url: string = '';
               const data = m.files?.[0] ?? null;
           
-              if(m && m.message_type && m.files  && (m.message_type.includes('image')|| m.message_type.includes('file'))){
+              if(m?.files  && (m?.message_type?.includes('image')|| m?.message_type?.includes('file'))){
                 url = utilityFunction.buildFileUrl(data);
               }
 
@@ -774,7 +770,7 @@ export default function ChatScreen() {
                           messageId = {m.id}
                           msg_type = {m?.message_type || ''}
                           onReaction = {handleReaction}
-                          id_darkMode = {isDarkMode == 'dark'? true: false}
+                          id_darkMode = {isDarkMode === 'dark'}
                           onEdit={() => {
                             setNewMessage(getDecryptedMessageText(m));
                             setActiveMessage(m?.id ?? '');
@@ -815,9 +811,7 @@ export default function ChatScreen() {
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    {m &&
-                      m.reactions &&
-                      m.reactions.map((r) => (
+                    {m?.reactions?.map((r) => (
                         <Box key={r.id} className='z-40 mx-1'>
                           <Popover
                             isOpen = {activeReaction === m.id}
