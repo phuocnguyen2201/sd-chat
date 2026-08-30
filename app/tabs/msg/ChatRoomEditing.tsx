@@ -1,10 +1,10 @@
 // chat room can edit room name and avatar and 2 panels to display images and files
 import { useEffect, useState } from 'react';
 import { TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import { supabase } from '@/utility/connection';
-import { handleDeviceFilePath, storageAPIs, utilityFunction } from '@/utility/handleStorage';
+import { handleDeviceFilePath, storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import {
   Actionsheet,
   ActionsheetContent,
@@ -17,9 +17,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { conversationAPI } from '@/utility/messages';
 import { Files, Message } from '@/utility/types/supabse';
-import { filesAPI } from '@/utility/handleStorage';
 import { Grid, GridItem } from '@/components/ui/grid';
-import { Link } from 'expo-router';
 import { LinkText } from '@/components/ui/link';
 import { Icon } from '@/components/ui/icon';
 import {
@@ -38,10 +36,10 @@ export default function ChatRoomEditing() {
     displayName?: string;
   }>();
   const [loading, setLoading] = useState(false);
-  const [message, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [name, setName] = useState(displayName || '');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const [showActionSheet, setShowActionsheet] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState<string>('');
   const [isGroup, setIsGroup] = useState(false);
@@ -62,7 +60,7 @@ export default function ChatRoomEditing() {
               avatar.conversation_id = conversation_id;
 
               filesAPI.selectFileGroup(conversation_id ?? '').then((data) => {
-                if(data && data.data && data.data.id){
+                if(data?.data?.id){
 
                   avatar.id = data.data.id;
                   filesAPI.updateFileGroup(avatar);
@@ -74,7 +72,7 @@ export default function ChatRoomEditing() {
 
           })
           .finally(async () => {
-            setShowActionsheet(false);
+            setShowActionSheet(false);
             setLoading(false);
           });
         });
@@ -98,7 +96,7 @@ export default function ChatRoomEditing() {
               avatar.conversation_id = conversation_id;
 
               filesAPI.selectFileGroup(conversation_id ?? '').then((data) => {
-                if(data && data.data && data.data.id){
+                if(data?.data?.id){
 
                   avatar.id = data.data.id;
                   filesAPI.updateFileGroup(avatar);
@@ -109,7 +107,7 @@ export default function ChatRoomEditing() {
             }
           })
           .finally(async () => {
-            setShowActionsheet(false);
+            setShowActionSheet(false);
             setLoading(false);
           });
         })
@@ -132,7 +130,7 @@ export default function ChatRoomEditing() {
 
   const loadAvatar = async () => {
     const avatarRes = await conversationAPI.getCurrentConversation(conversation_id || '');
-    if(avatarRes && avatarRes.data){
+    if(avatarRes?.data){
 
       const convertedData = avatarRes.data;
 
@@ -155,19 +153,19 @@ export default function ChatRoomEditing() {
 
   const loadFilesAndImages = async () => {
     const fileAndImage = await filesAPI.getFilesAndImagesOnly({conversation_id: conversation_id})
-    if(fileAndImage && fileAndImage.data && fileAndImage.data.length > 0){
+    if(fileAndImage?.data && fileAndImage?.data?.length > 0){
          
         setMessages(fileAndImage.data)
     }
   }
 
   useEffect(() =>{
-    if( avatarUri != null || message.length > 0 ) return;
+    if( avatarUri != null || messages.length > 0 ) return;
 
     loadAvatar();
     loadFilesAndImages();
 
-  },[avatarUri, message])
+  },[avatarUri, messages])
 
   const renderMessageContent = (m: Message, msgType: string, url: string) => {
     if (msgType.includes('image')) {
@@ -212,7 +210,7 @@ export default function ChatRoomEditing() {
   return (
     <ScrollView className={`${isDarkMode == "dark"? 'bg-black':'bg-white'}`} contentContainerStyle={{ padding: 16 }}>
       <Box className="items-center mb-6 border border-gray-200">
-        <TouchableOpacity onPress={() => setShowActionsheet(true)}>
+        <TouchableOpacity onPress={() => setShowActionSheet(true)}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 100, height: 100, borderRadius: 50 }} />
           ) : (
@@ -259,8 +257,8 @@ export default function ChatRoomEditing() {
             }}
         >
 
-        {message && message.length > 0? message.map((m, index) => {
-            const msg_type = m && m.message_type? m.message_type : '';
+        {messages?.length > 0? messages.map((m, index) => {
+            const msg_type = m.message_type? m.message_type : '';
             const url = utilityFunction.buildFileUrl(m?.files?.[0] || null);
             return(
                 
@@ -291,7 +289,7 @@ export default function ChatRoomEditing() {
         />
 
         {/* <AlertDialogBackdrop /> */}
-        <Actionsheet isOpen={showActionSheet} onClose={() => setShowActionsheet(false)}>
+        <Actionsheet isOpen={showActionSheet} onClose={() => setShowActionSheet(false)}>
             <ActionsheetBackdrop />
             <ActionsheetContent>
             <ActionsheetDragIndicatorWrapper>
