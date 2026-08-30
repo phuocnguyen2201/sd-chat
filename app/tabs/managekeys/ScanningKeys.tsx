@@ -120,7 +120,7 @@ export default function ScanningKeys() {
     };
 
     const renderCamera = () => {
-        if (!permission || !permission?.granted) {
+        if (!permission?.granted) {
             return (
                 <Box>
                     <Text>We need your permission to show the camera</Text>
@@ -175,7 +175,7 @@ export default function ScanningKeys() {
                     />
                 )}
 
-                {!permission || !permission?.granted ? (
+                {!permission?.granted ? (
                     <Button
                         onPress={requestPermission}
                         size="md"
