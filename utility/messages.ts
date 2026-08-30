@@ -390,7 +390,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         p_group_users: participantIds
       })
       
-      if (convError) throw `Conversation creation error, ${convError}`;
+      if (convError) throw (`Conversation creation error, ${convError}`);
       return { data: conversation[0], error: null };
     } catch (error) {
       return { data: null, error: error as Error };

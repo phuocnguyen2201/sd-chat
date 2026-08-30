@@ -68,7 +68,7 @@ export default function Settings() {
 
   const getProfile = async () => {
     
-    if (profile && profile.files_profiles && profile.files_profiles[0]) {
+    if (profile?.files_profiles) {
       const avaURL = utilityFunction.buildFileUrl(profile.files_profiles[0])
       setAvatar(avaURL)
       setDisplayName(profile.displayname||'')
@@ -177,7 +177,7 @@ export default function Settings() {
               avatar.profile_id = user?.id;
 
               filesAPI.selectFileProfile(user?.id??'').then((profileData) => {
-                if(profileData && profileData.data && profileData.data.id){
+                if(profileData?.data && profileData?.data.id){
 
                   avatar.id = profileData.data.id;
                   filesAPI.updateFileProfile(avatar);
@@ -213,7 +213,7 @@ export default function Settings() {
                 avatar.profile_id = user?.id;
 
                 filesAPI.selectFileProfile(user?.id ?? '').then((profileData) => {
-                  if (profileData && profileData.data && profileData.data.id) {
+                  if (profileData?.data && profileData?.data.id) {
                     avatar.id = profileData.data.id;
                     filesAPI.updateFileProfile(avatar);
                   } else {

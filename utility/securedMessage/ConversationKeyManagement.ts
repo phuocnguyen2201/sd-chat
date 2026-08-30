@@ -4,8 +4,8 @@ import * as Crypto from 'expo-crypto';
 
 export class ConversationKeyManager {
   
-  private static cache = new Map<string, Uint8Array>();
-  private static keyCache = new Map<string, Promise<string>>();
+  private static readonly cache = new Map<string, Uint8Array>();
+  private static readonly keyCache = new Map<string, Promise<string>>();
 
   /**
    * Get conversation key as Uint8Array (preferred for internal use)
