@@ -92,22 +92,25 @@ export default function Settings() {
   async function updateProfile(): Promise<void> {
     setLoading(true);
     if (user?.id) {
-      const response = profileAPI.updateProfile({
-      id: user?.id,
-      displayname: displayName,
-    }).finally(() => {
-      setLoading(false);
-      setActiveDialog(null);
 
-      setSuccessMessage('Profile updated successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    });
+      profileAPI.updateProfile({
+        id: user?.id,
+        displayname: displayName,
+      })
+      .catch((error) => {
+            if (error) {
+                  Alert.alert('Error', 'Failed to fetch account information');
+                  throw new Error('Profile update failed');
+                }
+      })
+      .finally(() => {
+        setLoading(false);
+        setActiveDialog(null);
 
-    if (await !response) {
-      Alert.alert('Error', 'Failed to fetch account information');
-      throw new Error('Profile update failed');
-    }
-    setActiveDialog(null);
+        setSuccessMessage('Profile updated successfully');
+        setTimeout(() => setSuccessMessage(''), 3000);
+        setActiveDialog(null);
+      });
   }}
 
   async function updatePassword(password: string, confirmPassword: string): Promise<void> {
@@ -118,16 +121,19 @@ export default function Settings() {
         setLoading(false);
         return;
       }
-      const response = authAPI.updatePassword(password);
-      if (await !response) {
-        Alert.alert('Error', 'Failed to update password');
-        throw new Error('Password update failed');
-      }
-      else {
+      
+      authAPI.updatePassword(password)
+      .catch((error) => {
+        if (error) {
+          Alert.alert('Error', 'Failed to update password');
+          throw new Error('Password update failed');
+        }
+      })
+      .finally(() => {
         setSuccessMessage('Password updated successfully');
         setTimeout(() => setSuccessMessage(''), 3000);
         setActiveDialog(null);
-      }
+      });
     }
     catch (e) {
       Alert.alert('Error', 'Failed to update password');
