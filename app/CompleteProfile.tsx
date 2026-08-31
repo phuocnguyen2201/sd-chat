@@ -131,7 +131,7 @@ export default function CompleteProfile() {
     };
 
     useEffect(() => {
-      if(profile && profile?.files_profiles) {
+      if(profile?.files_profiles) {
         const avatar = utilityFunction.buildFileUrl(profile.files_profiles[0])
         setAvatar(avatar)
       }
