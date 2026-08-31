@@ -2,7 +2,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Modal, Text } from 'react-native';
 import { Box } from './ui/box';
 
-export default function LoadingModal({ visible }: { visible: boolean }) {
+export default function LoadingModal({ visible }: { readonly visible: boolean }) {
   return (
     <Modal transparent={true} animationType="fade" visible={visible}>
       <Box className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
