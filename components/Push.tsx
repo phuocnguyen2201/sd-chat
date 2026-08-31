@@ -119,8 +119,8 @@ export default function App() {
     <Box style={{ flex: 1, alignItems: 'center', justifyContent: 'space-around' }}>
       <Text>Your Expo push token: {expoPushToken}</Text>
       <Box style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Text>Title: {notification && notification.request.content.title} </Text>
-        <Text>Body: {notification && notification.request.content.body}</Text>
+        <Text>Title: {notification?.request?.content?.title} </Text>
+        <Text>Body: {notification?.request?.content?.body}</Text>
         <Text>Data: {notification && JSON.stringify(notification.request.content.data)}</Text>
       </Box>
     </Box>
