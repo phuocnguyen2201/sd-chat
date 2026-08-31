@@ -1,18 +1,16 @@
-import React, { useContext } from "react";
 import { View, Pressable, StyleSheet, Text as RNText } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Icon } from "@/components/ui/icon";
 import { ForwardIcon, Trash2Icon, EditIcon } from "lucide-react-native";
 import { HStack } from "./ui/hstack";
-import { useSession } from '@/utility/session/SessionProvider';
 type MessageActionProps = {
-  messageId: string;
-  msg_type: string;
-  id_darkMode: boolean;
-  onReaction?: (messageId: string, emoji: string) => void;
-  onEdit?: () => void;
-  onForward?: () => void;
-  onDelete?: () => void;
+  readonly messageId: string;
+  readonly msg_type: string;
+  readonly isDarkMode: boolean;
+  readonly onReaction?: (messageId: string, emoji: string) => void;
+  readonly onEdit?: () => void;
+  readonly onForward?: () => void;
+  readonly onDelete?: () => void;
 };
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
@@ -28,7 +26,7 @@ const ACTIONS = [
 export function MessageAction({
   messageId,
   msg_type,
-  id_darkMode,
+  isDarkMode,
   onReaction,
   onEdit,
   onForward,
@@ -48,7 +46,7 @@ export function MessageAction({
     }
   };
   return (
-    <View style = { id_darkMode ? styles.dark_contain: styles.container } >
+    <View style = { isDarkMode ? styles.dark_contain: styles.container } >
       
       <HStack space="md" className="flex-wrap">
         {REACTIONS.map((emoji) => (
@@ -57,7 +55,7 @@ export function MessageAction({
             onPress = {() => onReaction?.(messageId, emoji)}
             style = { styles.reaction }
           >
-            <RNText style = {  id_darkMode? styles.dark_emoji:styles.emoji }>{ emoji }</RNText>
+            <RNText style = {  isDarkMode? styles.dark_emoji:styles.emoji }>{ emoji }</RNText>
           </Pressable>
         ))}
 
@@ -73,7 +71,7 @@ export function MessageAction({
             <Pressable
               key = { action.id }
               onPress = {() => handleAction(action.id)}
-              style = { id_darkMode ? styles.dark_contain : styles.action}
+              style = { isDarkMode ? styles.dark_contain : styles.action}
               disabled = {
                 (action.id === "edit" && !onEdit) ||
                 (action.id === "forward" && !onForward) ||
@@ -83,12 +81,12 @@ export function MessageAction({
               <Icon
                 as = { action.icon }
                 size = "md"
-                style = {{ color: id_darkMode? action.dark_color: action.color }}
+                style = {{ color: isDarkMode? action.dark_color: action.color }}
               />
               <Text
                 style = {{
                   fontSize: 10,
-                  color: id_darkMode? action.dark_color: action.color,
+                  color: isDarkMode? action.dark_color: action.color,
                   marginTop: 4,
                   textAlign: "center",
                 }}
