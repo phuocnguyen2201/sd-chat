@@ -4,8 +4,8 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { supabase } from '@/utility/connection';
-import { useUser } from '@/utility/session/UserContext';
 import { Box } from 'lucide-react-native';
+import { useSession } from '@/utility/session/SessionProvider';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -16,7 +16,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const { user } = useUser();
+const { user } = useSession();
 async function sendPushNotification(expoPushToken: string) {
   const message = {
     to: expoPushToken,
@@ -26,7 +26,7 @@ async function sendPushNotification(expoPushToken: string) {
     data: { someData: 'goes here' },
   };
 
-  await fetch('https://exp.host/--/api/v2/push/send', {
+  await fetch(process?.env?.EXPO_PUBLIC_NOTIFICATION_URL || '', {
     method: 'POST',
     headers: {
       Accept: 'application/json',
