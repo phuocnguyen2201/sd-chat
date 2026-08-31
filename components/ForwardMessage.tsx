@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Pressable, PressableProps, ScrollView } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Pressable, ScrollView } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
-import { Input, InputField } from '@/components/ui/input';
 import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
-import { Scroll } from 'lucide-react-native';
 
 type ForwardMessageProps = {
   isOpen: boolean;
-  messagePreview?: string; // decrypted/plaintext message preview
+  readonly messagePreview?: string; // decrypted/plaintext message preview
   onClose: () => void;
   onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
 };
