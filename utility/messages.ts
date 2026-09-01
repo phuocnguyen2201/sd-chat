@@ -1,9 +1,6 @@
-
-
 import { supabase, supabaseAdmin } from './connection';
 import { ApiResponse, Conversation, Files, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ALWAYS_THIS_DEVICE_ONLY } from 'expo-secure-store';
 import { Constants } from '../constants/Constants';
 import { Profile } from './types/user';
 
@@ -85,6 +82,8 @@ export const authAPI = {
         .eq('id', user?.id?? userId)
         .single()
 
+      if(profileError) throw(`Message Error: ${profileError.message}`)
+
       const userProfile: UserProfile = {
         id: user?.id || '',
         email: user?.email || '',
@@ -103,7 +102,7 @@ export const authAPI = {
   },
   async updatePassword(newPassword: string): Promise<ApiResponse<void>> {
     try {
-      const { data, error } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
       if (error) throw error
@@ -390,7 +389,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         p_group_users: participantIds
       })
       
-      if (convError) throw (`Conversation creation error, ${convError}`);
+      if (convError) throw(`Conversation creation error, ${convError}`);
       return { data: conversation[0], error: null };
     } catch (error) {
       return { data: null, error: error as Error };
@@ -645,7 +644,7 @@ export const reactionAPI = {
 
       
       if (error) throw error
-      return { data: data.length>0? true: false, error: null }
+      return { data: data?.length > 0? true: false, error: null }
     }
     catch(error){
       return { data: null, error: error as Error }

@@ -140,9 +140,9 @@ export class MessageEncryption {
   }
 
   static getPrivateKey(): string{
-    const privateKey = SecureStore.getItem(this.USER_KEY_STORAGE,{ keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY})
+    const privateKey = SecureStore.getItem(this.USER_KEY_STORAGE,{ keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY}) ?? '';
     
-    return privateKey!=null? privateKey: '';
+    return privateKey ?? privateKey;
   }
 
   static setPrivateKey(key: Uint8Array): void{

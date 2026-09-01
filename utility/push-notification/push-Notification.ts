@@ -76,7 +76,7 @@ export const usePushNotifications = {
         is_active: true
     }
 
-    const { data, error } = await supabase
+    const { error } = await supabase
         .from('push_notification_tokens')
         .insert(push_token)
 

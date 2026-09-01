@@ -207,7 +207,7 @@ export const storageAPIs = {
         return;
       }
 
-      if (avatar && avatar?.filepath) {
+      if (avatar?.filepath) {
         // const filePath = `${STORAGE_BUCKET.AVATARS}/${user.id}/${fileName}`;
         const { error: deleteError } = await supabase.storage.from(Constants.STORAGE_BUCKETS.AVATARS).remove([avatar.filepath]);
         if (deleteError) {

@@ -183,7 +183,7 @@ export default function Settings() {
               avatar.profile_id = user?.id;
 
               filesAPI.selectFileProfile(user?.id??'').then((profileData) => {
-                if(profileData?.data && profileData?.data.id){
+                if(profileData?.data?.id){
 
                   avatar.id = profileData.data.id;
                   filesAPI.updateFileProfile(avatar);
@@ -219,7 +219,7 @@ export default function Settings() {
                 avatar.profile_id = user?.id;
 
                 filesAPI.selectFileProfile(user?.id ?? '').then((profileData) => {
-                  if (profileData?.data && profileData?.data.id) {
+                  if (profileData?.data?.id) {
                     avatar.id = profileData.data.id;
                     filesAPI.updateFileProfile(avatar);
                   } else {
