@@ -20,7 +20,7 @@ import CreateGroupChat from '@/components/CreateGroupChat';
 import { Conversation, UserProfile } from '@/utility/types/supabse';
 import { utilityFunction } from '@/utility/handleStorage';
 import { Button, ButtonText } from '@/components/ui/button';
-import { createSnapshotTable, SnapShot, snapshotDB } from '@/utility/localstorage/snapshot';
+import { createSnapshotTable, SnapShot } from '@/utility/localstorage/snapshot';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
 /**
@@ -101,7 +101,7 @@ export default function Chat() {
         throw new Error(error.message || 'Failed to create group chat');
       }
 
-      if (!data || !data.conversation_id) {
+      if (!data?.conversation_id) {
         throw new Error('Invalid conversation data received');
       }
 
@@ -581,7 +581,7 @@ export default function Chat() {
                   // Get last message info
                   const lastMsg =
                      room?.messages && room?.messages?.length > 0
-                      ? room.messages[room.messages.length - 1].content
+                      ? room.messages.at(-1)?.content
                       : 'No messages yet';
 
                   // Get message type
