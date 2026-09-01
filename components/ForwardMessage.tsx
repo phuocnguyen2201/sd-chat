@@ -7,10 +7,10 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
 
 type ForwardMessageProps = {
-  isOpen: boolean;
+  readonly isOpen: boolean;
   readonly messagePreview?: string; // decrypted/plaintext message preview
-  onClose: () => void;
-  onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
+  readonly onClose: () => void;
+  readonly onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
 };
 
 type UserProfile = {

@@ -9,9 +9,9 @@ import { profileAPI } from '@/utility/messages';
 import { useSession } from '@/utility/session/SessionProvider';
 
 type CreateGroupChat = {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (name: string, recipientIds: string[]) => Promise<void> | void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (name: string, recipientIds: string[]) => Promise<void> | void;
 };
 
 type UserProfile = {
@@ -22,7 +22,7 @@ type UserProfile = {
 };
 
 export default function ForwardMessage({
-  isOpen,
+   isOpen,
   onClose,
   onCreate,
 }: CreateGroupChat) {

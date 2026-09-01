@@ -4,7 +4,7 @@ import { ExternalLink } from './ExternalLink';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 
-export default function EditScreenInfo({ path }: { path: string }) {
+export default function EditScreenInfo({ path }: { readonly path: string }) {
   return (
     <Box>
       <Box className="items-center mx-4">
