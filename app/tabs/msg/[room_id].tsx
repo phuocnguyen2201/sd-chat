@@ -39,7 +39,6 @@ import { Heading } from '@/components/ui/heading';
 import { MessageAction } from '@/components/MessageAction';
 import ForwardMessage from '@/components/ForwardMessage';
 import { Files, Message } from '@/utility/types/supabse';
-import { Constants } from '@/constants/Constants';
 
 /**
  * Chat Room Screen
@@ -356,7 +355,7 @@ export default function ChatScreen() {
 
     if (msgError) throw msgError;
 
-    if (msg && msg.files) {
+    if (msg?.files) {
       
       
       const retrievedFileInformation = msg.files[0];
@@ -737,7 +736,7 @@ export default function ChatScreen() {
               const isCurrentUser = m.sender_id === userId;
               // Check if the previous message is from the same sender
               const previousMessage = index > 0 ? messages[index - 1] : null;
-              const isSameSenderAsPrevious = previousMessage && previousMessage.sender_id === m.sender_id;
+              const isSameSenderAsPrevious = previousMessage?.sender_id === m.sender_id;
               // Only show username if it's not the current user and sender is different from previous message
               const shouldShowUsername = !isCurrentUser && !isSameSenderAsPrevious;
               //console.log('Rendering message from:', m.displayname);
