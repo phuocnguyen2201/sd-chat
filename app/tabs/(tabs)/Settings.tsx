@@ -331,7 +331,7 @@ export default function Settings() {
               size="lg"
               trackColor={{ false: '#d4d4d4', true: '#525252' }}
               thumbColor="#fafafa"
-              defaultValue={isDarkMode == 'light'? false: true}
+              defaultValue={isDarkMode == 'light'}
               onValueChange={(data) => { toggleDarkMode(data) }}
             />
           </HStack>
