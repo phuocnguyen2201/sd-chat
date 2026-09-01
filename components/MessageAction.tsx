@@ -7,10 +7,10 @@ type MessageActionProps = {
   readonly messageId: string;
   readonly msg_type: string;
   readonly isDarkMode: boolean;
-  readonly onReaction?: (messageId: string, emoji: string) => void;
-  readonly onEdit?: () => void;
-  readonly onForward?: () => void;
-  readonly onDelete?: () => void;
+  onReaction?: (messageId: string, emoji: string) => void;
+  onEdit?: () => void;
+  onForward?: () => void;
+  onDelete?: () => void;
 };
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];

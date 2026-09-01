@@ -10,8 +10,8 @@ import { useSession } from '@/utility/session/SessionProvider';
 
 type CreateGroupChat = {
   readonly isOpen: boolean;
-  readonly onClose: () => void;
-  readonly onCreate: (name: string, recipientIds: string[]) => Promise<void> | void;
+  onClose: () => void;
+  onCreate: (name: string, recipientIds: string[]) => Promise<void> | void;
 };
 
 type UserProfile = {

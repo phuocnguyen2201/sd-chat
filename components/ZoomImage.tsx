@@ -1,11 +1,9 @@
-import { Box } from '@/components/ui/box';
-import React, { useEffect } from 'react';
 import { Text } from '@/components/ui/text';
 import { Button } from './ui/button';
 import { Modal, View } from 'react-native';
 import ImageViewer from 'react-native-image-zoom-viewer';
 
-export default function ZoomImage({ image, visible, onClose }: { image: string; visible: boolean; onClose?: () => void }) {
+export default function ZoomImage({ image, visible, onClose }: { readonly image: string; readonly visible: boolean; onClose?: () => void }) {
     return (
         <Modal transparent={true} animationType="fade" visible={visible} onRequestClose={onClose}>
            <ImageViewer

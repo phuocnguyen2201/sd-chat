@@ -9,8 +9,8 @@ import { profileAPI } from '@/utility/messages';
 type ForwardMessageProps = {
   readonly isOpen: boolean;
   readonly messagePreview?: string; // decrypted/plaintext message preview
-  readonly onClose: () => void;
-  readonly onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
+  onClose: () => void;
+  onForward: (message: string, recipientIds: string[]) => Promise<void> | void;
 };
 
 type UserProfile = {
