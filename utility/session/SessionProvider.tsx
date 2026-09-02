@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../connection';
 import { User, Profile } from '../types/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -232,7 +232,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     fetchThemeMode();
   }, [fetchThemeMode]);
 
-  const value: SessionContextType = {
+  const value: SessionContextType = useMemo(() => ({
     user,
     profile,
     isDarkMode,
@@ -247,7 +247,22 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     setCurrentConversation,
     getConversationKey,
     clearCurrentConversation,
-  };
+  }), [
+    user,
+    profile,
+    isDarkMode,
+    conversationKey,
+    currentConversationId,
+    loading,
+    initialized,
+    refreshProfile,
+    fetchThemeMode,
+    setDarkMode,
+    logout,
+    setCurrentConversation,
+    getConversationKey,
+    clearCurrentConversation,
+  ]);
 
   return (
     <SessionContext.Provider value={value}>
@@ -264,3 +279,5 @@ export const useSession = (): SessionContextType => {
   }
   return context;
 };
+
+export default React.memo(SessionProvider);
