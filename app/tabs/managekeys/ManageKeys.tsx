@@ -16,6 +16,7 @@ export default function ManageKeys() {
 
     const insets = useSafeAreaInsets();
     const [keysAsString, setKeysAsString] = useState('');
+    const [timeLeft, setTimeLeft] = useState(30);
     const {user} = useSession();
 
     const verifyKeys = async (conversationId: string) => {
@@ -59,6 +60,23 @@ export default function ManageKeys() {
         }
     }, [keysAsString]);
 
+    useEffect(() => {
+        if (timeLeft === 0) {
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setTimeLeft((currentTime) => Math.max(currentTime - 1, 0));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [timeLeft]);
+
+    const regenerateQrCode = () => {
+        setTimeLeft(30);
+        setKeysAsString('');
+    };
+
     return (
         <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>
             <Box className="items-center mb-6 border border-gray-200">
@@ -66,6 +84,9 @@ export default function ManageKeys() {
             </Box>
             <Box className="items-center mb-6 mt-6 border border-gray-200">
                 {(keysAsString !== '') ? <QRCode value={keysAsString} size={200} /> : <Text>No keys available to generate QR code.</Text>}
+                <Text className="mt-4">
+                    {timeLeft > 0 ? `QR expires in ${timeLeft}s` : 'QR expired'}
+                </Text>
             </Box>
             <Box className="items-center mb-6 mt-6 border border-gray-200">
                 <Text>Note: Ensure that you only share your keys with trusted parties. Sharing your keys with untrusted individuals may compromise the security of your encrypted messages.</Text>  
@@ -76,7 +97,7 @@ export default function ManageKeys() {
                 className="bg-blue-500 mb-4">
                 <ButtonText className="text-white">Scan QR</ButtonText>
             </Button>
-            <Button onPress={() => {}}
+            <Button onPress={regenerateQrCode}
                 size="md"
                 action="primary"
                 className="bg-blue-500 mb-4">
