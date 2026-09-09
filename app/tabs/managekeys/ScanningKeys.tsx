@@ -40,6 +40,8 @@ export default function ScanningKeys() {
             ) {
                 return {
                     req: typeof parsed.req === 'string' ? parsed.req : '',
+                    userId: typeof parsed.userId === 'string' ? parsed.userId : undefined,
+                    validTime: typeof parsed.validTime === 'number' ? parsed.validTime : 0,
                     private_key: typeof parsed.private_key === 'string' ? parsed.private_key : '',
                     list: parsed.list
                         .filter((item): item is { id: string; key: string } => !!item && typeof item.id === 'string' && typeof item.key === 'string')
@@ -75,6 +77,7 @@ export default function ScanningKeys() {
         const privateKeyEntry = convertedList[0];
         return {
             req: 'sync_key',
+            validTime: 0,
             private_key: privateKeyEntry ? privateKeyEntry.key : '',
             list: convertedList.slice(1),
         };
@@ -83,6 +86,11 @@ export default function ScanningKeys() {
     const importKeysToNewDevice = (payload: KeyObject) => {
         if (!payload || !Array.isArray(payload.list)) {
             Alert.alert('Error', 'Invalid key payload');
+            return;
+        }
+
+        if (!Number.isFinite(payload.validTime) || Date.now() > payload.validTime) {
+            Alert.alert('Error', 'QR code expired');
             return;
         }
 

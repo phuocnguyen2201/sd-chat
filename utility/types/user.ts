@@ -50,6 +50,7 @@ export type UserContextType = {
 export type KeyObject = {
   req: string;
   userId?: string;
+  validTime: number;
   private_key:string;
   list: list[]
 }

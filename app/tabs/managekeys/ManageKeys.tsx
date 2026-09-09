@@ -26,6 +26,7 @@ export default function ManageKeys() {
     const data: KeyObject = {
         req: '',
         userId: user?.id,
+        validTime: Date.now() + 30000,
         private_key: '',
         list: [],
     };
@@ -55,13 +56,15 @@ export default function ManageKeys() {
     };
 
     useEffect(() => {
-        if (keysAsString == '') {
+        if (keysAsString == '' && timeLeft > 0) {
+            console.log('Fetching keys as string...');
             getKeysAsString();
         }
     }, [keysAsString]);
 
     useEffect(() => {
         if (timeLeft === 0) {
+            setKeysAsString('');
             return;
         }
 
@@ -73,22 +76,24 @@ export default function ManageKeys() {
     }, [timeLeft]);
 
     const regenerateQrCode = () => {
-        setTimeLeft(30);
-        setKeysAsString('');
+        if(timeLeft === 0) {
+            setTimeLeft(30);
+            setKeysAsString('');
+        }
     };
 
     return (
         <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>
-            <Box className="items-center mb-6 border border-gray-200">
+            <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-4">
                 <Text>Scan QR Code to manage your keys. This feature allows you to securely share and manage your encryption keys with others by scanning a QR code.</Text>
             </Box>
-            <Box className="items-center mb-6 mt-6 border border-gray-200">
+            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
                 {(keysAsString !== '') ? <QRCode value={keysAsString} size={200} /> : <Text>No keys available to generate QR code.</Text>}
-                <Text className="mt-4">
-                    {timeLeft > 0 ? `QR expires in ${timeLeft}s` : 'QR expired'}
-                </Text>
             </Box>
-            <Box className="items-center mb-6 mt-6 border border-gray-200">
+            <Text className="mt-4 self-center text-center text-xl font-bold">
+                {timeLeft > 0 ? `${timeLeft}s` : 'QR expired'}
+            </Text>
+            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
                 <Text>Note: Ensure that you only share your keys with trusted parties. Sharing your keys with untrusted individuals may compromise the security of your encrypted messages.</Text>  
             </Box>
             <Button onPress={() => { router.push({ pathname:'/tabs/managekeys/ScanningKeys'} ); }}
