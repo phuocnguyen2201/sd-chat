@@ -27,8 +27,16 @@ export default function BiometricAuthentication() {
     }
 
     return(
-        <ScrollView className="flex-1 bg-white dark:bg-black" contentContainerStyle={{ alignItems: 'center' }}>
-            <View className="w-full max-w-md mt-8 px-6">
+        <ScrollView
+            className="flex-1 bg-white dark:bg-black"
+            contentContainerStyle={{
+                flexGrow: 1,
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingBottom: 24,
+            }}
+        >
+            <View className="w-full max-w-md px-6">
                 <View className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 shadow-md">
                     <Heading className="font-semibold text-2xl text-gray-900 dark:text-gray-100 mb-2">Enable Biometric</Heading>
                     <Text className="text-gray-700 dark:text-gray-300">Select biometric authentication methods below.</Text>
@@ -51,7 +59,7 @@ export default function BiometricAuthentication() {
 
                         <Button size="md"
                             action="primary"
-                            className="bg-blue-500" onPress={() => router.push('/tabs/(tabs)/Settings')}>
+                            className="bg-blue-500" onPress={() => router.push('/tabs/managekeys/ManageKeys')}>
                             <ButtonText className="dark:text-gray-300">Back</ButtonText>
                         </Button>
                     </View>

@@ -57,7 +57,6 @@ export default function ManageKeys() {
 
     useEffect(() => {
         if (keysAsString == '' && timeLeft > 0) {
-            console.log('Fetching keys as string...');
             getKeysAsString();
         }
     }, [keysAsString]);
