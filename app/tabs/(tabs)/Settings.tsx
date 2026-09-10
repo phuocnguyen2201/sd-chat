@@ -73,18 +73,16 @@ export default function Settings() {
       setAvatar(avaURL)
       setDisplayName(profile.displayname||'')
     }
-    else{
+    else {
       const data = await authAPI.getProfileUser(user?.id ?? '');
-      if (data.data) {
-        if (data.data.files_profiles) {        
-          const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles?.[0]);
+      if (data?.data?.files_profiles) {        
+        const avaURL = utilityFunction.buildFileUrl(data.data.files_profiles?.[0]);
 
-          setAvatar(avaURL || '')
-        }
+        setAvatar(avaURL || '')
+      }
 
-        if (data.data.displayname) {
-          setDisplayName(data.data.displayname)
-        }
+      if (data?.data?.displayname) {
+        setDisplayName(data.data.displayname)
       }
     }
   }
