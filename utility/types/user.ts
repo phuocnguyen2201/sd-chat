@@ -55,3 +55,23 @@ export type KeyObject = {
   list: list[]
 }
 type list = {id:string, key:string}
+
+// Step 1 of device pairing: the receiving device shows this QR containing
+// only an ephemeral public key - useless to a bystander on its own.
+export type PairInitPayload = {
+  req: 'pair_init';
+  ephemeralPublicKey: string; // base64
+  userId?: string;
+  expiresAt: number;
+};
+
+// Step 2: the sending device shows this QR containing the actual key
+// material sealed (ECDH + AEAD) to the ephemeral public key from step 1.
+// A bystander who scans it gets ciphertext they cannot open.
+export type PairDataPayload = {
+  req: 'pair_data';
+  senderEphemeralPublicKey: string; // base64
+  ciphertext: string; // base64
+  nonce: string; // base64
+  expiresAt: number;
+};

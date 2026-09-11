@@ -43,11 +43,13 @@ Push notification registration and notification response handling are centralize
 - Session, theme, current conversation, and conversation-key state live in `utility/session/SessionProvider`.
 - Authentication, profile, conversation, message, and reaction calls are exposed by `utility/messages`.
 - Message encryption uses `utility/securedMessage/secured`; conversation keys are cached by `ConversationKeyManager`.
+- Device-to-device key sync (both the local QR transport and the server-relayed transport) uses `utility/securedMessage/DevicePairing`, `RemoteDevicePairing`, `DeviceIdentity`, and the shared payload builder `KeySyncPayload`. See `tabs/managekeys/ManageKeys.md` / `ScanningKeys.md` and `documentation/supabase/README.md`.
 - Avatars and message/group files use `utility/handleStorage`.
-- Gluestack UI primitives are under `components/ui`.
+- Gluestack UI primitives are under `components/ui`; `components/QrScannerView` is a shared camera/permission component used by the key-management screens.
 
 ## Current caveats
 
 - The app currently has `Chat` and `Settings` bottom tabs; key-management and message screens are stack routes.
-- QR key sync is guarded by the logged-in user ID and imports only keys that are not already stored.
-- The `ManageKeys` screen renders a `Regenerate QR` button, but its current handler is empty.
+- `ManageKeys` / `ScanningKeys` now exchange two QR codes (an ephemeral public key, then AEAD ciphertext sealed to it) instead of a single QR containing a plaintext private key — see `tabs/managekeys/ManageKeys.md` for the full flow. `Regenerate QR` was removed since there's no longer a persistent QR to regenerate.
+- A second, server-relayed pairing transport exists (`device-pairing` Supabase Edge Function + `RemoteDevicePairing.ts`, for syncing devices that aren't physically together) but has no screen wired to it yet — only the local QR flow is reachable from the UI today.
+- There is still no true multi-device identity model: `generateKeyPair()` only runs once, at sign-up (`login.tsx`), and its private key never leaves that device automatically. Every additional device must obtain that same private key through one of the pairing flows above before it can decrypt anything — this is not an optional backup feature, it's required onboarding for any device beyond the first.

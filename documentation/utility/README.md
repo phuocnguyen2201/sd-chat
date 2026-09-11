@@ -13,13 +13,17 @@ utility/
 ├── push-notification/
 │   └── push-Notification.ts         # Push notification registration and management
 ├── securedMessage/
-│   ├── secured.ts                   # Message encryption/decryption
-│   └── ConversationKeyManagement.ts # Conversation key caching and storage
+│   ├── secured.ts                   # Message encryption/decryption, ephemeral ECDH sealing
+│   ├── ConversationKeyManagement.ts # Conversation key caching and storage
+│   ├── KeySyncPayload.ts            # Shared "gather this device's keys" payload builder
+│   ├── DevicePairing.ts             # Local (QR) device-pairing crypto + ephemeral key state
+│   ├── RemoteDevicePairing.ts       # Server-relayed device-pairing client (device-pairing Edge Function)
+│   └── DeviceIdentity.ts            # Stable per-install device id + `devices` row registration
 ├── session/
-│   └── UserContext.tsx              # User context provider and hook
+│   └── SessionProvider.tsx          # Session, profile, theme, and conversation-key context
 └── types/
     ├── supabse.ts                   # Supabase database types
-    └── user.ts                      # User and profile types
+    └── user.ts                      # User, profile, and device-pairing payload types
 ```
 
 ## Core Modules
@@ -165,7 +169,7 @@ Combined data fetching:
   - Returns plaintext
 
 #### Key Management
-- `generateKeyPair()`: Generates Ed25519 key pair (tweetnacl)
+- `generateKeyPair()`: Generates the account's identity key pair (X25519 via tweetnacl `box`), once, at sign-up
   - Stores private key in secure storage
   - Returns public key for database
 - `createConversationKey()`: Generates random 32-byte conversation key
@@ -177,6 +181,12 @@ Combined data fetching:
   - Uses ECDH to derive shared secret
   - Uses HKDF for key derivation
   - Returns conversation key
+
+#### Ephemeral pairing (device-to-device key sync)
+Added for the QR and server-relayed device-pairing flows — a lower-level, transport-agnostic building block distinct from `wrapConversationKey`'s use of the account's long-lived identity key:
+- `generateEphemeralKeyPair()`: generates a throwaway X25519 key pair that only ever lives in memory (never written to secure storage)
+- `ecdhSeal(plaintext, recipientPublicKey, senderSecretKey, info)`: ECDH → HKDF-SHA512 (domain-separated by `info`) → ChaCha20-Poly1305; returns `{ ciphertext, nonce }`
+- `ecdhOpen(ciphertext, nonce, senderPublicKey, recipientSecretKey, info)`: inverse of `ecdhSeal`; throws if the keys/`info` don't match or the AEAD tag fails to verify
 
 #### Utilities
 - `bytesToBase64()`: Converts Uint8Array to base64 string
@@ -213,25 +223,61 @@ Combined data fetching:
 - Uses expo-secure-store for secure storage
 - Cache improves performance for repeated access
 
-### `session/UserContext.tsx`
-**Purpose**: React context for user authentication and profile state.
+### `securedMessage/KeySyncPayload.ts`
+**Purpose**: Builds the payload an already-synced device hands to a new device during pairing: the account's private key plus every conversation key this device holds.
 
-**Context Provider**: `UserProvider`
+**Export**: `buildKeySyncPayload(userId)` → `Promise<KeyObject | null>`
+- Returns `null` when this device has no private key yet (nothing to share).
+- Reads conversation keys via `ConversationKeyManager`, private key via `MessageEncryption.getPrivateKey()`.
+- Shared by both `ManageKeys.tsx` (local QR flow) and `RemoteDevicePairing.approve()` (server-relayed flow) so the payload is built the same way regardless of transport.
 
-**State**:
-- `user`: Current authenticated user (from Supabase Auth)
-- `profile`: User profile data (from database)
-- `loading`: Loading state during auth check
+### `securedMessage/DevicePairing.ts`
+**Purpose**: Crypto + in-memory state for the **local, QR-based** device-pairing handshake (see `documentation/app/tabs/managekeys/ManageKeys.md` / `ScanningKeys.md` for the full two-QR flow).
 
-**Methods**:
-- `refreshProfile()`: Refetch profile from database
-- `logout()`: Sign out, clear state, redirect to home
+**Export**: `DevicePairing` object
+- `startPairing(userId)`: generates a one-time ephemeral key pair (held in module memory only) and returns the `pair_init` QR payload
+- `sealForPeer(peerPublicKeyBase64, payload)`: seals a `KeyObject` to a scanned peer public key with a fresh sender ephemeral key pair; returns the `pair_data` QR payload
+- `openFromPeer(data)`: unwraps a `pair_data` payload using this device's held ephemeral secret key; rejects expired or undecryptable payloads
+- `reset()` / `isPairing()`: wipe or query the in-memory ephemeral key pair (also called on component unmount, cancel, and after every terminal outcome)
 
-**Features**:
-- **Auto-redirect**: Redirects to Complete Profile or Chat based on profile completion
-- **Session Persistence**: Stores user and profile in AsyncStorage
-- **Auth State Listener**: Listens for auth state changes
-- **One-time Navigation**: Prevents multiple redirects
+Also exports `isPairInitPayload()` / `isPairDataPayload()` type guards used by both screens to validate scanned QR content before trusting it.
+
+### `securedMessage/RemoteDevicePairing.ts`
+**Purpose**: Client for the **server-relayed** alternative to the QR flow — pairs devices that aren't physically together by relaying end-to-end sealed key material through the `device-pairing` Supabase Edge Function (see `documentation/supabase/README.md`). Not yet wired into a screen.
+
+**Export**: `RemoteDevicePairing` object, mirroring the edge function's actions:
+- `createRequest(deviceRowId)` — new device: generates an ephemeral key pair and registers a pairing request
+- `status(deviceRowId)` — either device: polls the account's in-flight request
+- `approve(deviceRowId, requesterEphemeralPublicKeyBase64, payload)` — old device: builds the payload via `buildKeySyncPayload`-shaped input, seals it locally with `MessageEncryption.ecdhSeal`, uploads only ciphertext, gets back a one-time display code
+- `confirm(deviceRowId, requestId, code)` — new device: submits the code (single-shot server-side check)
+- `fetchAndUnwrap(deviceRowId, requestId)` — new device: fetches the sealed payload (server deletes it on read) and unwraps it locally with `MessageEncryption.ecdhOpen`
+- `cancel(deviceRowId, requestId)` / `reset()`
+
+The ephemeral secret key generated by `createRequest` lives only in this module's memory for the duration of one attempt.
+
+### `securedMessage/DeviceIdentity.ts`
+**Purpose**: Stable per-install device identity used by the remote pairing flow and the `devices` bookkeeping table.
+
+**Export**: `DeviceIdentity` object
+- `registerCurrentDevice(userId)`: ensures a `devices` row exists for this install (a device id generated once via `expo-crypto` and persisted in SecureStore, so it survives re-login but not a restore onto different hardware) and returns that row's database id
+- `markKeySynced(rowId)`: flips `synced_key = true, is_new = false` after a successful import
+
+### `session/SessionProvider.tsx`
+**Purpose**: React context for session, profile, theme, and conversation-key state. (Note: this section previously documented an older `UserContext.tsx`/`useUser()` API that no longer exists in the codebase; corrected here in passing, not otherwise audited today.)
+
+**Context Provider**: `SessionProvider`, consumed via the `useSession()` hook.
+
+**State** (`SessionState`):
+- `user`, `profile`: current authenticated user and profile
+- `isDarkMode`: theme preference
+- `conversationKey`, `currentConversationId`: the currently-open conversation's key material
+- `loading`, `initialized`: startup/auth-check state
+
+**Methods** (`SessionContextType`):
+- `refreshProfile()`: refetch profile from database
+- `fetchThemeMode()` / `setDarkMode()`: theme persistence
+- `logout()`: sign out, clear state, redirect to home
+- `setCurrentConversation()` / `getConversationKey()` / `clearCurrentConversation()`: conversation-key context used while a chat room is open
 
 **Hook**: `useUser()`
 - Returns user context
@@ -263,12 +309,15 @@ Combined data fetching:
 - `mark_messages_as_read`: Marks messages as read
 
 ### `types/user.ts`
-**Purpose**: TypeScript types for user and profile data.
+**Purpose**: TypeScript types for user, profile, and device-pairing data.
 
 **Types**:
 - `User`: Supabase Auth user type
 - `Profile`: User profile type from database
 - `UserContextType`: User context interface
+- `KeyObject`: the key-sync payload (`req`, `userId`, `validTime`, `private_key`, `list` of `{id, key}`) — what gets sealed and transported by either pairing flow
+- `PairInitPayload`: QR-flow step 1 — `{ req: 'pair_init', ephemeralPublicKey, userId?, expiresAt }`
+- `PairDataPayload`: QR-flow step 2 — `{ req: 'pair_data', senderEphemeralPublicKey, ciphertext, nonce, expiresAt }`
 
 **Fields**:
 - User: id, email, user_metadata, app_metadata, timestamps
@@ -348,7 +397,8 @@ const image = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
 3. **Secure Storage**: Uses expo-secure-store with device-only access
 4. **Key Derivation**: Uses HKDF for key derivation from shared secrets
 5. **Nonce Management**: Unique nonces for each encryption operation
-6. **Service Role Key**: Only used server-side, never exposed to client
+6. **Ephemeral Pairing Keys**: Device-pairing key pairs (`generateEphemeralKeyPair`) exist only in memory, are never written to secure storage, and are wiped (`.fill(0)`) as soon as a handshake completes, fails, or is cancelled
+7. **Service Role Key — KNOWN ISSUE, not yet fixed**: `connection.ts` currently exports `supabaseAdmin` built from `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`. Because Expo inlines any `EXPO_PUBLIC_*` variable into the client bundle, the service-role key (which bypasses RLS) ships inside the compiled app and is extractable from it. It's actively used client-side for account/message deletion (`utility/messages.ts`) and `auth.admin.deleteUser()`. This needs to move into server-side Edge Functions and the key needs rotating; deliberately left untouched during the device-pairing work below so it doesn't get committed together with unrelated changes.
 
 ## Error Handling
 

@@ -2,8 +2,7 @@
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonText } from '@/components/ui/button';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
@@ -20,68 +19,49 @@ import { Heading } from '@/components/ui/heading';
 import { Icon, CloseIcon } from '@/components/ui/icon';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { KeyObject } from '@/utility/types/user';
+import QRCode from 'react-native-qrcode-svg';
+import { DevicePairing, isPairDataPayload } from '@/utility/securedMessage/DevicePairing';
+import { QrScannerView } from '@/components/QrScannerView';
 
-type LegacyReceivedPair = [string, Uint8Array];
+type Phase = 'show_own_code' | 'scan_sealed' | 'done';
+
+const QR_TTL_SECONDS = 60;
 
 export default function ScanningKeys() {
 
-    const [permission, requestPermission] = useCameraPermissions();
-    const [scanningActive, setScanningActive] = useState(true);
+    const [phase, setPhase] = useState<Phase>('show_own_code');
+    const [ownCodeQr, setOwnCodeQr] = useState('');
+    const [timeLeft, setTimeLeft] = useState(QR_TTL_SECONDS);
+    const [scanningActive, setScanningActive] = useState(false);
     const { user } = useSession();
+    const importingRef = useRef(false);
 
-    const parseScannedData = (rawData: string): KeyObject | null => {
-        try {
-            const parsed = JSON.parse(rawData) as Partial<KeyObject>;
-            if (
-                parsed &&
-                typeof parsed === 'object' &&
-                Array.isArray(parsed.list) &&
-                parsed.req == 'sync_key'
-            ) {
-                return {
-                    req: typeof parsed.req === 'string' ? parsed.req : '',
-                    userId: typeof parsed.userId === 'string' ? parsed.userId : undefined,
-                    validTime: typeof parsed.validTime === 'number' ? parsed.validTime : 0,
-                    private_key: typeof parsed.private_key === 'string' ? parsed.private_key : '',
-                    list: parsed.list
-                        .filter((item): item is { id: string; key: string } => !!item && typeof item.id === 'string' && typeof item.key === 'string')
-                        .map((item) => ({ id: item.id, key: item.key })),
-                };
-            }
-
-        } catch {
-            // fall through to legacy format parsing below
-        }
-
-        const parts = rawData
-            .split(';')
-            .map(item => item.trim())
-            .filter(item => item.length > 0);
-
-        const legacyPairs: LegacyReceivedPair[] = [];
-        for (let i = 0; i + 1 < parts.length; i += 2) {
-            const textValue = parts[i];
-            const binaryValue = MessageEncryption.base64ToBytes(parts[i + 1]);
-            legacyPairs.push([textValue, binaryValue]);
-        }
-
-        if (legacyPairs.length === 0) {
-            return null;
-        }
-
-        const convertedList = legacyPairs.map(([id, keyBytes]) => ({
-            id,
-            key: MessageEncryption.bytesToBase64(keyBytes),
-        }));
-
-        const privateKeyEntry = convertedList[0];
-        return {
-            req: 'sync_key',
-            validTime: 0,
-            private_key: privateKeyEntry ? privateKeyEntry.key : '',
-            list: convertedList.slice(1),
-        };
+    const generateOwnCode = () => {
+        const payload = DevicePairing.startPairing(user?.id);
+        setOwnCodeQr(JSON.stringify(payload));
+        setTimeLeft(QR_TTL_SECONDS);
+        setPhase('show_own_code');
+        setScanningActive(false);
     };
+
+    useEffect(() => {
+        generateOwnCode();
+        return () => DevicePairing.reset();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (phase !== 'show_own_code') {
+            return;
+        }
+        if (timeLeft === 0) {
+            return;
+        }
+        const timer = setInterval(() => {
+            setTimeLeft((currentTime) => Math.max(currentTime - 1, 0));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [phase, timeLeft]);
 
     const importKeysToNewDevice = (payload: KeyObject) => {
         if (!payload || !Array.isArray(payload.list)) {
@@ -89,17 +69,12 @@ export default function ScanningKeys() {
             return;
         }
 
-        if (!Number.isFinite(payload.validTime) || Date.now() > payload.validTime) {
-            Alert.alert('Error', 'QR code expired');
-            return;
-        }
-
-        if (!user?.id && payload.req !== 'sync_key') {
+        if (!user?.id) {
             Alert.alert('Error', 'Session not ready');
             return;
         }
 
-        if(user?.id !== payload.userId){
+        if (user.id !== payload.userId) {
             Alert.alert('Error', 'Please login the same account to sync keys');
             return;
         }
@@ -120,33 +95,47 @@ export default function ScanningKeys() {
         });
 
         Promise.all(importTasks)
-            .then(() => setScanningActive(false))
+            .then(() => setPhase('done'))
             .catch(() => {
                 Alert.alert('Error', 'Failed to import one or more keys');
-                setScanningActive(false);
+                setPhase('done');
             });
     };
 
-    const renderCamera = () => {
-        if (!permission?.granted) {
-            return (
-                <Box>
-                    <Text>We need your permission to show the camera</Text>
-                    <Button onPress={requestPermission}>
-                        <ButtonText className="text-white">Grant Permission</ButtonText>
-                    </Button>
-                </Box>
-            );
+    const onScannedSealedCode = async (raw: string) => {
+        if (importingRef.current) {
+            return;
+        }
+
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            Alert.alert('Error', 'That QR code is not a valid pairing reply');
+            return;
+        }
+
+        if (!isPairDataPayload(parsed)) {
+            Alert.alert('Error', 'That QR code is not a valid pairing reply');
+            return;
+        }
+
+        importingRef.current = true;
+        try {
+            const keyPayload = await DevicePairing.openFromPeer(parsed);
+            importKeysToNewDevice(keyPayload);
+        } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to decrypt the received keys');
+            generateOwnCode();
+        } finally {
+            importingRef.current = false;
         }
     };
 
-    useEffect(() => {
-        renderCamera();
-    }, []);
-
-    useEffect(() => {
-        renderCamera();
-    }, [permission]);
+    const goToScanStep = () => {
+        setPhase('scan_sealed');
+        setScanningActive(true);
+    };
 
     return(
         <ScrollView
@@ -159,70 +148,70 @@ export default function ScanningKeys() {
             }}
         >
             <Box style={{ width: '100%', maxWidth: 420, alignItems: 'center' }}>
-                {scanningActive && (
-                    <CameraView
-                        style={{
-                            width: 360,
-                            height: 360,
-                            borderRadius: 16,
-                            overflow: 'hidden',
-                            alignSelf: 'center',
-                        }}
-                        facing={'back'}
-                        barcodeScannerSettings={{
-                            barcodeTypes: ['qr'],
-                        }}
-                        onBarcodeScanned={(data) => {
-                            if (data?.data) {
-                                const scannedPayload = parseScannedData(data.data);
-                                if (scannedPayload) {
-                                    importKeysToNewDevice(scannedPayload);
-                                }
-                            }
-                        }}
-                    />
+
+                {phase === 'show_own_code' && (
+                    <>
+                        <Text className="mb-4 text-center">
+                            On your other device, tap &quot;Share Keys&quot; and scan this code.
+                        </Text>
+                        {timeLeft > 0 ? (
+                            <>
+                                <Box className="items-center mb-4 rounded-2xl border border-gray-200 p-4">
+                                    <QRCode value={ownCodeQr} size={200} />
+                                </Box>
+                                <Text className="mb-4 text-center text-xl font-bold">{timeLeft}s</Text>
+                                <Button onPress={goToScanStep} size="md" action="primary" className="bg-blue-500 mt-2" style={{ width: '100%' }}>
+                                    <ButtonText className="text-white">Next: Scan the reply code</ButtonText>
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Text className="mb-4 text-center">Code expired.</Text>
+                                <Button onPress={generateOwnCode} size="md" action="primary" className="bg-blue-500 mt-2" style={{ width: '100%' }}>
+                                    <ButtonText className="text-white">Generate a new code</ButtonText>
+                                </Button>
+                            </>
+                        )}
+                    </>
                 )}
 
-                {!permission?.granted ? (
-                    <Button
-                        onPress={requestPermission}
-                        size="md"
-                        action="primary"
-                        className="bg-blue-500 mt-6"
-                        style={{ width: '100%', maxHeight: 250 }}
-                    >
-                        <ButtonText className="text-white">Grant permission</ButtonText>
-                    </Button>
-                ) : (
-                    !scanningActive && (
-                        <Box style={{ width: '100%' }}>
-                            <AlertDialog isOpen={!scanningActive} onClose={() => setScanningActive(true)}>
-                                <AlertDialogBackdrop />
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <Heading size="lg">
-                                        Scan completed
-                                    </Heading>
-                                    <AlertDialogCloseButton onPress={() => setScanningActive(true)}>
-                                        <Icon as={CloseIcon} />
-                                    </AlertDialogCloseButton>
-                                </AlertDialogHeader>
-                                 <AlertDialogFooter>
-                                    <Button
-                                    variant="outline"
-                                    action="secondary"
-                                    onPress={() => router.replace({pathname:'/tabs/(tabs)/Settings'})}
-                                    >
-                                    <ButtonText>Ok</ButtonText>
-                                    </Button>
-                                 </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </Box>
-                    )
+                {phase === 'scan_sealed' && (
+                    <>
+                        <Text className="mb-4 text-center">Now scan the code shown on your other device</Text>
+                        <QrScannerView active={scanningActive} onScanned={onScannedSealedCode} />
+                        <Button onPress={generateOwnCode} size="md" action="secondary" className="mt-4" style={{ width: '100%' }}>
+                            <ButtonText>Back</ButtonText>
+                        </Button>
+                    </>
                 )}
 
-              
+                {phase === 'done' && (
+                    <Box style={{ width: '100%' }}>
+                        <AlertDialog isOpen={phase === 'done'} onClose={() => generateOwnCode()}>
+                            <AlertDialogBackdrop />
+                            <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <Heading size="lg">
+                                    Scan completed
+                                </Heading>
+                                <AlertDialogCloseButton onPress={() => generateOwnCode()}>
+                                    <Icon as={CloseIcon} />
+                                </AlertDialogCloseButton>
+                            </AlertDialogHeader>
+                             <AlertDialogFooter>
+                                <Button
+                                variant="outline"
+                                action="secondary"
+                                onPress={() => router.replace({pathname:'/tabs/(tabs)/Settings'})}
+                                >
+                                <ButtonText>Ok</ButtonText>
+                                </Button>
+                             </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </Box>
+                )}
+
             </Box>
         </ScrollView>
     )

@@ -2,21 +2,25 @@
 
 **Source:** [`app/tabs/managekeys/ManageKeys.tsx`](../../../app/tabs/managekeys/ManageKeys.tsx)
 
-`ManageKeys` creates a QR code containing the current user's key-sync payload.
+`ManageKeys` is the "sharing device" side of local QR-based key sync. It no longer puts key material directly into a QR code — a bystander who photographs the screen at any point in the flow gets either a bare ephemeral public key or ciphertext, never a usable private key.
 
-## Payload generation
+## Flow (two QR codes, not one)
 
-1. Reads conversation snapshots from local storage.
-2. Reads the private key from `MessageEncryption`.
-3. Verifies which snapshot conversations have a locally available conversation key.
-4. Adds those conversation IDs and keys to a `KeyObject` payload.
-5. Includes the private key when a user ID and private key are available.
-6. Serializes the payload and renders it as a QR code.
+1. **Idle** – shows a `Share Keys` button and instructions to start the *other* device's `Receive Keys` flow first.
+2. **Scan peer** (`scan_peer`) – opens the device camera (`components/QrScannerView`) and scans the `pair_init` QR shown by the receiving device (see `ScanningKeys.md`). That payload carries only an ephemeral X25519 public key, a `userId`, and an `expiresAt`.
+3. Validates the scanned code: well-formed `pair_init` shape, not expired, and (when both sides know it) the `userId` matches the current session — refuses to proceed otherwise.
+4. Builds the key-sync payload via the shared `buildKeySyncPayload()` helper (`utility/securedMessage/KeySyncPayload.ts`): the local private key plus every conversation key this device holds, exactly as before.
+5. Seals that payload to the scanned ephemeral public key with `DevicePairing.sealForPeer()` (ECDH + HKDF + ChaCha20-Poly1305, `utility/securedMessage/DevicePairing.ts`) and renders the resulting ciphertext as a second QR (`show_sealed`), with a 30s countdown.
+6. The receiving device scans that second QR and unwraps it locally — see `ScanningKeys.md`.
 
-The payload uses `req: "sync_key"` and is intended for import on another device. The screen warns users to share it only with trusted parties because it contains key material.
+## What changed from the old single-QR flow
 
-## Navigation and current limitation
+- The old `ManageKeys` rendered one QR containing the raw `KeyObject` (private key + conversation keys) as plaintext JSON, expiring only by a client-side countdown that a captured screenshot could ignore entirely.
+- The new flow never puts a private key into a QR. Only an ephemeral public key (step 2) or AEAD ciphertext bound to that specific key (step 5) is ever rendered.
+- `Regenerate QR` was removed; there is no persistent QR to regenerate — each `Share Keys` attempt starts a fresh scan/seal cycle with a fresh ephemeral key pair on the receiving side.
 
-- `Scan QR` opens `/tabs/managekeys/ScanningKeys`.
-- `Regenerate QR` is currently rendered but has no implementation; the QR value is generated from current local state.
-- The screen is normally reached after biometric verification from `BiometricAuthentication`.
+## Related
+
+- `components/QrScannerView.tsx` — shared camera/permission component used by both this screen and `ScanningKeys`.
+- `utility/securedMessage/DevicePairing.ts` — holds the local pairing crypto and in-memory ephemeral key state for this (QR) transport.
+- For the newer server-relayed alternative (no camera, works when devices aren't in the same room), see `documentation/supabase/README.md` (`device-pairing` function) and `utility/securedMessage/RemoteDevicePairing.ts` — not yet wired into a screen.

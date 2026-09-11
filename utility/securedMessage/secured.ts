@@ -304,4 +304,69 @@ static async hkdfSha512(
   static async randomEpoch(): Promise<Uint8Array> {
     return Crypto.getRandomBytes(1);
   }
+
+  /**
+   * Generate a throwaway X25519 key pair that lives only in memory
+   * (used for one-time device-pairing handshakes, never persisted).
+   */
+  static generateEphemeralKeyPair(): { publicKey: Uint8Array; secretKey: Uint8Array } {
+    return nacl.box.keyPair();
+  }
+
+  /**
+   * Encrypt `plaintext` so only the holder of `recipientPublicKey`'s matching
+   * private key can read it. Used to seal data for a QR code so a bystander
+   * who scans it gets ciphertext, not secrets.
+   */
+  static async ecdhSeal(
+    plaintext: Uint8Array,
+    recipientPublicKey: Uint8Array,
+    senderSecretKey: Uint8Array,
+    info: string
+  ): Promise<{ ciphertext: Uint8Array; nonce: Uint8Array }> {
+    if (recipientPublicKey.length !== this.KEY_SIZE || senderSecretKey.length !== this.KEY_SIZE) {
+      throw new Error('Invalid key size for ECDH seal');
+    }
+
+    const sharedSecret = nacl.box.before(recipientPublicKey, senderSecretKey);
+    const sealKey = await this.hkdfSha512(sharedSecret, new TextEncoder().encode(info), this.KEY_SIZE);
+    const nonce = nacl.randomBytes(this.NONCE_SIZE);
+    const cipher = new ChaCha20Poly1305(sealKey);
+    const ciphertext = cipher.seal(nonce, plaintext);
+
+    sharedSecret.fill(0);
+    sealKey.fill(0);
+
+    return { ciphertext, nonce };
+  }
+
+  /**
+   * Inverse of ecdhSeal: only succeeds if `recipientSecretKey` is the match
+   * for the public key the sender sealed against.
+   */
+  static async ecdhOpen(
+    ciphertext: Uint8Array,
+    nonce: Uint8Array,
+    senderPublicKey: Uint8Array,
+    recipientSecretKey: Uint8Array,
+    info: string
+  ): Promise<Uint8Array> {
+    if (senderPublicKey.length !== this.KEY_SIZE || recipientSecretKey.length !== this.KEY_SIZE) {
+      throw new Error('Invalid key size for ECDH open');
+    }
+
+    const sharedSecret = nacl.box.before(senderPublicKey, recipientSecretKey);
+    const openKey = await this.hkdfSha512(sharedSecret, new TextEncoder().encode(info), this.KEY_SIZE);
+    const cipher = new ChaCha20Poly1305(openKey);
+    const plaintext = cipher.open(nonce, ciphertext);
+
+    sharedSecret.fill(0);
+    openKey.fill(0);
+
+    if (!plaintext) {
+      throw new Error('ECDH unwrap failed - authentication invalid');
+    }
+
+    return plaintext;
+  }
 }
