@@ -322,7 +322,9 @@ export default function Settings() {
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
           <HStack className="justify-between items-center mb-2">
             <VStack className="flex-1">
-              <Text className="text-lg font-semibold">Dark Mode: <Icon as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
+              <Text className="text-lg font-semibold">Dark Mode: <Icon
+                testID={isDarkMode === 'dark' ? automationLocatorsDataState.settingsScreen.assertDarkMode : automationLocatorsDataState.settingsScreen.assertLightMode}
+                as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
             </VStack>
             <Switch
               testID={automationLocatorsDataState.settingsScreen.darkModeSwitch}

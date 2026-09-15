@@ -31,6 +31,8 @@ export const automationLocatorsDataState = {
     },
     settingsScreen:{
         darkModeSwitch: 'dark-mode-switch',
+        assertLightMode: 'assert-light-mode',
+        assertDarkMode: 'assert-dark-mode',
         avatarImage: 'avatar-image',
         editDisplayNameButton: 'edit-display-name-button',
         changePasswordButton: 'change-password-button',

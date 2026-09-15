@@ -7,9 +7,10 @@ appId: com.phuocng23000.sdchat
 - tapOn: "Settings"
 - assertVisible: "Key Management"
 - assertVisible: "Dark Mode.*"
+- assertVisible: { id: "assert-light-mode" }
 - takeScreenshot: "value"
-- assertVisible:
-    point: 77%,34%
-- doubleTapOn:
-    point: 77%,34%
+- tapOn: { id: "dark-mode-switch" }
+- assertVisible: { id: "assert-dark-mode" }
 - takeScreenshot: "value"
+- tapOn: { id: "dark-mode-switch" }
+- assertVisible: { id: "assert-light-mode" }
