@@ -29,6 +29,13 @@ const CODE_LENGTH = 6;
 const REQUEST_TTL_MS = 2 * 60 * 1000;
 const MAX_FIELD_LENGTH = 8000; // generous cap for base64 blobs, guards against abuse
 
+// Local (same-room) pairing code gate, in front of the existing QR
+// handshake. See local_pairing_codes_schema.sql for the table/RLS design.
+const LOCAL_CODE_LENGTH = 4;
+const LOCAL_CODE_TTL_MS = 3 * 60 * 1000; // shorter than the lockout window, on purpose
+const LOCAL_CODE_MAX_ATTEMPTS = 5;
+const LOCAL_CODE_LOCKOUT_MS = 5 * 60 * 1000;
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -43,6 +50,26 @@ function generateCode(): string {
   for (let i = 0; i < CODE_LENGTH; i++) {
     // 256 % 32 === 0, so this is uniform - no modulo bias.
     code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  }
+  return code;
+}
+
+function randomDigit(): number {
+  // 256 isn't a multiple of 10 - reject bytes >= 250 (the largest multiple
+  // of 10 that's <= 256) so every digit 0-9 stays uniformly likely.
+  const buf = new Uint8Array(1);
+  let value: number;
+  do {
+    crypto.getRandomValues(buf);
+    value = buf[0];
+  } while (value >= 250);
+  return value % 10;
+}
+
+function generateDigitCode(): string {
+  let code = "";
+  for (let i = 0; i < LOCAL_CODE_LENGTH; i++) {
+    code += randomDigit().toString();
   }
   return code;
 }
@@ -88,6 +115,15 @@ async function cleanupExpired(userId: string): Promise<void> {
     .delete()
     .eq("user_id", userId)
     .in("status", ["pending", "code_issued", "approved"])
+    .lt("expires_at", new Date().toISOString());
+}
+
+async function cleanupExpiredLocalCodes(userId: string): Promise<void> {
+  await db
+    .from("local_pairing_codes")
+    .delete()
+    .eq("user_id", userId)
+    .eq("status", "pending")
     .lt("expires_at", new Date().toISOString());
 }
 
@@ -318,6 +354,197 @@ async function actionCancel(userId: string, body: any) {
 }
 
 // ----------------------------------------------------------------------------
+// Local (same-room) pairing code gate
+//
+// Proves the two devices are physically together before the QR handshake
+// above is allowed to start. Carries no key material - just a short-lived,
+// rate-limited, server-enforced code check.
+// ----------------------------------------------------------------------------
+
+async function actionLocalCodeCreate(userId: string, body: any) {
+  const { deviceId } = body;
+  if (!isNonEmptyString(deviceId)) {
+    return json({ error: "deviceId is required" }, 400);
+  }
+  if (!(await assertOwnDevice(userId, deviceId))) {
+    return json({ error: "Unknown device" }, 403);
+  }
+
+  await cleanupExpiredLocalCodes(userId);
+
+  const code = generateDigitCode();
+  const codeHash = await sha256Hex(code);
+  const expiresAt = new Date(Date.now() + LOCAL_CODE_TTL_MS).toISOString();
+
+  const { data, error } = await db
+    .from("local_pairing_codes")
+    .insert({
+      user_id: userId,
+      issued_by_device_id: deviceId,
+      code_hash: codeHash,
+      expires_at: expiresAt,
+    })
+    .select("id, expires_at")
+    .single();
+
+  if (error) {
+    // Partial unique index (one active code per account) violation.
+    if (error.code === "23505") {
+      return json({ error: "A pairing code is already active for this account. Cancel it first." }, 409);
+    }
+    console.error("local-code-create failed:", error);
+    return json({ error: "Failed to create pairing code" }, 500);
+  }
+
+  return json({ codeId: data.id, code, expiresAt: data.expires_at });
+}
+
+async function actionLocalCodeStatus(userId: string) {
+  const { data: row, error } = await db
+    .from("local_pairing_codes")
+    .select("id, status, expires_at, locked_until, attempts, verified_by_device_id")
+    .eq("user_id", userId)
+    .in("status", ["pending", "verified"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("local-code-status failed:", error);
+    return json({ error: "Failed to fetch status" }, 500);
+  }
+
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) {
+    return json({ active: false });
+  }
+
+  let verifiedByDeviceName: string | null = null;
+  if (row.verified_by_device_id) {
+    const { data: deviceRow } = await db
+      .from("devices")
+      .select("device_name")
+      .eq("id", row.verified_by_device_id)
+      .maybeSingle();
+    verifiedByDeviceName = deviceRow?.device_name ?? null;
+  }
+
+  return json({
+    active: true,
+    codeId: row.id,
+    status: row.status,
+    expiresAt: row.expires_at,
+    lockedUntil: row.locked_until,
+    attempts: row.attempts,
+    verifiedByDeviceName,
+  });
+}
+
+async function actionLocalCodeVerify(userId: string, body: any) {
+  const { deviceId, code } = body;
+  const trimmedCode = typeof code === "string" ? code.trim() : "";
+  if (!isNonEmptyString(deviceId) || !/^\d{4}$/.test(trimmedCode)) {
+    return json({ error: "deviceId and a 4-digit code are required" }, 400);
+  }
+  if (!(await assertOwnDevice(userId, deviceId))) {
+    return json({ error: "Unknown device" }, 403);
+  }
+
+  const { data: row, error } = await db
+    .from("local_pairing_codes")
+    .select("id, code_hash, attempts, locked_until, expires_at")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("local-code-verify lookup failed:", error);
+    return json({ error: "Failed to verify code" }, 500);
+  }
+  if (!row) {
+    return json({ error: "No active pairing code for this account" }, 404);
+  }
+
+  const now = Date.now();
+
+  if (new Date(row.expires_at).getTime() < now) {
+    await db.from("local_pairing_codes").update({ status: "expired" }).eq("id", row.id).eq("status", "pending");
+    return json({ error: "Code expired, ask the other device to generate a new one" }, 410);
+  }
+
+  if (row.locked_until && new Date(row.locked_until).getTime() > now) {
+    // Not an error response (stays HTTP 200, no `error` key): the client
+    // needs the structured retryAfterSeconds field, and a non-2xx status
+    // would make the Supabase JS SDK drop the body into `error` instead of
+    // `data`, losing it.
+    const retryAfterSeconds = Math.ceil((new Date(row.locked_until).getTime() - now) / 1000);
+    return json({ verified: false, locked: true, retryAfterSeconds });
+  }
+
+  const submittedHash = await sha256Hex(trimmedCode);
+  const matched = submittedHash === row.code_hash;
+  const newAttempts = row.attempts + 1;
+
+  const updatePayload: Record<string, unknown> = { attempts: newAttempts };
+  if (matched) {
+    updatePayload.status = "verified";
+    updatePayload.verified_by_device_id = deviceId;
+  } else if (newAttempts >= LOCAL_CODE_MAX_ATTEMPTS) {
+    updatePayload.locked_until = new Date(now + LOCAL_CODE_LOCKOUT_MS).toISOString();
+  }
+
+  // Optimistic-concurrency guard (.eq("attempts", row.attempts)): if a
+  // concurrent verify call already advanced attempts, this update matches
+  // nothing rather than double-consuming an attempt.
+  const { data: updated, error: updateError } = await db
+    .from("local_pairing_codes")
+    .update(updatePayload)
+    .eq("id", row.id)
+    .eq("attempts", row.attempts)
+    .select("status, locked_until")
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("local-code-verify update failed:", updateError);
+    return json({ error: "Failed to verify code" }, 500);
+  }
+  if (!updated) {
+    return json({ error: "Please try again" }, 409);
+  }
+
+  if (matched) {
+    return json({ verified: true });
+  }
+
+  if (updated.locked_until) {
+    return json({
+      verified: false,
+      locked: true,
+      retryAfterSeconds: Math.ceil((new Date(updated.locked_until).getTime() - now) / 1000),
+    });
+  }
+
+  return json({ verified: false, attemptsRemaining: Math.max(LOCAL_CODE_MAX_ATTEMPTS - newAttempts, 0) });
+}
+
+async function actionLocalCodeCancel(userId: string, body: any) {
+  const { deviceId } = body;
+  if (!isNonEmptyString(deviceId)) {
+    return json({ error: "deviceId is required" }, 400);
+  }
+
+  await db
+    .from("local_pairing_codes")
+    .delete()
+    .eq("user_id", userId)
+    .eq("issued_by_device_id", deviceId)
+    .eq("status", "pending");
+
+  return json({ ok: true });
+}
+
+// ----------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -353,6 +580,14 @@ Deno.serve(async (req: Request) => {
         return await actionFetchKey(user.id, body);
       case "cancel":
         return await actionCancel(user.id, body);
+      case "local-code-create":
+        return await actionLocalCodeCreate(user.id, body);
+      case "local-code-status":
+        return await actionLocalCodeStatus(user.id);
+      case "local-code-verify":
+        return await actionLocalCodeVerify(user.id, body);
+      case "local-code-cancel":
+        return await actionLocalCodeCancel(user.id, body);
       default:
         return json({ error: "Unknown action" }, 400);
     }

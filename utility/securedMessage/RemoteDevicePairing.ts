@@ -1,6 +1,6 @@
-import { supabase } from '@/utility/connection';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { KeyObject } from '@/utility/types/user';
+import { invokeDevicePairing } from '@/utility/securedMessage/DevicePairingFunctionClient';
 
 // Domain-separation string for this transport. Deliberately distinct from
 // the local QR flow's 'sd-chat-device-pairing-v1' (DevicePairing.ts) even
@@ -34,34 +34,6 @@ function resetPairingState(): void {
     }
 }
 
-async function invoke<T>(action: string, payload: Record<string, unknown>): Promise<T> {
-    const { data, error } = await supabase.functions.invoke('device-pairing', {
-        body: { action, ...payload },
-    });
-
-    if (error) {
-        let message = error.message ?? 'Request failed';
-        const context = (error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
-        if (context?.json) {
-            try {
-                const body = await context.json();
-                if (body?.error) {
-                    message = body.error;
-                }
-            } catch {
-                // fall back to error.message below
-            }
-        }
-        throw new Error(message);
-    }
-
-    if (data && typeof data === 'object' && 'error' in data && data.error) {
-        throw new Error(String((data as { error: unknown }).error));
-    }
-
-    return data as T;
-}
-
 export const RemoteDevicePairing = {
     /**
      * NEW DEVICE: register a pairing request. Generates and holds an
@@ -71,7 +43,7 @@ export const RemoteDevicePairing = {
         resetPairingState();
         ephemeralKeyPair = MessageEncryption.generateEphemeralKeyPair();
 
-        return invoke('create', {
+        return invokeDevicePairing('create', {
             deviceId: deviceRowId,
             ephemeralPublicKey: MessageEncryption.bytesToBase64(ephemeralKeyPair.publicKey),
         });
@@ -79,7 +51,7 @@ export const RemoteDevicePairing = {
 
     /** Either device: poll for the account's current in-flight request, if any. */
     async status(deviceRowId: string): Promise<PairingStatus> {
-        return invoke('status', { deviceId: deviceRowId });
+        return invokeDevicePairing('status', { deviceId: deviceRowId });
     },
 
     /**
@@ -104,7 +76,7 @@ export const RemoteDevicePairing = {
                 PAIRING_INFO
             );
 
-            return await invoke('approve', {
+            return await invokeDevicePairing('approve', {
                 deviceId: deviceRowId,
                 senderEphemeralPublicKey: MessageEncryption.bytesToBase64(senderEphemeral.publicKey),
                 ciphertext: MessageEncryption.bytesToBase64(ciphertext),
@@ -121,7 +93,7 @@ export const RemoteDevicePairing = {
      * fresh one must be created.
      */
     async confirm(deviceRowId: string, requestId: string, code: string): Promise<{ status: 'approved' | 'denied' }> {
-        return invoke('confirm', { deviceId: deviceRowId, requestId, code });
+        return invokeDevicePairing('confirm', { deviceId: deviceRowId, requestId, code });
     },
 
     /**
@@ -134,7 +106,7 @@ export const RemoteDevicePairing = {
         }
 
         try {
-            const { senderEphemeralPublicKey, ciphertext, nonce } = await invoke<{
+            const { senderEphemeralPublicKey, ciphertext, nonce } = await invokeDevicePairing<{
                 senderEphemeralPublicKey: string;
                 ciphertext: string;
                 nonce: string;
@@ -157,7 +129,7 @@ export const RemoteDevicePairing = {
     /** NEW DEVICE: abandon an in-flight request (e.g. user navigates away). */
     async cancel(deviceRowId: string, requestId: string): Promise<void> {
         try {
-            await invoke('cancel', { deviceId: deviceRowId, requestId });
+            await invokeDevicePairing('cancel', { deviceId: deviceRowId, requestId });
         } finally {
             resetPairingState();
         }
