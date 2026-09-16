@@ -16,7 +16,9 @@ utility/
 │   ├── secured.ts                   # Message encryption/decryption, ephemeral ECDH sealing
 │   ├── ConversationKeyManagement.ts # Conversation key caching and storage
 │   ├── KeySyncPayload.ts            # Shared "gather this device's keys" payload builder
-│   ├── DevicePairing.ts             # Local (QR) device-pairing crypto + ephemeral key state
+│   ├── DevicePairing.ts             # UNUSED — local (QR) ephemeral-ECDH crypto, no longer called by any screen
+│   ├── DevicePairingFunctionClient.ts # Shared caller for the device-pairing Edge Function
+│   ├── LocalPairingCode.ts          # Client for the same-room 4-digit pairing-code gate
 │   ├── RemoteDevicePairing.ts       # Server-relayed device-pairing client (device-pairing Edge Function)
 │   └── DeviceIdentity.ts            # Stable per-install device id + `devices` row registration
 ├── session/
@@ -77,6 +79,7 @@ Conversation management:
 - `storeConversationKey()`: Store encrypted conversation key
 - `getWrappedKeyRecipient()`: Get wrapped key for recipient
 - `getWrappedKeyCurrent()`: Get wrapped key for current user
+- `leaveConversation(conversationId, userId)`: Deletes the current user's own `conversation_participants` row only — removes the chat from their list without touching the other participant's copy or message history (not a delete-for-everyone). Used by the Chat screen's long-press "Delete chat" action.
 
 #### `messageAPI`
 Message operations:
@@ -231,16 +234,30 @@ Added for the QR and server-relayed device-pairing flows — a lower-level, tran
 - Reads conversation keys via `ConversationKeyManager`, private key via `MessageEncryption.getPrivateKey()`.
 - Shared by both `ManageKeys.tsx` (local QR flow) and `RemoteDevicePairing.approve()` (server-relayed flow) so the payload is built the same way regardless of transport.
 
-### `securedMessage/DevicePairing.ts`
-**Purpose**: Crypto + in-memory state for the **local, QR-based** device-pairing handshake (see `documentation/app/tabs/managekeys/ManageKeys.md` / `ScanningKeys.md` for the full two-QR flow).
+### `securedMessage/DevicePairing.ts` — currently unused
+**Purpose (historical)**: Crypto + in-memory state for a two-QR, ephemeral-ECDH device-pairing handshake that `ManageKeys`/`ScanningKeys` used to run. **As of commit `4e02cce` (2026-09-16) neither screen imports this module anymore** — they exchange a single plaintext QR instead, gated by the pairing-code screens below. The module still exists in the tree (not deleted) but nothing calls it; see `documentation/app/tabs/managekeys/ManageKeys.md`'s security-model note.
 
 **Export**: `DevicePairing` object
 - `startPairing(userId)`: generates a one-time ephemeral key pair (held in module memory only) and returns the `pair_init` QR payload
 - `sealForPeer(peerPublicKeyBase64, payload)`: seals a `KeyObject` to a scanned peer public key with a fresh sender ephemeral key pair; returns the `pair_data` QR payload
 - `openFromPeer(data)`: unwraps a `pair_data` payload using this device's held ephemeral secret key; rejects expired or undecryptable payloads
-- `reset()` / `isPairing()`: wipe or query the in-memory ephemeral key pair (also called on component unmount, cancel, and after every terminal outcome)
+- `reset()` / `isPairing()`: wipe or query the in-memory ephemeral key pair
 
-Also exports `isPairInitPayload()` / `isPairDataPayload()` type guards used by both screens to validate scanned QR content before trusting it.
+Also exports `isPairInitPayload()` / `isPairDataPayload()` type guards, likewise unused elsewhere now.
+
+### `securedMessage/DevicePairingFunctionClient.ts`
+**Purpose**: Shared low-level caller for the `device-pairing` Supabase Edge Function, used by both `RemoteDevicePairing.ts` and `LocalPairingCode.ts`.
+
+**Export**: `invokeDevicePairing<T>(action, payload)` — invokes the function with `{ action, ...payload }`, normalizes error extraction from both a non-2xx response and a `{ error }` field on an HTTP-200 body (the latter exists so "soft failure" responses like the local code's lockout countdown carry structured data instead of being swallowed as a thrown error), and throws an `Error` with the server's message on failure.
+
+### `securedMessage/LocalPairingCode.ts`
+**Purpose**: Client for the same-room, 4-digit pairing-code gate that sits in front of the QR key-sharing flow (see `documentation/app/tabs/managekeys/PairingCode.md` / `EnterPairingCode.md`). Added 2026-09-15 (commit `3104094`). Carries no key material itself — purely a physical-proximity check.
+
+**Export**: `LocalPairingCode` object, calling the `local-code-*` device-pairing Edge Function actions via `invokeDevicePairing`:
+- `create(deviceRowId)` — old device: request a fresh 4-digit code
+- `status()` — either device: poll the account's current code state
+- `verify(deviceRowId, code)` — new device: submit the digits; returns `verified`, or `locked` with `retryAfterSeconds`, or `attemptsRemaining`
+- `cancel(deviceRowId)` — old device: invalidate the code immediately
 
 ### `securedMessage/RemoteDevicePairing.ts`
 **Purpose**: Client for the **server-relayed** alternative to the QR flow — pairs devices that aren't physically together by relaying end-to-end sealed key material through the `device-pairing` Supabase Edge Function (see `documentation/supabase/README.md`). Not yet wired into a screen.
@@ -316,8 +333,7 @@ The ephemeral secret key generated by `createRequest` lives only in this module'
 - `Profile`: User profile type from database
 - `UserContextType`: User context interface
 - `KeyObject`: the key-sync payload (`req`, `userId`, `validTime`, `private_key`, `list` of `{id, key}`) — what gets sealed and transported by either pairing flow
-- `PairInitPayload`: QR-flow step 1 — `{ req: 'pair_init', ephemeralPublicKey, userId?, expiresAt }`
-- `PairDataPayload`: QR-flow step 2 — `{ req: 'pair_data', senderEphemeralPublicKey, ciphertext, nonce, expiresAt }`
+- `PairInitPayload` / `PairDataPayload`: the two-QR ECDH handshake's payload shapes — unused since commit `4e02cce` removed that handshake from `ManageKeys`/`ScanningKeys` (see `DevicePairing.ts` above)
 
 **Fields**:
 - User: id, email, user_metadata, app_metadata, timestamps

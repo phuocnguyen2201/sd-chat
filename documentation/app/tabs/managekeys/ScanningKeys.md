@@ -2,25 +2,23 @@
 
 **Source:** [`app/tabs/managekeys/ScanningKeys.tsx`](../../../app/tabs/managekeys/ScanningKeys.tsx)
 
-`ScanningKeys` is the "receiving device" side of local QR-based key sync. It initiates the handshake rather than only consuming a QR — this is what lets `ManageKeys` avoid ever encoding a private key directly.
+`ScanningKeys` is the "receiving device" side of key sync. It is reached from `EnterPairingCode` (see `EnterPairingCode.md`) after that screen's 4-digit code is verified — never directly from `ManageKeys`.
 
-## Flow (two phases)
+## Flow (single phase)
 
-1. **Show own code** (`show_own_code`) – on mount, generates a one-time X25519 key pair via `DevicePairing.startPairing(user?.id)` (kept in memory only, never persisted) and renders the resulting `pair_init` payload as a QR, with a 60s countdown. A `Generate a new code` action is offered once it expires.
-2. User taps `Next: Scan the reply code` once the other device has scanned that QR and is showing its sealed reply.
-3. **Scan sealed** (`scan_sealed`) – opens the camera (`components/QrScannerView`) and scans the `pair_data` QR produced by `ManageKeys`.
-4. Unwraps it with `DevicePairing.openFromPeer()`, which fails closed unless this device still holds the matching ephemeral private key and the payload hasn't expired — then wipes that ephemeral key from memory regardless of outcome.
-5. On success, imports the recovered `KeyObject` the same way the old flow did: restores the private key via `MessageEncryption.setPrivateKey()` and stores any conversation keys not already present via `ConversationKeyManager`, then shows the completion dialog.
+1. **Scan** (`scan`) – opens the camera (`components/QrScannerView`) and waits for the plaintext `KeyObject` QR shown by `ManageKeys`.
+2. On a scan, parses the QR as JSON and checks it has a `list` array (`isArray`) before trusting it — not a full shape/signature check.
+3. `importKeysToNewDevice()` validates: a session exists, the payload's `userId` matches the signed-in user, and `validTime` hasn't passed (`Date.now() > payload.validTime` → "QR code expired" alert).
+4. On success, restores the private key via `MessageEncryption.setPrivateKey()` and stores any conversation keys not already present via `ConversationKeyManager`, then shows the `done` completion dialog (`Ok` returns to Settings).
 
-Invalid QR shapes, an expired pairing session, a decrypt/authentication failure, a missing session, or an account mismatch are all reported via `Alert` and, where applicable, restart the pairing cycle with a fresh ephemeral key pair (`generateOwnCode()`).
+## Security model (changed 2026-09-16, commit `4e02cce`)
 
-## What changed from the old single-QR flow
+This screen previously generated its own ephemeral key pair and scanned a *second*, AEAD-sealed QR from `ManageKeys` (`DevicePairing.openFromPeer()`), so an intercepted QR never contained a usable secret. **That handshake was removed** — this screen now scans and directly trusts the single plaintext QR `ManageKeys` renders. The account/session ownership (`userId` match) and expiry (`validTime`) checks are unchanged in spirit, but there is no cryptographic binding between this device and the QR anymore; anyone who captures the QR image within its 30s window can decrypt the account's messages. See `ManageKeys.md` for the full picture and what's still gating access (`EnterPairingCode`'s 4-digit code).
 
-- Previously this screen only scanned a single, self-contained QR (the current JSON `KeyObject` format, plus a legacy semicolon-separated format) that already contained the plaintext private key. Both are gone — a bystander scanning a QR shown at any point in the new flow gets no decryptable secret.
-- The account/session ownership check is unchanged in spirit: the recovered payload's `userId` still must match the signed-in user before any key is imported.
+`utility/securedMessage/DevicePairing.ts` is no longer imported here — see `ManageKeys.md`'s note on it being dead code.
 
 ## Related
 
+- `app/tabs/managekeys/EnterPairingCode.tsx` — the 4-digit code gate that must pass before this screen is reachable.
 - `components/QrScannerView.tsx` — shared camera/permission component.
-- `utility/securedMessage/DevicePairing.ts` — ephemeral key generation, sealing, and unwrapping for this transport.
-- `utility/types/user.ts` — `PairInitPayload` / `PairDataPayload` shapes exchanged over the two QR codes.
+- `utility/types/user.ts` — `KeyObject` is the shape scanned here.

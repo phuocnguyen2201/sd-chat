@@ -26,6 +26,13 @@ The Chat tab is the main interface for viewing and managing conversations. It di
   - Users: Filters by display name
   - Conversations: Filters by participant name or last message content
 
+### Delete Chat (added 2026-09-16, commit `4e02cce`)
+- Long-pressing a conversation row (`onLongPress`) selects it (`activeChatId`) and reveals an inline "Delete chat" row below it, instead of navigating.
+- Tapping elsewhere on the screen (a `Pressable` wrapping the whole tab) or tapping the same row again clears the selection.
+- Tapping "Delete chat" opens a confirmation `AlertDialog` ("This removes the chat from your list. The other participant keeps their copy.").
+- On confirm, `handleDeleteChat()` calls `conversationAPI.leaveConversation(conversationId, userId)` (`utility/messages.ts`) — deletes only the current user's `conversation_participants` row, then removes the room from local state, clears its cached key (`ConversationKeyManager.clear`), and deletes its local snapshot (`SnapShot.deleteSnapshotByConversationId`). This is a leave-for-me action, not delete-for-everyone: the other participant's copy and the message history are untouched.
+- The delete-chat row's `testID` is `automationLocatorsDataState.homeScreen.deleteChatButton`.
+
 ### Push Notifications
 - Registration and notification-response routing are handled by [`Bootstrap`](../Bootstrap.md).
 - The Chat screen refreshes its conversation list when a notification is received.
