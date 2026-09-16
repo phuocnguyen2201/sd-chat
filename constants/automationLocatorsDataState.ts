@@ -27,7 +27,8 @@ export const automationLocatorsDataState = {
         cancelSearchButton: 'cancel-search-button',
         settingsNavigationButton: 'settings-navigation-button',
         chatNavigationButton: 'chat-navigation-button',
-        createGroupChat: 'create-group-chat-button'
+        createGroupChat: 'create-group-chat-button',
+        deleteChatButton: 'delete-chat-button',
     },
     settingsScreen:{
         darkModeSwitch: 'dark-mode-switch',

@@ -489,6 +489,28 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     } catch (error) {
       return { data: null, error: error as Error }
     }
+  },
+
+  /**
+   * Removes the current user from a conversation (deletes their own
+   * conversation_participants row only). This removes the chat from their
+   * own list without touching the other participant's copy or message
+   * history - it is not a delete-for-everyone.
+   */
+  async leaveConversation(conversationId: string, userId: string): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await supabase
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId)
+
+      if (error) throw error
+
+      return { data: true, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   }
 }
 

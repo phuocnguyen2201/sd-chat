@@ -7,11 +7,9 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button, ButtonText } from '@/components/ui/button';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSession } from '@/utility/session/SessionProvider';
-import { DevicePairing, isPairInitPayload } from '@/utility/securedMessage/DevicePairing';
 import { buildKeySyncPayload } from '@/utility/securedMessage/KeySyncPayload';
-import { QrScannerView } from '@/components/QrScannerView';
 
-type Phase = 'idle' | 'scan_peer' | 'show_sealed';
+type Phase = 'idle' | 'show_sealed';
 
 const QR_TTL_SECONDS = 30;
 
@@ -24,42 +22,10 @@ export default function ManageKeys() {
     const [phase, setPhase] = useState<Phase>('idle');
     const [sealedQr, setSealedQr] = useState('');
     const [timeLeft, setTimeLeft] = useState(QR_TTL_SECONDS);
-    const sealingRef = useRef(false);
     const autoStartedRef = useRef(false);
 
-    const onScannedPeerCode = async (raw: string) => {
-        if (sealingRef.current) {
-            return;
-        }
-
-        let parsed: unknown;
-        try {
-            parsed = JSON.parse(raw);
-        } catch {
-            Alert.alert('Error', 'That QR code is not a valid pairing code');
-            setPhase('idle');
-            return;
-        }
-
-        if (!isPairInitPayload(parsed)) {
-            Alert.alert('Error', 'That QR code is not a valid pairing code');
-            setPhase('idle');
-            return;
-        }
-
-        if (!Number.isFinite(parsed.expiresAt) || Date.now() > parsed.expiresAt) {
-            Alert.alert('Error', 'That pairing code expired, ask the other device to generate a new one');
-            setPhase('idle');
-            return;
-        }
-
-        if (parsed.userId && user?.id && parsed.userId !== user.id) {
-            Alert.alert('Error', 'Please log in the same account on both devices to sync keys');
-            setPhase('idle');
-            return;
-        }
-
-        sealingRef.current = true;
+    const shareKeys = async () => {
+        setSealedQr('');
         try {
             const keyPayload = await buildKeySyncPayload(user?.id);
             if (!keyPayload) {
@@ -68,21 +34,13 @@ export default function ManageKeys() {
                 return;
             }
 
-            const sealed = await DevicePairing.sealForPeer(parsed.ephemeralPublicKey, keyPayload);
-            setSealedQr(JSON.stringify(sealed));
+            setSealedQr(JSON.stringify(keyPayload));
             setTimeLeft(QR_TTL_SECONDS);
             setPhase('show_sealed');
         } catch {
             Alert.alert('Error', 'Failed to prepare keys for the other device');
             setPhase('idle');
-        } finally {
-            sealingRef.current = false;
         }
-    };
-
-    const startSharing = () => {
-        setSealedQr('');
-        setPhase('scan_peer');
     };
 
     const cancel = () => {
@@ -91,11 +49,12 @@ export default function ManageKeys() {
     };
 
     // Reached after PairingCode.tsx verifies the other device's 4-digit
-    // code - skip straight into scanning instead of requiring another tap.
+    // code - skip straight into generating the QR instead of requiring
+    // another tap.
     useEffect(() => {
         if (autoShare === '1' && !autoStartedRef.current) {
             autoStartedRef.current = true;
-            startSharing();
+            shareKeys();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoShare]);
@@ -123,9 +82,8 @@ export default function ManageKeys() {
                 <Text>
                     To sync your encryption keys to another device, tap &quot;Receive Keys&quot; on the OTHER
                     device first, then come back here and tap &quot;Share Keys&quot;. You&apos;ll enter a
-                    4-digit code shown on this device to prove the two devices are together, then the QR
-                    exchange runs as usual - your keys are encrypted end-to-end for that device only, nobody
-                    who scans a QR code shown on screen can read them.
+                    4-digit code shown on this device to prove the two devices are together, then a QR code
+                    appears here for the other device to scan.
                 </Text>
             </Box>
 
@@ -138,16 +96,6 @@ export default function ManageKeys() {
                 >
                     <ButtonText className="text-white">Share Keys</ButtonText>
                 </Button>
-            )}
-
-            {phase === 'scan_peer' && (
-                <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-4">
-                    <Text className="mb-4 text-center">Scan the code shown on your other device</Text>
-                    <QrScannerView active={phase === 'scan_peer'} onScanned={onScannedPeerCode} />
-                    <Button onPress={cancel} size="md" action="secondary" className="mt-4">
-                        <ButtonText>Cancel</ButtonText>
-                    </Button>
-                </Box>
             )}
 
             {phase === 'show_sealed' && (
@@ -166,7 +114,7 @@ export default function ManageKeys() {
             )}
 
             <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
-                <Text>Note: Only pair with devices that are physically in your possession. Anyone who can complete both scans of the pairing handshake gets your keys.</Text>
+                <Text>Note: Only pair with devices that are physically in your possession. This QR code contains your private key in the clear - anyone who scans or photographs it can read your messages. Do not share it or leave it on screen.</Text>
             </Box>
             <Button onPress={() => { router.push('/tabs/managekeys/EnterPairingCode'); }}
                 size="md"

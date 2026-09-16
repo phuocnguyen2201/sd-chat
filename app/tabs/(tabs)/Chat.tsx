@@ -7,14 +7,14 @@ import { useEffect, useState } from 'react';
 import { Text } from '@/components/ui/text';
 import { conversationAPI, profileAPI, realtimeAPI } from '@/utility/messages';
 import { VStack } from '@/components/ui/vstack';
-import { Pressable, ScrollView, Alert } from 'react-native';
+import { Pressable, ScrollView, Alert, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, InputField } from '@/components/ui/input';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import * as Notifications from 'expo-notifications';
-import { PlusCircleIcon } from 'lucide-react-native';
+import { PlusCircleIcon, Trash2Icon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import CreateGroupChat from '@/components/CreateGroupChat';
 import { Conversation, UserProfile } from '@/utility/types/supabse';
@@ -22,6 +22,14 @@ import { utilityFunction } from '@/utility/handleStorage';
 import { Button, ButtonText } from '@/components/ui/button';
 import { createSnapshotTable, SnapShot } from '@/utility/localstorage/snapshot';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogBody,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
 
 /**
  * Chat Tab Screen
@@ -43,6 +51,10 @@ export default function Chat() {
   const insets = useSafeAreaInsets();
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -392,6 +404,8 @@ export default function Chat() {
   };
 
   const handleConversationPress = async (room: any) => {
+    setActiveChatId(null);
+
     if (!userId) {
       Alert.alert('Error', 'User session not available');
       return;
@@ -460,6 +474,30 @@ export default function Chat() {
     }
   };
 
+  const handleDeleteChat = async (conversationId: string) => {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      const { error } = await conversationAPI.leaveConversation(conversationId, userId);
+      if (error) throw error;
+
+      setListChatRooms((rooms) => rooms.filter((room) => room.id !== conversationId));
+      setFilteredChatRooms((rooms) => rooms.filter((room) => room.id !== conversationId));
+
+      ConversationKeyManager.clear(conversationId);
+      await SnapShot.deleteSnapshotByConversationId(conversationId);
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      Alert.alert('Error', 'Failed to delete chat');
+    } finally {
+      setShowDeleteChatDialog(false);
+      setChatToDelete(null);
+      setActiveChatId(null);
+    }
+  };
+
   if (!userId) {
     return (
       <Box className="flex-1 bg-white items-center justify-center">
@@ -469,6 +507,14 @@ export default function Chat() {
   }
 
   return (
+    <Pressable
+      style={{ flex: 1 }}
+      onPress={() => {
+        if (activeChatId) {
+          setActiveChatId(null);
+        }
+      }}
+    >
     <Box className={`flex-1 px-4 md:px-6 lg:px-8 isolate ${isDarkMode == "dark"? '':'bg-white'}`} style={{ paddingTop: insets.top }}>
       {/* Header */}
       <Box className="border-b border-gray-200 pt-4 px-4 pb-3">
@@ -596,36 +642,65 @@ export default function Chat() {
                     : '';
 
                   return (
-                    <Pressable
-                      key={`room-${room.id}-${index}`}
-                      onPress={() => handleConversationPress(room)}
-                      className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
-                    >
-                      <Box className="relative">
-                        <Avatar size="lg" className="mr-3">
-                          <AvatarFallbackText>
-                            {( is_group? groupChatName || 'U' : participantNames || 'U').slice(
-                              0,
-                              2
-                            )}
-                          </AvatarFallbackText>
-                          <AvatarImage source={{ uri: groupChatName != '' && is_group ? groupAvatar : participantAvatar || undefined }} />
-                        </Avatar>
-                        <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
-                      </Box>
+                    <Box key={`room-${room.id}-${index}`}>
+                      <Pressable
+                        onLongPress={() => setActiveChatId(room.id)}
+                        onPress={() => {
+                          if (activeChatId === room.id) {
+                            setActiveChatId(null);
+                          } else {
+                            handleConversationPress(room);
+                          }
+                        }}
+                        className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
+                      >
+                        <Box className="relative">
+                          <Avatar size="lg" className="mr-3">
+                            <AvatarFallbackText>
+                              {( is_group? groupChatName || 'U' : participantNames || 'U').slice(
+                                0,
+                                2
+                              )}
+                            </AvatarFallbackText>
+                            <AvatarImage source={{ uri: groupChatName != '' && is_group ? groupAvatar : participantAvatar || undefined }} />
+                          </Avatar>
+                          <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+                        </Box>
 
-                      <Box className="flex-1">
-                        <HStack className="justify-between items-center mb-1">
-                          <Text className="font-semibold text-typography-900 text-base">
-                            {groupChatName != '' ? groupChatName : participantNames}
+                        <Box className="flex-1">
+                          <HStack className="justify-between items-center mb-1">
+                            <Text className="font-semibold text-typography-900 text-base">
+                              {groupChatName != '' ? groupChatName : participantNames}
+                            </Text>
+                            <Text className="text-xs text-gray-500">{time}</Text>
+                          </HStack>
+                          <Text className="text-md" numberOfLines={1}>
+                            {lastMsg}
                           </Text>
-                          <Text className="text-xs text-gray-500">{time}</Text>
-                        </HStack>
-                        <Text className="text-md" numberOfLines={1}>
-                          {lastMsg}
-                        </Text>
-                      </Box>
-                    </Pressable>
+                        </Box>
+                      </Pressable>
+
+                      {/* Long-press option, shown inline below the pressed row */}
+                      {activeChatId === room.id && (
+                        <View
+                          onStartShouldSetResponder={() => true}
+                          onResponderTerminationRequest={() => false}
+                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                        >
+                          <Pressable
+                            testID={automationLocatorsDataState.homeScreen.deleteChatButton}
+                            onPress={() => {
+                              setChatToDelete(room.id);
+                              setShowDeleteChatDialog(true);
+                            }}
+                            className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
+                          >
+                            <Icon as={Trash2Icon} size="sm" className="text-red-500 mr-2" />
+                            <Text className="text-red-500">Delete chat</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </Box>
                   );
                 })
               ) : (
@@ -640,6 +715,48 @@ export default function Chat() {
           </ScrollView>
         </Box>
       </Box>
+
+      {/* Delete Chat Confirmation Dialog */}
+      <AlertDialog isOpen={showDeleteChatDialog} onClose={() => setShowDeleteChatDialog(false)} size="md">
+        <AlertDialogBackdrop />
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <Heading className="text-typography-950 font-semibold" size="md">
+              <Text>Delete chat</Text>
+            </Heading>
+          </AlertDialogHeader>
+          <AlertDialogBody className="mt-3 mb-4">
+            <Text size="sm">
+              This removes the chat from your list. The other participant keeps their copy. Continue?
+            </Text>
+          </AlertDialogBody>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              action="secondary"
+              onPress={() => {
+                setShowDeleteChatDialog(false);
+                setActiveChatId(null);
+              }}
+              size="sm"
+            >
+              <ButtonText>Cancel</ButtonText>
+            </Button>
+            <Button
+              size="sm"
+              action="negative"
+              onPress={() => {
+                if (chatToDelete) {
+                  handleDeleteChat(chatToDelete);
+                }
+              }}
+            >
+              <ButtonText>Delete</ButtonText>
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Box>
+    </Pressable>
   );
 }
