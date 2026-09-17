@@ -12,6 +12,18 @@
 4. `shareKeys()` builds the key-sync payload via `buildKeySyncPayload()` (`utility/securedMessage/KeySyncPayload.ts`: the local private key plus every conversation key this device holds) and renders it **directly, as plaintext JSON**, in a QR code (`show_sealed` phase), with a 30s countdown after which the QR is cleared.
 5. The receiving device scans that QR in `ScanningKeys` — see `ScanningKeys.md`.
 
+`Done` currently calls `cancel()`, which clears the QR and returns to the `idle` phase (staying on this screen). A pending change will route it to Settings instead — see `in-progress.md`.
+
+## QR rendering requirements (do not regress — fixed 2026-09-17)
+
+The `<QRCode>` here must keep **all three** of these, or the code becomes undecodable by every scanner while still looking correct to a human:
+
+- **`quietZone={16}`** — `react-native-qrcode-svg` defaults to `quietZone = 0`. The QR spec requires a blank margin of ≥4 modules so decoders can locate the finder patterns.
+- **`bg-white` on the wrapping `Box`** — the library paints white only out to the code's exact edge, and this screen's `ScrollView` has no background class, so without this the quiet zone is the *app's dark background* in dark mode. This was the original bug: unreadable in dark mode, fine in light.
+- **`size={260}`** — the payload (private key + every conversation key, ~558 chars in testing) at the default `ecl="M"` produces a ~77×77-module code. At the previous `size={200}` that is ~2.6dp per module, at the edge of what a phone camera can resolve off another phone's screen.
+
+Payload size scales with the number of conversations, so a user with many chats gets a denser code. If scanning becomes unreliable again, check the payload length before suspecting the camera.
+
 `Receive Keys` pushes `/tabs/managekeys/EnterPairingCode` (the new device's half of the same code gate) rather than going straight to `ScanningKeys`.
 
 ## Security model (changed 2026-09-16, commit `4e02cce`)

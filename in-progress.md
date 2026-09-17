@@ -12,10 +12,18 @@
 ## Schema not tracked in-repo
 The `devices`, `device_pairing_requests`, and now `local_pairing_codes` tables (and their RLS) were applied by hand-running SQL directly against the Supabase project. There's no `supabase/migrations/` entry for any of them, so a fresh environment/CI wouldn't get this schema automatically. Worth adding migration files for traceability if/when convenient.
 
-## Local pairing-code gate + single-QR key sharing — implemented, needs on-device testing
-`PairingCode.tsx` / `EnterPairingCode.tsx` + the `local-code-*` Edge Function actions (2026-09-15) sit in front of key sharing; as of 2026-09-16 (commit `4e02cce`) the QR step behind that gate went back to a single plaintext-`KeyObject` QR (the two-QR ECDH handshake was removed — see progress.md). Neither the gate nor the reworked QR step has been run on real devices yet. Before considering this done:
+## Next up (2026-09-18): `ManageKeys` QR screen — `Done`/`Cancel` should return to Settings
+On the **sharing** device, while the QR is displayed (`show_sealed` phase), pressing `Done` currently calls `cancel()`, which only clears `sealedQr` and drops the screen back to the `idle` phase — the user is left sitting on `ManageKeys` with a `Share Keys` button again. Desired behavior: `Done` (and any Cancel path on the QR screen) should navigate to the **Settings** screen instead, i.e. `router.replace({ pathname: '/tabs/(tabs)/Settings' })` — matching what `ScanningKeys` already does on the receiving side when its completion dialog's `Ok` is pressed. To implement next session.
+- Decide whether the 30s TTL expiry path (`timeLeft === 0`, which currently also falls back to `idle`) should likewise bounce to Settings, or stay on `ManageKeys` so the user can regenerate — these are currently the same code path and would need splitting.
+
+## Local pairing-code gate + single-QR key sharing — QR scan verified, rest still needs on-device testing
+`PairingCode.tsx` / `EnterPairingCode.tsx` + the `local-code-*` Edge Function actions (2026-09-15) sit in front of key sharing; as of 2026-09-16 (commit `4e02cce`) the QR step behind that gate went back to a single plaintext-`KeyObject` QR (the two-QR ECDH handshake was removed — see progress.md).
+
+**Confirmed working on a real device 2026-09-17:** the QR scan itself now completes, after fixing the missing quiet zone on the generated QR (see progress.md's 2026-09-17 entry). Still untested:
 - Run through the full flow on two real devices: Settings → Biometric → Share Keys → code shown → other device → Receive Keys → enter code → confirm the (now single) QR scan completes correctly and both accounts match.
 - Exercise the failure paths: wrong code (attempts-remaining message), 5 wrong attempts (lockout countdown), code expiry (regenerate button on `PairingCode`), QR expiry (30s, `ManageKeys` clears back to idle), Cancel on all four screens.
+- Re-test the **inline** `QrScannerView` camera specifically. The scan was confirmed working while temporarily routed through `CameraView.launchScanner()` (Google's full-screen Code Scanner); that path was then reverted back to the inline `CameraView` and has not itself been re-verified against the fixed QR.
+- Check the QR renders and scans in **both light and dark mode** — dark mode was the condition that made it undecodable in the first place.
 - `.expo/types/router.d.ts` was hand-patched to add the `PairingCode`/`EnterPairingCode` routes so `tsc` would pass without a running dev server — once `expo start` runs normally it'll regenerate that file properly; just confirm it doesn't collide with the manual patch (it shouldn't, since that file is gitignored and fully regenerated, not merged).
 - `BiometricAuthentication.tsx` was deliberately left unchanged (still routes to `ManageKeys`, which now gates both directions via the two new screens) — flag if a different entry point was actually intended.
 

@@ -17,6 +17,13 @@ This screen previously generated its own ephemeral key pair and scanned a *secon
 
 `utility/securedMessage/DevicePairing.ts` is no longer imported here — see `ManageKeys.md`'s note on it being dead code.
 
+## Camera component notes (`components/QrScannerView.tsx`)
+
+- **`autofocus="on"` is required.** `expo-camera` internally resolves `newProps.autoFocus = props?.autofocus ?? 'off'`, so omitting the prop leaves the camera with focus **locked**, which struggles with a dense QR at close range.
+- The preview is wrapped in a `Box` carrying the themed border (`border-gray-300` / `dark:border-gray-600`). `CameraView` is a native component and is not wired into NativeWind in this project, so `className` cannot be applied to it directly — theme-aware styling has to live on the wrapper.
+- `hasScannedRef` latches after the first successful read, because `onBarcodeScanned` keeps firing for as long as the code stays in frame; the parent's `active` prop resets it.
+- If scanning ever appears broken again, suspect the **generated** QR before the camera — see the "QR rendering requirements" section in `ManageKeys.md`. A silent failure with a live preview and no logs is the signature of an undecodable code, not a broken scanner.
+
 ## Related
 
 - `app/tabs/managekeys/EnterPairingCode.tsx` — the 4-digit code gate that must pass before this screen is reachable.
