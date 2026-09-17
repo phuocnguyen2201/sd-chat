@@ -1,0 +1,28 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: Chat list -> "+" header button -> CreateGroupChat modal -> select
+# recipients -> Create Group. On success createGroupChat() pushes straight
+# into the new room, so the flow ends inside the conversation.
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+
+- tapOn: { id: "create-group-chat-button" }
+- assertVisible: "Create Group Chat"
+- assertVisible: "Choose recipients"
+
+# Nothing selected yet -> the create button is disabled and reads (0)
+- assertVisible: "Create Group \\(0\\)"
+
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Create Group \\(1\\)"
+- tapOn: "Create Group \\(1\\)"
+
+# Modal closes and we land in the freshly created group room.
+# Its title is the joined display names, so it contains the recipient's name.
+- assertNotVisible: "Create Group Chat"
+- extendedWaitUntil:
+    visible: ".*Android Simulator.*"
+    timeout: 15000
+- assertVisible: "Input Field"
+- assertVisible: "➤"

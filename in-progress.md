@@ -30,6 +30,18 @@ On the **sharing** device, while the QR is displayed (`show_sealed` phase), pres
 ## Dead code: `utility/securedMessage/DevicePairing.ts`
 No longer imported by anything after commit `4e02cce` removed the two-QR ECDH handshake from `ManageKeys`/`ScanningKeys` (see progress.md's 2026-09-16 entry). Left in the tree, not deleted. Worth either removing it (and its `isPairInitPayload`/`isPairDataPayload` guards, and the now-unused `PairInitPayload`/`PairDataPayload` types in `utility/types/user.ts`) or confirming with the user whether the two-QR handshake is meant to come back later — flag before deleting, since it may be intentionally kept as a reference for restoring stronger security later.
 
-## Delete Chat — implemented, no automated test coverage yet
-`Chat.tsx`'s long-press "Delete chat" action (commit `4e02cce`) has no Maestro flow under `maestro/` yet, unlike the light/dark-mode assertions mentioned in `bfb55e0`. Automation locator `deleteChatButton` is in place (`constants/automationLocatorsDataState.ts`) if/when a flow is added.
+## Maestro suite — 6 new flows written 2026-09-17, none run on a device yet
+`create-group-chat`, `rename-group-chat`, `edit-message`, `delete-message`, `delete-chat`, `delete-account` were added under `maestro/`. They are YAML-validated only — **none has been executed against an emulator or device**. Expect selector drift on first run, most likely at:
+- `rename-group-chat.yaml`'s `point: 88%,7%` header-edit tap (copied from `interactive-users.yaml`, Android-tuned).
+- `rename-group-chat.yaml`'s `tapOn: { below: "Group Name" }` relative selector for the pre-filled room-name `TextInput`.
+- `delete-chat.yaml`'s `tapOn: "^Delete$"` — depends on Maestro treating text selectors as full-match regex, which the existing flows' `.*Foo.*` style implies but which hasn't been confirmed for an anchored pattern.
+- `delete-account.yaml`'s `tapOn: "Skip"` on `EnableBiometric` — the existing account-creation flow taps "Enable Touch ID" instead, so the Skip path is unproven.
+
+Also still uncovered, and all single-device (no blocker, just unwritten): zoom image, shared files tab in `ChatRoomEditing`, standalone logout, Bootstrap's 4 routing branches, `PairingCode` countdown/expiry/regenerate, and every `EnterPairingCode` failure path.
+
+## Maestro — seeded-fixture fragility
+~8 of the 15 pre-existing flows depend on a hand-seeded peer account named `"Android Simulator"` and a message with the exact text `"Testing message"` already present in that DM. Nothing creates these; if the Supabase data is reset the suite breaks with confusing selector failures. Worth replacing with a `runScript` + `http` setup step that provisions the peer and the message against Supabase before the flow runs — this is the same mechanism that would remove the need for a second device on the realtime/push tests.
+
+## `BiometricAuthentication` "Back" button navigates forward — decide if intended
+`app/tabs/managekeys/BiometricAuthentication.tsx:62`: the button labelled **"Back"** calls `router.push('/tabs/managekeys/ManageKeys')`, so it skips the biometric check entirely and lands on key management. Either the label is wrong (should be `router.back()`) or the bypass is intentional for testing. Flagged, not changed — it currently doubles as the only way a Maestro flow can reach `ManageKeys` without a biometric sensor.
 

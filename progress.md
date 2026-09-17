@@ -41,3 +41,21 @@
 - Noted but not changed: `.env` spells the pairing URL `EXPO_PUBLIC_PAIRTING_KEY_URL` (typo) while `eas.json` spells it `EXPO_PUBLIC_PAIRING_KEY_URL`. No code references either yet, so it is not an active bug.
 - Git housekeeping: cleared a stale, half-finished interactive rebase left in `.git/rebase-merge` (started months earlier, when `main` was at `ee561d1` "Update dark mode"). Used `git rebase --quit`, **not** `--abort`, since abort would have reset `main` back to `ee561d1` and dropped the scanner commit. `ee561d1` is on no branch; it is now tagged `stale-dark-mode-ee561d1`, and its contents (`isDarkMode`/`fetchThemeMode` in `SessionProvider.tsx`, `tailwind.config.js`) are already present in `main` by another route. Local `main` was then rebased onto `origin/main` to resolve a 1-ahead/1-behind divergence with `36ca6ab`.
 
+
+## 2026-09-17 (session 2) — Maestro coverage audit + 6 new flows
+
+- **Audited every feature against `maestro/`** (15 existing flows, no subdirs, no config file). Classified each feature by what automation it actually needs:
+  - Most of the app is single-device testable; ~8 of the 15 existing flows silently depend on a hand-seeded peer account (`"Android Simulator"`) plus an existing `"Testing message"` in that DM.
+  - **Only one feature family genuinely requires two devices: the key-sync QR handshake** (`PairingCode` → `ManageKeys` → `EnterPairingCode` → `ScanningKeys`). And even with two devices Maestro cannot drive it — device B's camera must physically see device A's screen. Two emulators don't help (the emulator's virtual-scene camera only shows a static wall image; the QR is generated per session).
+  - Realtime delivery and push notifications need a *second actor*, not a second device — Maestro's `runScript` JS has an `http` object, so the peer can be driven against Supabase REST/Edge Functions from inside a flow.
+  - `PairingCode` (generate/countdown/expire/regenerate/cancel) and **all** `EnterPairingCode` failure paths (wrong code → attempts remaining, 5 wrong → lockout, cancel) are **fully single-device testable** — `EnterPairingCode` self-registers via `DeviceIdentity.registerCurrentDevice()` at line 36, so no peer is needed.
+  - `ManageKeys`' QR render / 30s TTL / expiry could be reached single-device via a deep link (`starterkitexpo://tabs/managekeys/ManageKeys?autoShare=1`) — the scheme is `starterkitexpo` (`app.json:8`), not the bundle id.
+- **Found: `BiometricAuthentication.tsx:62` — the button labelled "Back" calls `router.push('/tabs/managekeys/ManageKeys')`, i.e. it navigates *forward*, straight past the biometric gate.** Useful as an automation bypass, but it means the gate isn't a gate. Not changed — flagged for a decision.
+- **Added 6 Maestro flows** covering the gaps (all YAML-validated):
+  - `create-group-chat.yaml` — "+" → CreateGroupChat modal → select recipient → `Create Group (1)`. Note `createGroupChat()` pushes straight into the new room, so the flow ends inside the conversation.
+  - `rename-group-chat.yaml` — creates a group first (the rename UI only renders when `isGroup`; a DM shows a read-only `<Heading>`), then Edit Chat Room → rename to `"QA Group Chat"` → Save.
+  - `edit-message.yaml` — sends its own message, long-press → Edit → composer pre-fill → re-send → asserts the realtime UPDATE swap.
+  - `delete-message.yaml` — sends its own message, exercises Cancel *and* Okay on the confirm dialog.
+  - `delete-chat.yaml` — deliberately creates and deletes a throwaway group rather than the seeded DM, which would drop the `"Testing message"` history that `send-reaction`/`forward-message` assert on.
+  - `delete-account.yaml` — registers a throwaway account inline (never touches the shared `${EMAIL}` fixture), skips biometrics, then Settings → Delete Account → Cancel → confirm → back to login.
+- Conventions followed from the existing suite: text selectors are **full-match regex** (hence `.*Android Simulator.*`), `"Input Field"` is gluestack's accessibility label and matches even when the field holds a value (proven by `change-display-name.yaml`'s backspace loop), and `point:` selectors are reused where the existing flows already use them.

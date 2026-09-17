@@ -1,0 +1,41 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: long-press -> MessageAction "Delete" -> confirmation AlertDialog
+# -> Okay -> handleDeleteMessage(). Sends its own message first so it never
+# destroys seeded fixtures the other flows assert on.
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Android Simulator.*"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Android Simulator"
+
+- assertVisible: "Input Field"
+- tapOn: "Input Field"
+- inputText: "Message to delete"
+- tapOn: "➤"
+- extendedWaitUntil:
+    visible: "Message to delete"
+    timeout: 10000
+
+- longPressOn: "Message to delete"
+- assertVisible: "Delete"
+- tapOn: "Delete"
+
+# Confirmation dialog
+- assertVisible: "Notification"
+- assertVisible: "Delete the message cannot be undone.*"
+
+# Cancel first — the message must survive
+- tapOn: "Cancel"
+- assertVisible: "Message to delete"
+
+# Now confirm for real
+- longPressOn: "Message to delete"
+- tapOn: "Delete"
+- assertVisible: "Notification"
+- tapOn: "Okay"
+
+- extendedWaitUntil:
+    notVisible: "Message to delete"
+    timeout: 15000

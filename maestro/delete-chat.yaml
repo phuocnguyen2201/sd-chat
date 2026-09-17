@@ -1,0 +1,45 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: long-press a conversation row -> inline "Delete chat" action ->
+# confirmation AlertDialog -> Delete -> leaveConversation().
+#
+# NOTE: this deliberately operates on a throwaway group it creates itself.
+# Deleting the seeded "Android Simulator" DM would drop its message history
+# and break send-reaction / forward-message, which assert on "Testing message".
+- runFlow: rename-group-chat.yaml
+
+# rename-group-chat leaves us in the room named "QA Group Chat"
+- runFlow:
+    when:
+      platform: "Android"
+    commands:
+      - tapOn: "Navigate up"
+- runFlow:
+    when:
+      platform: "iOS"
+    commands:
+      - back
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: "QA Group Chat"
+
+- longPressOn: "QA Group Chat"
+- assertVisible: { id: "delete-chat-button" }
+- tapOn: { id: "delete-chat-button" }
+
+# Confirmation dialog
+- assertVisible: "This removes the chat from your list.*"
+
+# Cancel keeps the chat
+- tapOn: "Cancel"
+- assertVisible: "QA Group Chat"
+
+# Confirm — "^Delete$" so it does not match the "Delete chat" row/heading
+- longPressOn: "QA Group Chat"
+- tapOn: { id: "delete-chat-button" }
+- assertVisible: "This removes the chat from your list.*"
+- tapOn: "^Delete$"
+
+- extendedWaitUntil:
+    notVisible: "QA Group Chat"
+    timeout: 15000

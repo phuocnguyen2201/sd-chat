@@ -1,0 +1,37 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: long-press -> MessageAction "Edit" -> input is pre-filled with the
+# decrypted text -> send re-encrypts and UPDATEs the row (handleSend's
+# activeMessage branch). Sends its own message first so it is self-contained.
+- launchApp
+- assertVisible: "Chat.*"
+- assertVisible: { id: "users-scroll" }
+- assertVisible: ".*Android Simulator.*"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Android Simulator"
+
+- assertVisible: "Input Field"
+- tapOn: "Input Field"
+- inputText: "Message before edit"
+- tapOn: "➤"
+- extendedWaitUntil:
+    visible: "Message before edit"
+    timeout: 10000
+
+- longPressOn: "Message before edit"
+- assertVisible: "Edit"
+- assertVisible: "Forward"
+- assertVisible: "Delete"
+- tapOn: "Edit"
+
+# onEdit() copies the decrypted text into the composer; clear it and retype
+- tapOn: "Input Field"
+- eraseText: 40
+- inputText: "Message after edit"
+- tapOn: "➤"
+
+# The realtime UPDATE subscription swaps the row in place
+- extendedWaitUntil:
+    visible: "Message after edit"
+    timeout: 15000
+- assertNotVisible: "Message before edit"

@@ -1,0 +1,36 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: ChatRoomEditing rename + Save (handleSave -> router.back()).
+#
+# NOTE: the rename UI only renders when isGroup is true — a DM shows a
+# read-only <Heading>. So this flow creates a group first rather than
+# relying on seeded data.
+- runFlow: create-group-chat.yaml
+
+# Header edit button of the room (same target interactive-users.yaml uses)
+- tapOn:
+    point: 88%,7%
+- assertVisible: "Edit Chat Room"
+- assertVisible: "Group Name"
+
+# The TextInput sits directly below the "Group Name" label and is
+# pre-filled with the generated name, so match it positionally.
+- tapOn:
+    below: "Group Name"
+- eraseText: 60
+- inputText: "QA Group Chat"
+
+- runFlow:
+    when:
+      platform: "iOS"
+    commands:
+      - assertVisible: ".*Return.*"
+      - tapOn: ".*Return.*"
+
+- tapOn: "Save"
+
+# handleSave() navigates back to the room, whose header now shows the new name
+- extendedWaitUntil:
+    visible: "QA Group Chat"
+    timeout: 10000
+- assertNotVisible: "Edit Chat Room"

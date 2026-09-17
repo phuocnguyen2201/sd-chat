@@ -1,0 +1,79 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: Settings -> Delete Account -> confirmation dialog -> Okay
+# -> accountAPI.deleteAccount() -> router.replace('/') back to login.
+#
+# NOTE: this registers a throwaway account first. It must never run against
+# the shared ${EMAIL} fixture the other flows log in with.
+- launchApp
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+- assertVisible: "Email"
+- assertVisible: "Password"
+
+- tapOn: "Enter your email"
+- inputRandomEmail
+- tapOn: "Enter your password"
+- inputText: ${PASSWORD}
+
+- runFlow:
+    when:
+      platform: "iOS"
+    commands:
+      - assertVisible: ".*Return.*"
+      - tapOn: ".*Return.*"
+
+- tapOn: "Register"
+- assertVisible: ".*Registration successful!.*"
+- tapOn: "Okay"
+- tapOn: "Login"
+
+# Complete profile (display name only, no avatar)
+- assertVisible: "Complete the profile"
+- tapOn: "Input Field"
+- inputRandomPersonName
+
+- runFlow:
+    when:
+      platform: "iOS"
+    commands:
+      - assertVisible: ".*Return.*"
+      - tapOn: ".*Return.*"
+
+- tapOn: "Save"
+
+# Skip the biometric enrolment step
+- extendedWaitUntil:
+    visible: "Enable Biometric"
+    timeout: 15000
+- tapOn: "Skip"
+
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 15000
+- assertVisible: { id: "users-scroll" }
+
+# Settings -> Delete Account
+- tapOn: "Settings"
+- assertVisible: "Delete Account"
+- tapOn: { id: "delete-account-button" }
+
+- assertVisible: "Notification"
+- assertVisible: "Delete the account cannot be undone.*"
+
+# Cancel first — the account must survive
+- tapOn: "Cancel"
+- assertVisible: "Delete Account"
+
+# Confirm for real
+- tapOn: { id: "delete-account-button" }
+- assertVisible: "Notification"
+- tapOn: "Okay"
+
+# deleteAccount() routes back to the login screen
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 20000
+- assertVisible: "Email"
+- assertVisible: "Password"
