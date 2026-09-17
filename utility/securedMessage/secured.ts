@@ -235,6 +235,11 @@ static async unwrapConversationKey(
   const conversationKey = cipher.open(nonce, wrappedKey);
 
   if (!conversationKey) {
+    // Zero the derived material before unwinding, not just on the success path.
+    sharedSecret.fill(0);
+    unwrapKey.fill(0);
+    privateKey.fill(0);
+
     throw new Error('Key unwrapping failed');
   }
 

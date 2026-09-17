@@ -13,6 +13,10 @@ import { Input, InputField } from '@/components/ui/input';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
+import {
+  resolveConversationKey,
+  ConversationKeyLookup,
+} from '@/utility/securedMessage/ConversationKeyResolver';
 import * as Notifications from 'expo-notifications';
 import { PlusCircleIcon, Trash2Icon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
@@ -159,7 +163,9 @@ export default function Chat() {
             recipientId || '',
             MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.wrappedKey),
             MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.nonce),
-            recipientId === userId ? groupCreatorPublicKey : public_key,
+            // Every row was wrapped with the creator's private key, so the
+            // creator's public key is what opens it - including their own row.
+            groupCreatorPublicKey,
           );
         }
       }
@@ -183,43 +189,79 @@ export default function Chat() {
     }
   };
 
+  const lookupConversationKey = async (
+    public_key: string,
+    conversationId: string
+  ): Promise<ConversationKeyLookup> =>
+    resolveConversationKey(conversationId, userId, [public_key]);
+
   const getConversationKeyForOtherParticipants = async (
     public_key: string,
     conversationId: string
   ): Promise<Uint8Array | null> => {
-    try {
-      // Check cache first
-      const cached = await ConversationKeyManager.getKey(conversationId);
-      if (cached) {
-        return cached;
-      }
+    const lookup = await lookupConversationKey(public_key, conversationId);
+    return lookup.status === 'found' ? lookup.key : null;
+  };
 
-      // Convert public key
-      const publicKey = MessageEncryption.base64ToBytes(public_key);
+  /*
+    Mint a conversation key and wrap it for everyone who needs it.
 
-      const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversationId, userId);
-
-      if (!getWrappedKey.data?.[0]?.wrapped_key || !getWrappedKey.data?.[0]?.key_nonce) {
-        console.error('Missing wrapped key data');
-        return null;
-      }
-
-      const wrapped = MessageEncryption.base64ToBytes(getWrappedKey.data[0].wrapped_key);
-      const key_nonce = MessageEncryption.base64ToBytes(getWrappedKey.data[0].key_nonce);
-
-      const conversationKey = await MessageEncryption.unwrapConversationKey(
-        wrapped,
-        key_nonce,
-        publicKey
-      );
-
-      // Store in cache and secure storage
-      await ConversationKeyManager.setConversationKey(conversationId, conversationKey);
-      return conversationKey;
-    } catch (error) {
-      console.error('Error getting conversation key:', error);
+    wrapConversationKey() always wraps with THIS device's private key, so every
+    row written here records this user's own public key as other_party_pub_key -
+    that is the key the reader has to pair with their private key to open it.
+    A copy is wrapped for the minting user too, so losing local storage is
+    recoverable instead of permanently unreadable.
+  */
+  const createAndDistributeConversationKey = async (
+    conversationId: string,
+    recipientId: string,
+    recipientPublicKey: string
+  ): Promise<Uint8Array | null> => {
+    if (!recipientPublicKey || !profile?.public_key) {
+      Alert.alert('Error', 'Encryption keys not found. Please complete your profile setup.');
       return null;
     }
+
+    const recipientKeyBytes = MessageEncryption.base64ToBytes(recipientPublicKey);
+
+    if (recipientKeyBytes.length !== 32) {
+      Alert.alert('Error', 'Invalid encryption keys detected. Please contact support.');
+      return null;
+    }
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+
+    const wrappedForRecipient = await MessageEncryption.wrapConversationKey(
+      conversationKey,
+      recipientKeyBytes
+    );
+
+    if (wrappedForRecipient) {
+      await conversationAPI.storeConversationKey(
+        conversationId,
+        recipientId,
+        MessageEncryption.bytesToBase64(wrappedForRecipient.wrappedKey),
+        MessageEncryption.bytesToBase64(wrappedForRecipient.nonce),
+        profile.public_key
+      );
+    }
+
+    const wrappedForSelf = await MessageEncryption.wrapConversationKey(
+      conversationKey,
+      MessageEncryption.base64ToBytes(profile.public_key)
+    );
+
+    if (wrappedForSelf) {
+      await conversationAPI.storeConversationKey(
+        conversationId,
+        userId,
+        MessageEncryption.bytesToBase64(wrappedForSelf.wrappedKey),
+        MessageEncryption.bytesToBase64(wrappedForSelf.nonce),
+        profile.public_key
+      );
+    }
+
+    return conversationKey;
   };
 
   useEffect(() => {    
@@ -331,63 +373,47 @@ export default function Chat() {
       if (existing.data?.conversation_id && guidRegex.test(existing.data?.conversation_id)) {
         // Use existing conversation
         conversationId = existing.data.conversation_id;
-        // Fetch and cache the key
-        const key = await getConversationKeyForOtherParticipants(users.public_key, conversationId);
-        if (key) await setCurrentConversation(conversationId, key);
       } else {
-        // Create new conversation
+        /*
+          create_dm_conversation is get-or-create: it hands back the existing
+          conversation when there is one. So its result says nothing about
+          whether a conversation key already exists - only the key lookup below
+          may decide that.
+        */
         const newConversation = await conversationAPI.getOrCreateDM(users.id);
         //setNewChat(newConversation.data?.conversationId ?? '');
 
         if (
-          newConversation.data?.conversationId &&
-          guidRegex.test(newConversation.data.conversationId)
+          !newConversation.data?.conversationId ||
+          !guidRegex.test(newConversation.data.conversationId)
         ) {
-          conversationId = newConversation.data.conversationId;
-
-          // Check if both users have valid public keys
-          if (!users.public_key || !profile.public_key) {
-            Alert.alert(
-              'Error',
-              'Encryption keys not found. Please complete your profile setup.'
-            );
-            return;
-          }
-
-          // Validate key sizes
-          const recipientKeyBytes = MessageEncryption.base64ToBytes(users.public_key);
-
-          if (recipientKeyBytes.length !== 32) {
-            Alert.alert('Error', 'Invalid encryption keys detected. Please contact support.');
-            return;
-          }
-
-          // Create and store the conversation key
-          const conversationKey = await MessageEncryption.createConversationKey();
-
-          // Wrap the conversation key for the recipient
-          const wrappedKeyDataRecipient = await MessageEncryption.wrapConversationKey(
-            conversationKey,
-            recipientKeyBytes
-          );
-
-          if (wrappedKeyDataRecipient) {
-            // Save the wrapped key and nonce to the database
-            await conversationAPI.storeConversationKey(
-              conversationId,
-              users.id,
-              MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.wrappedKey),
-              MessageEncryption.bytesToBase64(wrappedKeyDataRecipient.nonce),
-              profile.public_key
-            );
-          }
-          // Store in cache and secure storage via SessionProvider
-          await setCurrentConversation(conversationId, conversationKey);
-        } else {
           Alert.alert('Error', 'Failed to create or retrieve conversation');
           return;
         }
+
+        conversationId = newConversation.data.conversationId;
       }
+
+      const lookup = await lookupConversationKey(users.public_key, conversationId);
+
+      if (lookup.status === 'failed') {
+        // A key exists but this device cannot open it. Minting a replacement here
+        // would lock the other participant out of every message sent so far.
+        Alert.alert('Error', 'Failed to retrieve conversation key');
+        return;
+      }
+
+      const conversationKey =
+        lookup.status === 'found'
+          ? lookup.key
+          : await createAndDistributeConversationKey(conversationId, users.id, users.public_key);
+
+      if (!conversationKey) {
+        return;
+      }
+
+      // Store in cache and secure storage via SessionProvider
+      await setCurrentConversation(conversationId, conversationKey);
 
       // Navigate to chat room (key is now in session context)
       router.push({
@@ -417,41 +443,62 @@ export default function Chat() {
       const groupChatName = room?.name??'';
       const groupChatCreatorId = room?.created_by || '';
 
-      // For group chat, we may need to handle differently in future
-      let otherPublicKey = isGroup? data?.find((participant: any) => participant.profiles?.id === groupChatCreatorId)?.[0]?.profiles?.public_key || null: null;
+      let otherPublicKey: string | null = null;
+      if (isGroup) {
+        // A group key is wrapped by whoever created the group, so the creator's
+        // public key is the one that opens this user's row.
+        otherPublicKey =
+          data?.find((participant: any) => participant?.profiles?.id === groupChatCreatorId)
+            ?.profiles?.public_key || null;
 
-      // For 1-1 chat, get the other participant's public key for the first time conversation initialization
-      if(data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null){
-        const firstInitConversationKey = await profileAPI.getParticipantsPublicKey([data?.[0]?.profiles?.id, data?.[1]?.profiles?.id])
-        otherPublicKey = 
-          firstInitConversationKey.data?.[0]?.id == userId
-          ? firstInitConversationKey.data?.[1]?.public_key
-          : firstInitConversationKey.data?.[0]?.public_key || null;
+        if (!otherPublicKey && groupChatCreatorId) {
+          // The creator is not in the participant list any more (they left the
+          // group), but their public key is still what opens the row.
+          const creatorProfile = await profileAPI.getParticipantsPublicKey([groupChatCreatorId]);
+          otherPublicKey = creatorProfile.data?.[0]?.public_key ?? null;
+        }
+      }
+      else if (data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null) {
+        /*
+          1-1 chat whose participant rows did not carry the public keys. Ids can
+          be missing when the other person has left the conversation, so drop
+          those instead of querying profiles for `undefined`.
+        */
+        const participantIds =
+          data
+            ?.map((participant: any) => participant?.profiles?.id)
+            .filter((id: any): id is string => !!id) ?? [];
+
+        const firstInitConversationKey = await profileAPI.getParticipantsPublicKey(participantIds);
+        otherPublicKey =
+          firstInitConversationKey.data?.find((candidate: any) => candidate?.id !== userId)
+            ?.public_key ?? null;
       }
       else
-        otherPublicKey = 
-          data?.[1]?.profiles?.id == userId
-          ? data?.[0]?.profiles?.public_key
-          : data?.[1]?.profiles?.public_key;
-          //console.log('Other participant public key:', otherPublicKey);
+        /*
+          In a DM the other participant is the one who created the conversation
+          and wrapped the key, so their public key is what opens this user's row.
+          Matching on "not me" rather than on a fixed index keeps this correct
+          whatever order the participants come back in.
+        */
+        otherPublicKey =
+          data?.find((participant: any) => participant?.profiles?.id !== userId)?.profiles
+            ?.public_key ?? null;
     
+      // A locally stored key still opens the room even when the public key is
+      // missing, so only treat a missing public key as fatal if the lookup fails.
       const conversationKeyBytes = await getConversationKeyForOtherParticipants(
-          otherPublicKey,
+          otherPublicKey ?? '',
           room.id
         );
 
-     //console.log('Other participant public key:', otherPublicKey);
-      if (!otherPublicKey) {
-        Alert.alert('Error', 'Unable to load conversation key');
-        return;
-      }
-      
-      //console.log('Failed here');
       if (!conversationKeyBytes) {
-        Alert.alert('Error', 'Failed to retrieve conversation key');
+        Alert.alert(
+          'Error',
+          otherPublicKey ? 'Failed to retrieve conversation key' : 'Unable to load conversation key'
+        );
         return;
       }
-
       // Set in session context
       await setCurrentConversation(room.id, conversationKeyBytes);
 

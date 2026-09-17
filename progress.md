@@ -1,5 +1,17 @@
 # Progress Log
 
+## 2026-09-17 — Launch video (`/brag`), no app code touched
+
+- Built a 23.8s vertical (1080x1920) launch video for SD Chat with the `brag` plugin + Hyperframes. Output lives in `brag-output/` (untracked; `composition/node_modules` is covered by the existing `node_modules/` ignore).
+  - `brag-output/brag.mp4` — 4.4 MB, 30fps, h264 + aac, poster baked as frame 0
+  - `brag-output/brag.jpg` — poster (the t=6.9s ciphertext beat)
+  - `brag-output/brag-plan.md`, `composition-brief.md`, `share-copy.txt`, `composition/` (the Hyperframes project)
+- Story: type + send a real message → cut to the ciphertext the Supabase row actually stores → the crypto stack (ChaCha20-Poly1305 / per-conversation keys / private key in Secure Store behind Face ID) → the device-pairing flow (`Share Keys` → 4-digit code + 30s TTL → `Receive Keys` → `Verify` → QR scan → paired) → logo. All on-screen copy is real app copy; colours are the real palette (`#2563EB` sent bubble — one step darker than the app's `bg-blue-500` so the render passes the WCAG AA gate — `#E5E7EB` received, lime `#CAF020` sampled from `assets/images/icon.png`), and the mono face is the project's own `SpaceMono-Regular.ttf`.
+- `npx hyperframes check` passes clean: 0 lint / runtime / motion errors, 37/37 WCAG AA text checks.
+- Toolchain note for re-rendering: Homebrew has **no bottles for this macOS/Intel combo** and started compiling ffmpeg's ~90 deps from source (hours). Switched to npm `ffmpeg-static` + `ffprobe-static`, symlinked at `brag-output/composition/.bin/`. Re-render with:
+  `cd brag-output/composition && PATH="$PWD/.bin:$PATH" npx hyperframes render --quality looks --output ../brag.mp4`
+- Installed as a side effect: the `brag` plugin (`/plugin`) and the Hyperframes AI skills into `~/.claude/skills/` (`npx hyperframes skills`). No app source, Supabase schema, or documentation was modified.
+
 ## 2026-09-11 — Secure device-to-device key sync (commit `c7ad612`)
 
 - Replaced the old single-QR plaintext key transfer (`ManageKeys`/`ScanningKeys`) with a two-QR ephemeral ECDH handshake: X25519 + HKDF-SHA512 + ChaCha20-Poly1305 (`utility/securedMessage/secured.ts`: `generateEphemeralKeyPair`, `ecdhSeal`, `ecdhOpen`). A bystander who photographs either QR now gets either a bare ephemeral public key or AEAD ciphertext — never a usable private key.
@@ -59,3 +71,62 @@
   - `delete-chat.yaml` — deliberately creates and deletes a throwaway group rather than the seeded DM, which would drop the `"Testing message"` history that `send-reaction`/`forward-message` assert on.
   - `delete-account.yaml` — registers a throwaway account inline (never touches the shared `${EMAIL}` fixture), skips biometrics, then Settings → Delete Account → Cancel → confirm → back to login.
 - Conventions followed from the existing suite: text selectors are **full-match regex** (hence `.*Android Simulator.*`), `"Input Field"` is gluestack's accessibility label and matches even when the field holds a value (proven by `change-display-name.yaml`'s backspace loop), and `point:` selectors are reused where the existing flows already use them.
+
+## 2026-09-17 (session 3) — Fixed cross-device "Key unwrapping failed" (conversation-key divergence)
+
+**Symptom:** Android sends → Android reads fine, iOS shows `Key unwrapping failed` and the chat screen will not open. Send the other way and the roles swap. That flip-flop is the signature of the two devices holding **different conversation keys for the same conversation**, not a crypto bug — the error is thrown in `decryptMessage` (`secured.ts`) when the per-message key is unwrapped with the wrong conversation key.
+
+**Root cause:** `handleUserPress` in `app/tabs/(tabs)/Chat.tsx` treated the `else` branch (the one that calls `conversationAPI.getOrCreateDM`) as "this is a new conversation" and unconditionally minted a fresh conversation key — overwriting the peer's `wrapped_key` row and this device's own stored key. But `create_dm_conversation` is **get-or-create** (`Returns: string`, see `utility/types/supabse.ts`): it hands back the existing conversation when there is one. The only guard was `verifyDMConversation`, which is fragile (reads the user from `AsyncStorage` rather than the session, and `get_conversation_between_users` is hand-applied SQL that is not in the generated types, so the assumed `data[0].conversation_id` shape is unverified). Every time that guard came back empty for an existing DM, the conversation was silently re-keyed.
+
+The "Delete chat" feature added the day before (commit `4e02cce`) made this much easier to hit: `leaveConversation` hard-deletes the user's `conversation_participants` row — which is where their `wrapped_key` lives — so the conversation vanishes from the chat list, the only way back is the user-avatar list (`handleUserPress`), and with the participant row gone the guard cannot match.
+
+**Changes:**
+- `app/tabs/(tabs)/Chat.tsx`
+  - `handleUserPress` now resolves the conversation id first, then resolves the key separately. A key is minted **only** when no key can be found anywhere.
+  - Split the old `getConversationKeyForOtherParticipants` into `lookupConversationKey`, which returns `found` / `absent` / `failed`. The distinction is the point: `absent` (no wrapped row) may mint, `failed` (a wrapped key exists but will not open) must never mint, because minting over it locks the peer out of every message sent so far. `getConversationKeyForOtherParticipants` is kept as a thin `Uint8Array | null` wrapper for `handleConversationPress`.
+  - New `createAndDistributeConversationKey` also wraps a copy of the key **for the minting user's own participant row**. Previously only the recipient got a row, so the creator's key existed solely in local Secure Store — a reinstall or a Delete chat made it unrecoverable.
+  - Invariant now made explicit: `wrapConversationKey()` always wraps with the *local* device's private key, so every row's `other_party_pub_key` must be the **wrapper's own** public key. Group creation was storing each participant's *own* public key in their row instead of the creator's, which would make those rows unopenable.
+  - Restored the group / 1-1 branching in `handleConversationPress` that commit `2b15f14` ("update the condition chain") flattened: dropping the `else` made the 1-1 logic run for group chats too and overwrite the creator's public key. That commit also changed `.filter(...)?.[0]?.profiles` to `.find(...)?.[0]?.profiles` — `find` returns the element, so `[0]` was always `undefined` and the group path resolved to `null` regardless. Both fixed.
+  - Reordered the `!otherPublicKey` check so a locally stored key can still open a room when the public key is missing (the old code alerted after already having fetched the key).
+- `utility/messages.ts` — `getWrappedKeyCurrent` now selects `other_party_pub_key` alongside `wrapped_key` / `key_nonce`. The column was already being written by `storeConversationKey` but never read, so callers were *guessing* the wrapping public key from the participants list. Now the row says which key opens it, and the guess is only a fallback for older rows.
+- `app/tabs/msg/[room_id].tsx`
+  - Unwrap now prefers `other_party_pub_key` from the row over the `public_key` route param (which is only set when the screen is reached from a notification).
+  - Added `safeDecrypt`. `MessageEncryption.decryptMessage` was being called **directly inside render**, so one unreadable message threw during render and took the entire chat screen down — that is the "can't open the chat" half of the report. Failures now render `Message cannot be decrypted on this device` for that bubble only.
+
+**Verification:** `npx tsc --noEmit` — app/utility errors went 6 → 5 (the removed one was a real `Uint8Array | null` argument error at the old render-time decrypt site). The remaining 5 are pre-existing and unrelated (gluestack `ColorValue`/icon prop typing, `MessageActionProps`, a `Message | undefined`). Not yet run on devices.
+
+**Not fixed — existing broken conversations do not self-heal.** Any DM that was already re-keyed still has each device holding its own key in Secure Store, and the local cache wins over the database row by design (the minting device legitimately has no row of its own). Recovering a test conversation means clearing app storage on one device or starting a fresh conversation. An automatic reconciliation path would need a real key-rotation/re-share flow.
+
+### Addendum — confirmed: the failing chat is a **group**, and `2b15f14` is the cause
+
+Audited every SonarQube cleanup commit (`457af91` 2026-08-28 → `5b24186` 2026-09-10) by diffing the pre-spree tree (`6943923`) against `4e02cce` function by function. The spree touched the key path in exactly three places:
+- `2b15f14` — `handleConversationPress`: dropped the `else` around the 1-1 branch and changed `.filter(...)?.[0]?.profiles` to `.find(...)?.[0]?.profiles`. **This is the regression.** Before it, groups resolved the creator's public key correctly; after it, `.find()` returns the element so `[0]` is `undefined`, and then the unconditional 1-1 branch overwrites the result with whichever of the first two participants isn't the current user. For a DM the behaviour is identical either way (`isGroup` is false, both versions take the same branch), which is why only group chats broke.
+- `a1257f5` — `private static cache` → `private static readonly cache` in `ConversationKeyManager`. No behaviour change; readonly binds the reference, `.set()` still works.
+- `f9b68e3` — `getPrivateKey()` rewritten to `?? ''` plus `return privateKey ?? privateKey`. Redundant but equivalent.
+
+`handleUserPress`, `getConversationKeyForOtherParticipants`, `wrapConversationKey`, `unwrapConversationKey`, `hkdfSha512`, `encryptMessage`, `decryptMessage` and the room screen's `loadKey` were **not** semantically changed by the spree.
+
+**Follow-up fixes made after confirming it was a group:**
+- `lookupConversationKey` now tries **both** candidate public keys (the row's `other_party_pub_key`, then the caller's computed key) instead of trusting the row alone. This matters because `createGroupChat` used to record each participant's *own* public key in their row even though the creator's private key wrapped it — so preferring the row, as the first version of this fix did, would have stranded every group created before today. On success with the fallback the row is rewritten, so legacy rows repair themselves as members open the chat.
+- `handleConversationPress` falls back to fetching the creator's public key from `profiles` when the creator is no longer in `conversation_participants` (they left the group), since their key is still what opens the row.
+
+Still true: a group whose rows were written by the old code needs a member to open it once for the row to be corrected; nothing repairs a row for a member who never opens the chat.
+
+### Addendum 2 — same fix applied to DMs; key resolution extracted to one module
+
+The group bug and the DM gaps are the same mistake seen from two angles: **ECDH unwrapping must pair this device's private key with the *wrapper's* public key, never with this user's own.** Confirmed with the user that the design intent was "receiver decrypts with the receiver's public key", which cannot work - `DH(recv_priv, recv_pub)` is a secret the sender never computed. The wrap side was always correct (`sender_priv` + `receiver_pub`); only what the *receiving* side was handed had drifted.
+
+- **New `utility/securedMessage/ConversationKeyResolver.ts`** - `resolveConversationKey(conversationId, userId, fallbackPublicKeys)`, the single implementation of cache → secure storage → wrapped participant row, with candidate retry (row's `other_party_pub_key` first, then whatever the caller believes the wrapper's key to be) and row self-repair when a fallback wins. Returns `found` / `absent` / `failed`.
+- **`app/tabs/(tabs)/Chat.tsx`** now delegates to it; the in-component copy is gone.
+- **`app/tabs/msg/[room_id].tsx`** now uses it too. Previously this screen had *none* of the above: it read the row once and unwrapped with `other_party_pub_key || public_key` (the notification route param) with no retry and no repair, so a DM opened from a push notification without that param, or with a stale row, simply failed. It also now distinguishes `absent` from `failed` in the message shown to the user.
+- **DM public-key resolution hardened in `handleConversationPress`**: the participant-id array is filtered before querying `profiles` (it used to pass `undefined` when the other person had left, which `Delete chat` causes), and both branches now select the participant by "not me" rather than by a fixed index - previously, a DM where the other participant had left resolved to the *current user's own* public key, which can never unwrap.
+
+Note for later: the diagnostic instrumentation (the `debugger` statements, the `[unwrapConversationKey]` log in `secured.ts`, and the `[handleConversationPress] could not resolve conversation key` log) is still in the tree and must come out before release.
+
+### Addendum 3 — verified on device: fresh accounts work; legacy conversations do not
+
+Tested on device 2026-09-17 with a **newly created pair of accounts**: sending and receiving works normally in both directions. That confirms the fixed key-resolution path is correct end to end.
+
+A **pre-existing** group still fails with `no candidate public key could unwrap this row` — both ECDH candidates rejected. This is old data the client can no longer open, not a defect in the current logic. Recorded as an open edge case in in-progress.md with the ruled-out causes, the leading hypotheses (most likely: a keypair that changed after the conversation was created, which nothing in the app currently detects), what to capture when it reproduces, and three candidate remedies. Deferred by agreement rather than chased further.
+
+The three diagnostic logs were switched to `JSON.stringify(..., null, 2)` because React Native's Metro console prints nested objects as `[Object]`, which was hiding every value that mattered.

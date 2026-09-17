@@ -18,6 +18,7 @@ import { ArrowBigDown, ForwardIcon,
 import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { resolveConversationKey } from '@/utility/securedMessage/ConversationKeyResolver';
 import { Picker } from 'emoji-mart-native';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
@@ -107,36 +108,28 @@ export default function ChatScreen() {
         if (key) {
           await setCurrentConversation(conversation_id, key);
           setKeyError(null);
-        } else {
-          // Key not in storage, try to unwrap from wrapped key in messages
-          try {
-            const getWrappedKey = await conversationAPI.getWrappedKeyCurrent(conversation_id, userId);
-
-            if (!getWrappedKey.data?.[0]?.wrapped_key || !getWrappedKey.data?.[0]?.key_nonce) {
-              console.error('Missing wrapped key data');
-              return null;
-            }
-
-            // Unwrap the conversation key
-            const wrappedKeyBytes = MessageEncryption.base64ToBytes(getWrappedKey.data[0].wrapped_key);
-            const keyNonceBytes = MessageEncryption.base64ToBytes(getWrappedKey.data[0].key_nonce);
-            const senderPublicKeyBytes = MessageEncryption.base64ToBytes(public_key??'');
-            
-            //console.log(wrappedKeyBytes, keyNonceBytes, senderPublicKeyBytes);
-            const unwrappedKey = await MessageEncryption.unwrapConversationKey(
-              wrappedKeyBytes,
-              keyNonceBytes,
-              senderPublicKeyBytes
-            );
-
-            // Store and set the unwrapped key
-            await setCurrentConversation(conversation_id, unwrappedKey);
-            setKeyError(null);
-          } catch (unwrapError) {
-            console.error('Error unwrapping conversation key:', unwrapError);
-            setKeyError('Failed to unwrap conversation key. Please go back and try again.');
-          }
+          return;
         }
+
+        /*
+          Not held locally, so unwrap it from this user's participant row. The
+          row records the public key that wrapped it; the `public_key` param is
+          only set when this screen is reached from a notification, so it is
+          passed as a fallback candidate rather than relied on.
+        */
+        const lookup = await resolveConversationKey(conversation_id, userId, [public_key]);
+
+        if (lookup.status === 'found') {
+          await setCurrentConversation(conversation_id, lookup.key);
+          setKeyError(null);
+          return;
+        }
+
+        setKeyError(
+          lookup.status === 'absent'
+            ? 'No conversation key is stored for this account yet. Open the chat from the list, or sync your keys from your other device.'
+            : 'Failed to unwrap conversation key. Please go back and try again.'
+        );
       } catch (error) {
         console.error('Error loading conversation key:', error);
         setKeyError('Failed to load conversation key.');
@@ -145,6 +138,41 @@ export default function ChatScreen() {
 
     loadKey();
   }, [conversation_id, userId, currentConversationId, conversationKey, getConversationKey, setCurrentConversation]);
+
+  /*
+    Decryption runs inside render, so an unreadable message would otherwise take
+    the whole chat screen down instead of just that one bubble. A message that
+    will not open means this device holds a different conversation key than the
+    sender used, so fail soft and keep the rest of the conversation usable.
+  */
+  function safeDecrypt(
+    message: {
+      content?: string | null;
+      nonce?: string | null;
+      wrapped_key?: string | null;
+      key_nonce?: string | null;
+    },
+    key: Uint8Array | null
+  ): string {
+    if (!key) {
+      return '';
+    }
+
+    try {
+      return MessageEncryption.decryptMessage(
+        {
+          ciphertext: message.content ?? '',
+          nonce: message.nonce ?? '',
+          wrappedKey: message.wrapped_key ?? '',
+          keyNonce: message.key_nonce ?? '',
+        },
+        key
+      );
+    } catch (error) {
+      console.error('Unable to decrypt message:', error);
+      return 'Message cannot be decrypted on this device';
+    }
+  }
   const headerOptions = () => {
     if (displayName) {
         navigation.setOptions({ headerTitle: displayName });
@@ -439,17 +467,7 @@ export default function ChatScreen() {
       <Text
         className={`text-lg ${isCurrentUser ? 'text-white' : 'text-black'} font-semibold`}
       >
-        {m?.message_type === 'text'
-          ? MessageEncryption.decryptMessage(
-              {
-                ciphertext: m.content ?? '',
-                nonce: m.nonce ?? '',
-                wrappedKey: m.wrapped_key ?? '',
-                keyNonce: m.key_nonce ?? '',
-              },
-              conversationKey
-            )
-          : null}
+        {m?.message_type === 'text' ? safeDecrypt(m, conversationKey) : null}
       </Text>
     );
   };
@@ -461,7 +479,7 @@ export default function ChatScreen() {
       msg.id === activeMessage && msg.conversation_id === conversation_id
     )
 
-    if (messageToForward?.id && !messageToForward?.content || !recipientId) {
+    if (!messageToForward?.id || !messageToForward.content || !recipientId) {
       Alert.alert('Error', 'Message or Recipient ID not available');
       return;
     }
@@ -678,15 +696,7 @@ export default function ChatScreen() {
   //Get decrypted message text or empty string
   const getDecryptedMessageText = (message: Message): string => {
     if (message.message_type === 'text') {
-      return MessageEncryption.decryptMessage(
-        {
-          ciphertext: message?.content ?? '',
-          nonce: message.nonce ?? '',
-          wrappedKey: message.wrapped_key ?? '',
-          keyNonce: message.key_nonce ?? '',
-        },
-        conversationKey
-      );
+      return safeDecrypt(message, conversationKey);
     }
     return '';
   };
@@ -696,15 +706,7 @@ export default function ChatScreen() {
     const activeMsg = messages.find((msg) => msg.id === activeMessage);
     
     if (activeMsg?.message_type === 'text') {
-      return MessageEncryption.decryptMessage(
-        {
-          ciphertext: activeMsg.content || '',
-          nonce: activeMsg.nonce || '',
-          wrappedKey: activeMsg.wrapped_key || '',
-          keyNonce: activeMsg.key_nonce || '',
-        },
-        conversationKey
-      );
+      return safeDecrypt(activeMsg, conversationKey);
     }
     
     return activeMsg?.content?.toUpperCase() || '';
@@ -769,7 +771,7 @@ export default function ChatScreen() {
                           messageId = {m.id}
                           msg_type = {m?.message_type || ''}
                           onReaction = {handleReaction}
-                          id_darkMode = {isDarkMode === 'dark'}
+                          isDarkMode = {isDarkMode === 'dark'}
                           onEdit={() => {
                             setNewMessage(getDecryptedMessageText(m));
                             setActiveMessage(m?.id ?? '');
