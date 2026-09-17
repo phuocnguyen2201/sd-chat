@@ -37,16 +37,19 @@ export function QrScannerView({ active, onScanned }: Props) {
     }
 
     return (
-        <CameraView
-            style={{ width: 320, height: 320, borderRadius: 16, overflow: 'hidden', alignSelf: 'center' }}
-            facing={'back'}
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={(result) => {
-                if (result?.data && !hasScannedRef.current) {
-                    hasScannedRef.current = true;
-                    onScanned(result.data);
-                }
-            }}
-        />
+        <Box className="self-center rounded-2xl border-2 border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-black">
+            <CameraView
+                style={{ width: 320, height: 320, borderRadius: 12, overflow: 'hidden' }}
+                facing={'back'}
+                autofocus="on"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={(result) => {
+                    if (result?.data && !hasScannedRef.current) {
+                        hasScannedRef.current = true;
+                        onScanned(result.data);
+                    }
+                }}
+            />
+        </Box>
     );
 }

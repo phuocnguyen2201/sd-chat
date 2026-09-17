@@ -100,8 +100,8 @@ export default function ManageKeys() {
 
             {phase === 'show_sealed' && (
                 <>
-                    <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-4">
-                        {sealedQr !== '' ? <QRCode value={sealedQr} size={200} /> : <Text>No keys available to generate QR code.</Text>}
+                    <Box className="items-center mb-6 rounded-2xl border border-gray-200 bg-white p-4">
+                        {sealedQr !== '' ? <QRCode value={sealedQr} size={260} quietZone={16} /> : <Text>No keys available to generate QR code.</Text>}
                     </Box>
                     <Text className="mt-4 self-center text-center text-xl font-bold">
                         {timeLeft > 0 ? `${timeLeft}s` : 'QR expired'}
