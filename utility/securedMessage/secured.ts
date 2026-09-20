@@ -25,11 +25,34 @@ export interface UserKeyPair {
   privateKey: string;
 }
 
+/**
+ * Whether the identity private key held on this device matches the public key
+ * this account advertises in `profiles.public_key`.
+ * - `ok`       the two correspond; conversations can be unwrapped
+ * - `missing`  this device holds no usable key for this account
+ * - `mismatch` a key is present but belongs to a different identity
+ */
+export type IdentityKeyState = 'ok' | 'missing' | 'mismatch';
+
 export class MessageEncryption {
-  private static readonly USER_KEY_STORAGE = 'user_encryption_key';
+  /*
+    The identity private key is stored per user. It used to live under one
+    unnamespaced slot, so signing a second account in on the same device
+    overwrote the first account's key while its `profiles.public_key` stayed
+    unchanged - a silent, permanent mismatch that only ever surfaced on the
+    peer's device as `Key unwrapping failed`.
+  */
+  private static readonly LEGACY_USER_KEY_STORAGE = 'user_encryption_key';
   private static readonly ALGORITHM = 'ChaCha20-Poly1305';
   private static readonly NONCE_SIZE = 12; // ChaCha20 uses 12-byte nonce
   private static readonly KEY_SIZE = 32; // 256-bit key
+
+  private static userKeyStorage(userId: string): string {
+    if (!userId) {
+      throw new Error('A user id is required to reach the identity key');
+    }
+    return `user_encryption_key_${userId}`;
+  }
 
   static encryptMessage(text: string, conversationKey: Uint8Array): EncryptedMessage {
     try {
@@ -118,7 +141,11 @@ export class MessageEncryption {
   }
 
   /**
-   * Generate a key pair for a user (for E2E encryption)
+   * Generate a key pair for a user (for E2E encryption).
+   *
+   * This does NOT persist anything: at sign-up the account does not exist yet,
+   * so there is no user id to file the private key under. The caller stores it
+   * with `setPrivateKey(userId, ...)` once sign-up returns the new user.
    */
   static async generateKeyPair(): Promise<UserKeyPair> {
     // Use tweetnacl for key pair generation
@@ -129,35 +156,94 @@ export class MessageEncryption {
       throw new Error(`Invalid key pair generated: public=${keyPair.publicKey.length}, private=${keyPair.secretKey.length}`);
     }
 
-    await SecureStore.setItemAsync(this.USER_KEY_STORAGE, this.bytesToBase64(keyPair.secretKey), {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
-
     return {
       publicKey: this.bytesToBase64(keyPair.publicKey),
       privateKey: this.bytesToBase64(keyPair.secretKey)
     };
   }
 
-  static getPrivateKey(): string{
-    const privateKey = SecureStore.getItem(this.USER_KEY_STORAGE,{ keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY}) ?? '';
-    
-    return privateKey ?? privateKey;
+  static getPrivateKey(userId: string): string {
+    return SecureStore.getItem(this.userKeyStorage(userId), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    }) ?? '';
   }
 
-  static setPrivateKey(key: Uint8Array): void{
-    SecureStore.setItem(this.USER_KEY_STORAGE, this.bytesToBase64(key), {
+  static setPrivateKey(userId: string, key: Uint8Array): void {
+    SecureStore.setItem(this.userKeyStorage(userId), this.bytesToBase64(key), {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
     })
   }
 
+  /**
+   * The public key that actually corresponds to the private key stored for
+   * `userId` on this device. Returns null when no usable key is stored.
+   */
+  static async derivePublicKey(userId: string): Promise<string | null> {
+    const prvKeyBase64 = await SecureStore.getItemAsync(this.userKeyStorage(userId));
+    if (!prvKeyBase64) {
+      return null;
+    }
+
+    const secretKey = this.base64ToBytes(prvKeyBase64);
+    if (secretKey.length !== this.KEY_SIZE) {
+      return null;
+    }
+
+    return this.bytesToBase64(nacl.box.keyPair.fromSecretKey(secretKey).publicKey);
+  }
+
+  /**
+   * Check this device's identity key against what the account advertises, and
+   * adopt the pre-namespacing key if it turns out to belong to this account.
+   *
+   * The legacy slot holds whichever account wrote it last, so it is only
+   * adopted when its derived public key matches - copying it blindly would
+   * cement another identity's key under this user's name.
+   */
+  static async verifyIdentityKey(
+    userId: string,
+    profilePublicKey: string
+  ): Promise<IdentityKeyState> {
+    const derived = await this.derivePublicKey(userId);
+
+    if (derived) {
+      // Without a public key on the profile there is nothing to check against.
+      if (!profilePublicKey) return 'ok';
+      return derived === profilePublicKey ? 'ok' : 'mismatch';
+    }
+
+    const legacyKeyBase64 = await SecureStore.getItemAsync(this.LEGACY_USER_KEY_STORAGE);
+    if (!legacyKeyBase64) {
+      return 'missing';
+    }
+
+    const legacySecretKey = this.base64ToBytes(legacyKeyBase64);
+    if (legacySecretKey.length !== this.KEY_SIZE) {
+      return 'missing';
+    }
+
+    const legacyPublicKey = this.bytesToBase64(
+      nacl.box.keyPair.fromSecretKey(legacySecretKey).publicKey
+    );
+
+    if (profilePublicKey && legacyPublicKey !== profilePublicKey) {
+      // Belongs to a different account that used this device. Leave it alone;
+      // this user has to sync their own key from a device that holds it.
+      return 'missing';
+    }
+
+    this.setPrivateKey(userId, legacySecretKey);
+    return 'ok';
+  }
+
   static async wrapConversationKey(
     conversationKey: Uint8Array,
-    recipientPublicKey: Uint8Array
+    recipientPublicKey: Uint8Array,
+    userId: string
   ): Promise<{ wrappedKey: Uint8Array; nonce: Uint8Array } | null> {
     //console.log('Wrapping conversation key');
     // 1. Load sender private key
-    const prvKeyBase64 = await SecureStore.getItemAsync(this.USER_KEY_STORAGE);
+    const prvKeyBase64 = await SecureStore.getItemAsync(this.userKeyStorage(userId));
     if (!prvKeyBase64) {
       console.error('No private key found');
       return null;
@@ -206,10 +292,11 @@ export class MessageEncryption {
 static async unwrapConversationKey(
   wrappedKey: Uint8Array,
   nonce: Uint8Array,
-  otherPartyPublicKey: Uint8Array
+  otherPartyPublicKey: Uint8Array,
+  userId: string
 ): Promise<Uint8Array> {
 
-  const prvKeyBase64 = await SecureStore.getItemAsync(this.USER_KEY_STORAGE);
+  const prvKeyBase64 = await SecureStore.getItemAsync(this.userKeyStorage(userId));
   if (!prvKeyBase64) {
     throw new Error('No private key found');
   }
@@ -278,10 +365,13 @@ static async hkdfSha512(
     return Crypto.getRandomBytes(this.KEY_SIZE);
   }
 
-  static async deletePrivateKey(): Promise<Uint8Array | null> {
-    const storedPrivateKey = await SecureStore.getItemAsync(this.USER_KEY_STORAGE);
+  static async deletePrivateKey(userId: string): Promise<Uint8Array | null> {
+    // Clear the legacy slot too, so a deleted account leaves nothing behind.
+    await SecureStore.deleteItemAsync(this.LEGACY_USER_KEY_STORAGE);
+
+    const storedPrivateKey = await SecureStore.getItemAsync(this.userKeyStorage(userId));
     if (storedPrivateKey) {
-      await SecureStore.deleteItemAsync(this.USER_KEY_STORAGE);
+      await SecureStore.deleteItemAsync(this.userKeyStorage(userId));
       return this.base64ToBytes(storedPrivateKey);
     }
     return null;

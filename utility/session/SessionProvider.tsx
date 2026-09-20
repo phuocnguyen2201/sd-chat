@@ -76,16 +76,16 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
   ): Promise<void> => {
     if (key) {
       // Store key in manager and set in state
-      await ConversationKeyManager.setConversationKey(conversationId, key);
+      await ConversationKeyManager.setConversationKey(user?.id ?? '', conversationId, key);
       setConversationKey(key);
       setCurrentConversationId(conversationId);
     } else {
       // Try to load from cache/storage
-      const cachedKey = await ConversationKeyManager.getKey(conversationId);
+      const cachedKey = await ConversationKeyManager.getKey(user?.id ?? '', conversationId);
       setConversationKey(cachedKey);
       setCurrentConversationId(conversationId);
     }
-  }, []);
+  }, [user]);
 
   // Get conversation key for a specific conversation
   const getConversationKey = useCallback(async (conversationId: string): Promise<Uint8Array | null> => {
@@ -95,8 +95,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     }
     
     // Otherwise, get from manager
-    return await ConversationKeyManager.getKey(conversationId);
-  }, [currentConversationId, conversationKey]);
+    return await ConversationKeyManager.getKey(user?.id ?? '', conversationId);
+  }, [user, currentConversationId, conversationKey]);
 
   // Clear current conversation
   const clearCurrentConversation = useCallback(() => {

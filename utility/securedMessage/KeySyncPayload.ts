@@ -13,8 +13,12 @@ const VALID_FOR_MS = 5 * 60 * 1000;
  * gets transported. Returns null if this device has no key to share yet.
  */
 export async function buildKeySyncPayload(userId: string | undefined): Promise<KeyObject | null> {
-    const privKey = MessageEncryption.getPrivateKey();
-    if (!userId || privKey === '') {
+    if (!userId) {
+        return null;
+    }
+
+    const privKey = MessageEncryption.getPrivateKey(userId);
+    if (privKey === '') {
         return null;
     }
 
@@ -28,7 +32,7 @@ export async function buildKeySyncPayload(userId: string | undefined): Promise<K
 
     const snapshots = await SnapShot.getMessagesSnapshot();
     for (const snapshot of snapshots) {
-        const key = await ConversationKeyManager.getKey(snapshot.conversation_id);
+        const key = await ConversationKeyManager.getKey(userId, snapshot.conversation_id);
         if (key) {
             data.list.push({
                 id: snapshot.conversation_id,
