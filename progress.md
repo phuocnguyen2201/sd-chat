@@ -130,3 +130,79 @@ Tested on device 2026-09-17 with a **newly created pair of accounts**: sending a
 A **pre-existing** group still fails with `no candidate public key could unwrap this row` — both ECDH candidates rejected. This is old data the client can no longer open, not a defect in the current logic. Recorded as an open edge case in in-progress.md with the ruled-out causes, the leading hypotheses (most likely: a keypair that changed after the conversation was created, which nothing in the app currently detects), what to capture when it reproduces, and three candidate remedies. Deferred by agreement rather than chased further.
 
 The three diagnostic logs were switched to `JSON.stringify(..., null, 2)` because React Native's Metro console prints nested objects as `[Object]`, which was hiding every value that mattered.
+
+## 2026-09-18 — Per-user key storage + identity-key guard at startup
+
+Root cause of the "two different public keys on one device" class of failures: `profiles.public_key` is written **once** at sign-up (`INSERT` in `authAPI.signUp`, no `UPDATE` path exists anywhere), while the private key lived in a single unnamespaced Secure Store slot, `user_encryption_key`. One device could therefore only ever hold one identity key. Signing a second account in overwrote the first account's key — and `SessionProvider.logout()` never cleared Secure Store, so the key survived the account switch. Log back in as the first account and its profile still advertises the old public key while the device holds a different private one: a silent, permanent mismatch.
+
+It stayed invisible because **the sender never unwraps its own conversation key** — it reads the plaintext from storage. Only the peer performs the ECDH, so a broken device looks healthy to its owner while everything it sends is unreadable to everyone else. Exactly the original "Android can read the chat, iOS can't" report.
+
+### Changes
+- **`utility/securedMessage/secured.ts`**
+  - Identity key is now stored per user at `user_encryption_key_<userId>`; the old slot is kept as `LEGACY_USER_KEY_STORAGE` for adoption and is never written again.
+  - `generateKeyPair()` **no longer persists**. At sign-up the account does not exist yet, so there is no id to file the key under; `login.tsx` now stores it with `setPrivateKey(userId, ...)` once sign-up returns the new user. A failed sign-up leaves nothing behind, so the two `deletePrivateKey()` cleanup calls were removed.
+  - `getPrivateKey`, `setPrivateKey`, `deletePrivateKey`, `wrapConversationKey`, `unwrapConversationKey` all take a `userId`. Threaded through 10 call sites in 6 files; the compiler found every one.
+  - New `derivePublicKey(userId)` and `verifyIdentityKey(userId, profilePublicKey) -> 'ok' | 'missing' | 'mismatch'`. `verifyIdentityKey` also performs the legacy migration, but **only adopts the old key when its derived public key matches the profile** — copying it blindly would cement another account's identity under this user, which is the very bug being fixed.
+  - `deletePrivateKey` also clears the legacy slot, so a deleted account leaves nothing behind.
+- **`utility/securedMessage/ConversationKeyManagement.ts`** — conversation keys move from `ck_<hash>` to `ck_<userId>_<hash>`, and the in-memory caches are keyed `userId:conversationId`. Legacy entries are adopted lazily on first read: Secure Store has **no enumeration API** (only get/set/delete by exact key), so they cannot be swept. No validation is needed there — a conversation key is shared by every participant by design, so a legacy entry for a conversation this user is in is the correct key.
+- **`app/Bootstrap.tsx`** — after the profile and biometric gates, calls `verifyIdentityKey`. On `missing` or `mismatch` it explains which case it is and routes to `ScanningKeys` instead of letting the user into any conversation.
+- **`utility/session/SessionProvider.tsx`** — `setCurrentConversation` and `getConversationKey` now close over `user`, so `user` was added to both `useCallback` dependency arrays. Without it they would have captured a stale (or empty) user id and read the wrong storage slot.
+
+### Migration behaviour for existing installs
+- Legacy key belongs to the logged-in account → adopted silently on first Bootstrap pass, user notices nothing.
+- Legacy key belongs to a different account → treated as `missing`, user routed to key sync. This is the intended outcome, not a regression: that key was never usable for this account.
+- The legacy slot is **not deleted** on adoption, so rolling back to a previous build still works.
+- Legacy `ck_*` conversation keys carry forward on first read of each conversation.
+
+`npx tsc --noEmit` unchanged at the 3 pre-existing app/utility errors (gluestack `ColorValue`/icon typing, `MessageActionProps`). **Nothing has been run on a device.**
+
+## 2026-09-18 — Delete account: removed the N+1 delete loop, added a progress overlay
+
+The freeze had two separate causes, one real and one perceptual.
+
+**Real:** `authAPI.deleteAccount()` looped over the user's conversations and issued **three sequential round trips per conversation** (messages, participants, conversation). Twenty conversations meant sixty serialised requests. Replaced with three `.in(...)` statements total — the steps still run in order because of the foreign keys between the tables, but every conversation is handled in one statement. Guarded with a length check so an account with no conversations skips them entirely.
+
+**Perceptual:** `handleDeleteAccount` showed no feedback at all. The confirmation dialog simply sat there until everything finished. Now the dialog closes first, a `Modal`-based progress overlay comes up (a `Modal` rather than an absolutely positioned `Box`, because the screen root is a `ScrollView` and an overlay inside it would not cover the viewport), and the overlay stays up through `router.replace('/')` so the transition does not flash back to Settings.
+
+Two correctness problems fixed while in there:
+- **Local keys were destroyed before the server call.** `MessageEncryption.deletePrivateKey()` ran first, so if `deleteAccount()` then failed the user still had an account but a device that could no longer read any conversation. The key is now discarded only after the account is confirmed gone.
+- **It navigated away on failure.** `router.replace('/')` was in a `finally`, so a failed deletion still threw the user out to the root right after an alert they had no time to read. Failure now clears the overlay, reports the error, and leaves the user on Settings with their account intact.
+
+The confirm button is also disabled and relabelled while a deletion is in flight, so it cannot be fired twice.
+
+**Observed, not changed:** `deleteAccount()` deletes every conversation the user participates in, including group conversations, for *all* members — messages, participant rows and the conversation itself. Leaving a group would be the less destructive behaviour (`conversationAPI.leaveConversation` already does exactly that for the Delete chat feature). Flagged for a decision rather than changed, since it is long-standing behaviour and not what this task was about.
+
+`npx tsc --noEmit` unchanged at the 3 pre-existing app/utility errors. Not yet run on a device.
+
+### Addendum — `deleteAccount` switched to leave-not-destroy semantics
+
+Reworked `authAPI.deleteAccount()` so it removes everything belonging to the account without taking other people's conversations with it. Conversations are now **left**, exactly as `conversationAPI.leaveConversation` does for the Delete chat feature, rather than deleted outright.
+
+**Removed (belongs to the account):** its own messages; its own reactions; reactions and `files` rows attached to its messages (they cannot outlive the message, and would block the delete if the schema has no cascade); its `conversation_participants` rows across every conversation; `push_notification_tokens`; `files_profiles`; `devices`; the avatar in storage (already handled by `deleteAvatarFromSupabase` in the caller); the `profiles` row; and the auth user.
+
+**Left alone (belongs to others):** other participants' messages, their reactions, and the conversations themselves. A group the account was in carries on for everyone else, minus that person's messages.
+
+**Cleaned up:** **1-1** conversations left with zero participants are deleted along with their remaining messages, reactions, attachments and `files_group` rows. **Group conversations are never deleted**, however empty they look - a group is a shared thing with a name and a history that others may still reference or rejoin, and it is not a departing account's to remove. The cleanup filters on `conversations.is_group`.
+
+**Local device state**, previously left behind entirely: `MessageEncryption.deletePrivateKey` was the only local cleanup. Now the identity key, every `ck_*` conversation key, and the SQLite snapshots all go. New `ConversationKeyManager.deleteAllKeys(userId, conversationIds)` handles the keys — Secure Store cannot enumerate itself, so the ids come from the local snapshots, which are the device's own record of the conversations it has held keys for. The three cleanups run concurrently since none depends on the others.
+
+**To verify against the live schema** (hand-applied SQL, not tracked in `supabase/migrations/`):
+- Does `conversations.created_by` have a foreign key to `profiles.id`? If it does and it is not `ON DELETE SET NULL`, deleting the profile will fail whenever a group this account created is still in use by others. Group key resolution itself is safe either way — `resolveConversationKey` reads the wrapping key from each row's `other_party_pub_key` before falling back to the creator's profile — but the delete would error out.
+- Whether `reactions` and `files` cascade from `messages`. The explicit deletes are harmless no-ops if they do, and necessary if they do not.
+- The `.in(...)` calls pass full id lists; fine at test-data scale, worth chunking if a user can accumulate thousands of messages.
+
+`npx tsc --noEmit` unchanged at the 3 pre-existing errors. Not run on a device.
+
+### Addendum — escape hatch on the key-recovery screen
+
+The identity-key guard routes to `ScanningKeys`, which sits **outside the tab group** and so has no way back to Settings. Someone signed in on a device with no usable key — and no second device to scan from — was stuck there with no way to abandon the account.
+
+- **New `utility/account/deleteAccount.ts`** — `deleteAccountAndLocalData(userId, hasAvatar)`, extracted from `Settings.tsx` so both screens share one implementation. Settings now calls it instead of inlining the sequence.
+- **`app/Bootstrap.tsx`** passes `recovery: '1'` when the guard sends the user to `ScanningKeys`, so the screen can tell a forced arrival from a normal visit via Settings → Manage Keys. The destructive option only appears on the forced one.
+- **`app/tabs/managekeys/ScanningKeys.tsx`** shows, under the scanner and only when `recovery=1`, a short explanation plus a **Delete this account** button, with the same confirmation dialog and progress overlay as Settings.
+
+Two failure modes fixed while extracting the helper:
+- **An empty user id would half-delete.** `MessageEncryption.deletePrivateKey('')` now throws by design (the storage slot needs an id), but `authAPI.deleteAccount()` reads the user from AsyncStorage independently and would already have succeeded — so the account was gone while the caller was told it failed. The helper now rejects an empty id up front, before anything is deleted.
+- **Local cleanup failures were reported as deletion failures.** Once the account is gone it is gone; failing to tidy Secure Store or SQLite must not send the user back to a screen for an account that no longer exists. The local purge now has its own `try`/`catch`, logs, and still returns success.
+
+`npx tsc --noEmit` unchanged at 3 pre-existing errors. Not run on a device.

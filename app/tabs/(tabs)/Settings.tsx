@@ -9,7 +9,7 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
 import { Avatar, AvatarFallbackText, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { supabase } from '@/utility/connection';
-import { ScrollView, Pressable, Alert } from 'react-native';
+import { ScrollView, Pressable, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
@@ -35,7 +35,7 @@ import {
 import { handleDeviceFilePath, storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import { useSession } from '@/utility/session/SessionProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
 import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
@@ -55,6 +55,7 @@ export default function Settings() {
   const [showActionsheet, setShowActionsheet] = useState(false);
   
   const [loading, setLoading] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   const { user, profile, isDarkMode, setDarkMode, fetchThemeMode } = useSession();
@@ -142,26 +143,30 @@ export default function Settings() {
     }
   }
 
-  async function handleDeleteAccount(): Promise<void> { 
-    try {
-        if (profile?.avatar_url)
-          await storageAPIs.deleteAvatarFromSupabase(user?.id || '');
-        await MessageEncryption.deletePrivateKey();
-        const success = await authAPI.deleteAccount();
-        if (success) {
-          
-          Alert.alert('Success', 'Account deleted successfully');
-        } else {
-            Alert.alert('Error', 'Failed to delete account');
-        }
-    } catch (e) {
-        Alert.alert('Error', 'Failed to delete account');
-        console.warn(e);
+  async function handleDeleteAccount(): Promise<void> {
+    /*
+      Close the dialog before any work starts, so the progress overlay is the
+      only thing on screen and a second tap cannot start a second deletion.
+    */
+    setActiveDialog(null);
+    setDeletingAccount(true);
+
+    const deleted = await deleteAccountAndLocalData(user?.id || '', !!profile?.avatar_url);
+
+    if (!deleted) {
+      setDeletingAccount(false);
+      Alert.alert('Error', 'Failed to delete account');
+      return;
     }
-    finally {
-        setActiveDialog(null);
-        router.replace('/');
-    }
+
+    /*
+      Leave first, confirm second. Alert is a native dialog rather than part of
+      this tree, so it survives the unmount and lands on top of the screen the
+      user has already been moved to - no tap standing between them and a
+      Settings page that belongs to an account that no longer exists.
+    */
+    router.replace('/');
+    Alert.alert('Account deleted', 'Your account and everything on this device have been removed.');
   }
 
   function pickImage() {
@@ -323,7 +328,11 @@ export default function Settings() {
           <HStack className="justify-between items-center mb-2">
             <VStack className="flex-1">
               <Text className="text-lg font-semibold">Dark Mode: <Icon
-                testID={isDarkMode === 'dark' ? automationLocatorsDataState.settingsScreen.assertDarkMode : automationLocatorsDataState.settingsScreen.assertLightMode}
+                /* gluestack's Icon prop type omits testID even though it reaches
+                   the native view. Spread, because JSX spreads are not excess
+                   property checked - keeps the automation locator on the icon
+                   itself rather than moving it to a wrapper. */
+                {...{ testID: isDarkMode === 'dark' ? automationLocatorsDataState.settingsScreen.assertDarkMode : automationLocatorsDataState.settingsScreen.assertLightMode }}
                 as={isDarkMode === 'dark' ? MoonIcon : SunIcon} className="mt-0.5 text-info-600" size="lg"/></Text>
             </VStack>
             <Switch
@@ -506,8 +515,8 @@ export default function Settings() {
                 >
                   <ButtonText>Cancel</ButtonText>
                 </Button>
-                <Button size="sm" onPress={handleDeleteAccount}>
-                  <ButtonText>Okay</ButtonText>
+                <Button size="sm" onPress={handleDeleteAccount} disabled={deletingAccount}>
+                  <ButtonText>{deletingAccount ? 'Deleting...' : 'Okay'}</ButtonText>
                 </Button>
               </>
             )}
@@ -527,7 +536,24 @@ export default function Settings() {
             <ActionsheetItemText>Select from album</ActionsheetItemText>
           </ActionsheetItem>
         </ActionsheetContent>
-      </Actionsheet>    
+      </Actionsheet>
+
+      {/* Progress overlay for account deletion - a Modal so it covers the ScrollView */}
+      <Modal visible={deletingAccount} transparent animationType="fade" statusBarTranslucent>
+        <Box
+          className="flex-1 items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        >
+          <VStack
+            space="md"
+            className={`items-center rounded-2xl px-10 py-8 ${isDarkMode == "dark" ? 'bg-black' : 'bg-white'}`}
+          >
+            <Spinner size="large" color="grey" />
+            <Text className="text-base font-semibold">Deleting your account</Text>
+            <Text className="text-xs text-gray-500">This can take a moment</Text>
+          </VStack>
+        </Box>
+      </Modal>
     </ScrollView>
   );
 }

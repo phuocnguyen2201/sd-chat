@@ -86,3 +86,14 @@ The three instrumented logs, now `JSON.stringify`'d so Metro prints values rathe
 
 ### Instrumentation has been removed (2026-09-17)
 All `debugger` statements and the three verbose `console.error` diagnostic blocks were stripped once the edge case was recorded. What remains on the failure paths is concise and logs no key material: `Unable to unwrap the conversation key for <conversationId>` in `ConversationKeyResolver.ts`, and `Unable to decrypt message` in `app/tabs/msg/[room_id].tsx`. **If this edge case is picked up again, the instrumentation has to be re-added** - the three logs and their fields are described above.
+
+## Per-user key storage (2026-09-18) — needs on-device verification
+Implemented, typechecks, never run. To verify:
+- **Fresh sign-up** on a clean install: key is stored only after sign-up succeeds, Bootstrap passes the identity check, DM and group both work.
+- **Existing install** whose legacy `user_encryption_key` belongs to the logged-in account: should be adopted silently on the first Bootstrap pass and everything keeps working, including conversations whose `ck_*` entries are still under the old unnamespaced name.
+- **Account switch on one device** (the original bug): sign in as a second account and confirm Bootstrap reports `missing` and routes to `ScanningKeys` rather than silently using the first account's key. Then switch back and confirm the first account still works — this is the case that used to destroy the key permanently.
+- **Failed sign-up** (duplicate email, network drop): confirm no key is left in Secure Store, since `generateKeyPair()` no longer persists.
+- **Account deletion** from Settings: confirm both the namespaced and legacy slots are cleared.
+- Watch for a **navigation loop** on `ScanningKeys` if a user backs out of it without syncing — Bootstrap's `hasNavigated` ref guards one pass per mount, but this path has not been exercised.
+
+Open question deliberately not addressed: `verifyIdentityKey` returns `ok` when `profiles.public_key` is empty and a key is present, because there is nothing to compare against. If an account can legitimately have a null public key, that is a hole worth closing.

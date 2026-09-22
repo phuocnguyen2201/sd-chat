@@ -153,7 +153,8 @@ export default function Chat() {
 
         const wrappedKeyForEachParticipants = await MessageEncryption.wrapConversationKey(
           conversationKey,
-          MessageEncryption.base64ToBytes(public_key || '')
+          MessageEncryption.base64ToBytes(public_key || ''),
+          userId
         );
 
         if (wrappedKeyForEachParticipants) {
@@ -171,7 +172,7 @@ export default function Chat() {
       }
 
       // Store the conversation key for the current user
-      await ConversationKeyManager.setConversationKey(data.conversation_id, conversationKey);
+      await ConversationKeyManager.setConversationKey(userId, data.conversation_id, conversationKey);
 
       router.push({
         pathname: '../msg/[room_id]',
@@ -233,7 +234,8 @@ export default function Chat() {
 
     const wrappedForRecipient = await MessageEncryption.wrapConversationKey(
       conversationKey,
-      recipientKeyBytes
+      recipientKeyBytes,
+      userId
     );
 
     if (wrappedForRecipient) {
@@ -248,7 +250,8 @@ export default function Chat() {
 
     const wrappedForSelf = await MessageEncryption.wrapConversationKey(
       conversationKey,
-      MessageEncryption.base64ToBytes(profile.public_key)
+      MessageEncryption.base64ToBytes(profile.public_key),
+      userId
     );
 
     if (wrappedForSelf) {
@@ -533,7 +536,7 @@ export default function Chat() {
       setListChatRooms((rooms) => rooms.filter((room) => room.id !== conversationId));
       setFilteredChatRooms((rooms) => rooms.filter((room) => room.id !== conversationId));
 
-      ConversationKeyManager.clear(conversationId);
+      ConversationKeyManager.clear(userId, conversationId);
       await SnapShot.deleteSnapshotByConversationId(conversationId);
     } catch (error) {
       console.error('Error deleting chat:', error);

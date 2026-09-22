@@ -1,11 +1,16 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
+import { ColorValue } from 'react-native';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
+/*
+  `color` is ColorValue, not string: that is what React Navigation hands to
+  tabBarIcon, and what FontAwesome accepts.
+*/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
+  color: ColorValue;
 }) {
   return <FontAwesome size={18} style={{ marginBottom: -3 }} {...props} />;
 }

@@ -20,6 +20,7 @@ import { Divider } from '@/components/ui/divider';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import { inputFocusClassName } from '@/constants/inputStyles';
 /**
  * Login Screen
  * 
@@ -34,7 +35,15 @@ export default function Login() {
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { refreshProfile, isDarkMode } = useSession();
+  const { refreshProfile } = useSession();
+
+  /*
+    No theme branching on this screen. gluestack's scales are mirrored - what
+    `typography-100` and `background-900` resolve to in one theme is what the
+    other resolves to in the other - so the pairing used below reads correctly
+    in both without being told which one is active.
+  */
+  const inputClassName = ['my-1', inputFocusClassName].join(' ');
 
   const handleClose = () => setShowAlertDialog(false);
 
@@ -42,11 +51,6 @@ export default function Login() {
     setShowPassword((showState) => {
       return !showState;
     });
-  };
-
-  const getPublicKey = async (): Promise<string> => {
-    const masterKey = await MessageEncryption.generateKeyPair();
-    return masterKey.publicKey;
   };
 
   const signInAsync = async () => {
@@ -82,17 +86,24 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const public_key = await getPublicKey();
-      const msg = await authAPI.signUp(email, password, public_key);
+      const masterKey = await MessageEncryption.generateKeyPair();
+      const msg = await authAPI.signUp(email, password, masterKey.publicKey);
       if (msg?.error) {
         setMessage(msg.error.message);
-        MessageEncryption.deletePrivateKey();
       } else if (msg.data?.user) {
+        /*
+          The account exists now, so the private key finally has a user id to be
+          filed under. Nothing is persisted before this point, which is why a
+          failed sign-up no longer has to clean a key up.
+        */
+        MessageEncryption.setPrivateKey(
+          msg.data.user.id,
+          MessageEncryption.base64ToBytes(masterKey.privateKey)
+        );
         setMessage('Registration successful! Please check your email to verify your account.');
       }
     } catch (error) {
       setMessage('An error occurred during registration. Please try again.');
-      MessageEncryption.deletePrivateKey();
       console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
@@ -137,20 +148,20 @@ export default function Login() {
           </AlertDialog>
 
           <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
-            <Heading className={isDarkMode ? 'text-typography-100' : 'text-typography-900 mb-2'} size="lg">
+            <Heading className="text-typography-100" size="lg">
               Authentication
             </Heading>
             <VStack className="gap-4">
               <VStack space="lg">
-                <Text className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}>Email</Text>
+                <Text className="text-typography-100">Email</Text>
 
-                <Input className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
+                <Input className={inputClassName}>
                   <InputField
                     accessibilityLabel="email input field"
                     testID={automationLocatorsDataState.loginScreen.emailInput}
                     type="text"
                     placeholder="Enter your email"
-                    className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
+                    className="text-typography-100"
                     value={email}
                     onChangeText={setEmail}
                     editable={!isLoading}
@@ -160,14 +171,14 @@ export default function Login() {
                 </Input>
               </VStack>
               <VStack space="lg">
-                <Text className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}>Password</Text>
-                <Input className={isDarkMode ? 'my-1' : 'my-1 border-black data-[focus=true]:border-black data-[focus=true]:web:ring-black'}>
+                <Text className="text-typography-100">Password</Text>
+                <Input className={inputClassName}>
                   <InputField
                     testID={automationLocatorsDataState.loginScreen.passwordInput}
                     accessibilityLabel="password input field"
                     placeholder="Enter your password"
                     type={showPassword ? 'text' : 'password'}
-                    className={isDarkMode ? 'text-typography-100' : 'text-typography-900'}
+                    className="text-typography-100"
                     value={password}
                     onChangeText={setPassword}
                     editable={!isLoading}

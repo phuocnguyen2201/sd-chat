@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/actionsheet';
 import { useSession } from '@/utility/session/SessionProvider';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import { inputFocusClassName } from '@/constants/inputStyles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Constants } from '@/constants/Constants';
 
@@ -146,13 +147,19 @@ export default function CompleteProfile() {
         </Box>
          <Box className="flex flex-1 items-center mx-5 lg:my-24 lg:mx-32 py-safe">
                   <Box className="flex-1 justify-center items-center h-auto w-[300px] lg:h-auto lg:w-[400px]">
+         {/*
+           The surface here is `background-900`, which gluestack mirrors across
+           themes - dark under the light theme, light under the dark one. The
+           typography scale is mirrored the same way, so `typography-100` stays
+           legible against it in both without any branch on the theme.
+         */}
          <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
-            <Heading className="text-typography-900 mb-2" size="lg">Complete the profile</Heading>
+            <Heading className="text-typography-100 mb-2" size="lg">Complete the profile</Heading>
             <VStack className="gap-4">
               <VStack space="lg">
-                <Text className="text-typography-500">Display Name</Text>
-                <Input>
-                  <InputField testID={automationLocatorsDataState.completeProfileScreen.displayNameInput} type="text" className="text-white" value={displayName} onChangeText={setDisplayName} />
+                <Text className="text-typography-100">Display Name</Text>
+                <Input className={inputFocusClassName}>
+                  <InputField testID={automationLocatorsDataState.completeProfileScreen.displayNameInput} type="text" className="text-typography-100" value={displayName} onChangeText={setDisplayName} />
                 </Input>
                 <Box className="flex-row flex-wrap justify-between gap-2 mt-4">
 

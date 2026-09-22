@@ -3,8 +3,8 @@ import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonText } from '@/components/ui/button';
 import { useRef, useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { Alert, Modal, ScrollView } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { useSession } from '@/utility/session/SessionProvider';
 import {
@@ -20,14 +20,47 @@ import { Icon, CloseIcon } from '@/components/ui/icon';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { KeyObject } from '@/utility/types/user';
 import { QrScannerView } from '@/components/QrScannerView';
+import { Spinner } from '@/components/ui/spinner';
+import { VStack } from '@/components/ui/vstack';
+import { AlertDialogBody } from '@/components/ui/alert-dialog';
+import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
 
 type Phase = 'scan' | 'done';
 
 export default function ScanningKeys() {
 
     const [phase, setPhase] = useState<Phase>('scan');
-    const { user } = useSession();
+    const { user, profile } = useSession();
     const importingRef = useRef(false);
+
+    /*
+      Set by the Bootstrap guard when this device has no usable key for the
+      account. This screen sits outside the tabs, so someone sent here cannot
+      reach Settings - without an exit they are stuck on a scanner they may have
+      no second device for.
+    */
+    const { recovery } = useLocalSearchParams<{ recovery?: string }>();
+    const isRecovery = recovery === '1';
+
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
+
+    const handleDeleteAccount = async () => {
+        setShowDeleteDialog(false);
+        setDeletingAccount(true);
+
+        const deleted = await deleteAccountAndLocalData(user?.id || '', !!profile?.avatar_url);
+
+        if (!deleted) {
+            setDeletingAccount(false);
+            Alert.alert('Error', 'Failed to delete account');
+            return;
+        }
+
+        // Same as Settings: leave first, and let the native alert follow them home.
+        router.replace('/');
+        Alert.alert('Account deleted', 'Your account and everything on this device have been removed.');
+    };
 
     const importKeysToNewDevice = (payload: KeyObject) => {
         if (!payload || !Array.isArray(payload.list)) {
@@ -51,7 +84,7 @@ export default function ScanningKeys() {
         }
 
         if (payload.private_key) {
-            MessageEncryption.setPrivateKey(MessageEncryption.base64ToBytes(payload.private_key));
+            MessageEncryption.setPrivateKey(user.id, MessageEncryption.base64ToBytes(payload.private_key));
         }
 
         const importTasks = payload.list.map(async (item) => {
@@ -59,9 +92,9 @@ export default function ScanningKeys() {
                 return;
             }
 
-            const existingKey = await ConversationKeyManager.getKey(item.id);
+            const existingKey = await ConversationKeyManager.getKey(user.id, item.id);
             if (existingKey == null) {
-                await ConversationKeyManager.setConversationKey(item.id, MessageEncryption.base64ToBytes(item.key));
+                await ConversationKeyManager.setConversationKey(user.id, item.id, MessageEncryption.base64ToBytes(item.key));
             }
         });
 
@@ -117,6 +150,23 @@ export default function ScanningKeys() {
                             On your other device, tap &quot;Share Keys&quot; and scan the code it shows.
                         </Text>
                         <QrScannerView active={phase === 'scan'} onScanned={onScannedCode} />
+
+                        {isRecovery && (
+                            <Box className="mt-8 w-full items-center">
+                                <Text className="mb-3 text-center text-xs text-gray-500">
+                                    No other device to scan from? This account&apos;s messages cannot
+                                    be recovered without its key.
+                                </Text>
+                                <Button
+                                    action="negative"
+                                    variant="outline"
+                                    size="sm"
+                                    onPress={() => setShowDeleteDialog(true)}
+                                >
+                                    <ButtonText>Delete this account</ButtonText>
+                                </Button>
+                            </Box>
+                        )}
                     </>
                 )}
 
@@ -148,6 +198,47 @@ export default function ScanningKeys() {
                 )}
 
             </Box>
+
+            <AlertDialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)}>
+                <AlertDialogBackdrop />
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <Heading size="md">Delete this account</Heading>
+                    </AlertDialogHeader>
+                    <AlertDialogBody className="mt-3 mb-4">
+                        <Text size="sm">
+                            This cannot be undone. Your profile and your messages are removed;
+                            conversations you shared with other people stay with them.
+                        </Text>
+                    </AlertDialogBody>
+                    <AlertDialogFooter>
+                        <Button
+                            variant="outline"
+                            action="secondary"
+                            size="sm"
+                            onPress={() => setShowDeleteDialog(false)}
+                        >
+                            <ButtonText>Cancel</ButtonText>
+                        </Button>
+                        <Button size="sm" action="negative" onPress={handleDeleteAccount}>
+                            <ButtonText>Delete</ButtonText>
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <Modal visible={deletingAccount} transparent animationType="fade" statusBarTranslucent>
+                <Box
+                    className="flex-1 items-center justify-center"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                >
+                    <VStack space="md" className="items-center rounded-2xl bg-white px-10 py-8 dark:bg-black">
+                        <Spinner size="large" color="grey" />
+                        <Text className="text-base font-semibold">Deleting your account</Text>
+                        <Text className="text-xs text-gray-500">This can take a moment</Text>
+                    </VStack>
+                </Box>
+            </Modal>
         </ScrollView>
     )
 }

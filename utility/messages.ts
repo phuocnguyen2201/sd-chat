@@ -112,14 +112,17 @@ export const authAPI = {
     }
     },
     /**
-     * Delete this account and everything belonging to it, while leaving other
-     * people's conversations intact.
+     * Delete this account.
      *
-     * Conversations are *left*, not deleted - the same semantics as
-     * `conversationAPI.leaveConversation`, applied to all of them at once. Only
-     * this account's own messages, reactions and attachments are removed; other
-     * participants keep their chats and their history. A conversation that ends
-     * up with nobody in it is then cleaned up, since removing it harms no one.
+     * Messages, reactions and their attachments are deliberately left where
+     * they are. They are end-to-end encrypted, and the keys for them are
+     * destroyed on the device as part of the same flow, so what stays behind
+     * is ciphertext that nobody - this account included - holds a key for.
+     *
+     * What does go is everything that still means something without a key:
+     * every conversation this account took part in, the participant rows that
+     * tie people to those conversations, the avatar record, the profile and
+     * the auth user.
      */
     async deleteAccount(): Promise<boolean> {
     try {
@@ -130,7 +133,6 @@ export const authAPI = {
 
       const userId: string = user.id;
 
-      // Noted up front: after leaving, these are the conversations to check for emptiness.
       const { data: participantRows, error: participantError } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
@@ -139,143 +141,28 @@ export const authAPI = {
       if (participantError) throw participantError;
       const conversationIds: string[] = participantRows?.map(row => row.conversation_id) ?? [];
 
-      // This account's own messages, plus whatever hangs off them.
-      const { data: ownMessages, error: ownMessagesError } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('sender_id', userId)
-
-      if (ownMessagesError) throw ownMessagesError;
-      const ownMessageIds: string[] = ownMessages?.map(message => message.id) ?? [];
-
-      if (ownMessageIds.length > 0) {
-        // Other people's reactions and the attachments on these messages go with them.
-        const { error: reactionsOnOwnMessages } = await supabaseAdmin
-          .from('reactions')
-          .delete()
-          .in('message_id', ownMessageIds)
-
-        if (reactionsOnOwnMessages) throw reactionsOnOwnMessages;
-
-        const { error: filesOnOwnMessages } = await supabaseAdmin
-          .from('files')
-          .delete()
-          .in('message_id', ownMessageIds)
-
-        if (filesOnOwnMessages) throw filesOnOwnMessages;
-      }
-
-      // Reactions this account left on other people's messages.
-      const { error: ownReactions } = await supabaseAdmin
-        .from('reactions')
-        .delete()
-        .eq('sender_id', userId)
-
-      if (ownReactions) throw ownReactions;
-
-      // This account's messages. Everyone else's stay exactly where they are.
-      const { error: deleteOwnMessages } = await supabaseAdmin
-        .from('messages')
-        .delete()
-        .eq('sender_id', userId)
-
-      if (deleteOwnMessages) throw deleteOwnMessages;
-
-      // Leave every conversation in one statement.
-      const { error: leaveAllConversations } = await supabaseAdmin
-        .from('conversation_participants')
-        .delete()
-        .eq('user_id', userId)
-
-      if (leaveAllConversations) throw leaveAllConversations;
-
-      /*
-        Clean up only the 1-1 conversations this account was the last member of.
-
-        Group conversations are never deleted here, however empty they look. A
-        group is a shared thing with a name and a history that others may still
-        reference or rejoin, and it is not this account's to remove.
-      */
       if (conversationIds.length > 0) {
-        const { data: remainingRows, error: remainingError } = await supabaseAdmin
+        /*
+          Every participant row for these conversations, not only this
+          account's. They are the children of the rows deleted immediately
+          after, so leaving the other members behind would just block that.
+        */
+        const { error: participantsError } = await supabaseAdmin
           .from('conversation_participants')
-          .select('conversation_id')
+          .delete()
           .in('conversation_id', conversationIds)
 
-        if (remainingError) throw remainingError;
+        if (participantsError) throw participantsError;
 
-        const { data: conversationRows, error: conversationRowsError } = await supabaseAdmin
+        const { error: conversationsError } = await supabaseAdmin
           .from('conversations')
-          .select('id, is_group')
+          .delete()
           .in('id', conversationIds)
 
-        if (conversationRowsError) throw conversationRowsError;
-
-        const stillInUse = new Set(remainingRows?.map(row => row.conversation_id) ?? []);
-        const groupConversationIds = new Set(
-          conversationRows?.filter(row => row.is_group).map(row => row.id) ?? []
-        );
-
-        const emptyConversationIds = conversationIds.filter(
-          id => !stillInUse.has(id) && !groupConversationIds.has(id)
-        );
-
-        if (emptyConversationIds.length > 0) {
-          const { data: leftoverMessages, error: leftoverError } = await supabaseAdmin
-            .from('messages')
-            .select('id')
-            .in('conversation_id', emptyConversationIds)
-
-          if (leftoverError) throw leftoverError;
-          const leftoverMessageIds: string[] = leftoverMessages?.map(message => message.id) ?? [];
-
-          if (leftoverMessageIds.length > 0) {
-            const { error: leftoverReactions } = await supabaseAdmin
-              .from('reactions')
-              .delete()
-              .in('message_id', leftoverMessageIds)
-
-            if (leftoverReactions) throw leftoverReactions;
-
-            const { error: leftoverFiles } = await supabaseAdmin
-              .from('files')
-              .delete()
-              .in('message_id', leftoverMessageIds)
-
-            if (leftoverFiles) throw leftoverFiles;
-          }
-
-          const { error: leftoverMessagesDelete } = await supabaseAdmin
-            .from('messages')
-            .delete()
-            .in('conversation_id', emptyConversationIds)
-
-          if (leftoverMessagesDelete) throw leftoverMessagesDelete;
-
-          const { error: groupFiles } = await supabaseAdmin
-            .from('files_group')
-            .delete()
-            .in('conversation_id', emptyConversationIds)
-
-          if (groupFiles) throw groupFiles;
-
-          const { error: emptyConversations } = await supabaseAdmin
-            .from('conversations')
-            .delete()
-            .in('id', emptyConversationIds)
-
-          if (emptyConversations) throw emptyConversations;
-        }
+        if (conversationsError) throw conversationsError;
       }
 
-      // Everything else filed against this account. None of it is shared.
-      const { error: pushTokens } = await supabaseAdmin
-        .from('push_notification_tokens')
-        .delete()
-        .eq('profile_id', userId)
-
-      if (pushTokens) throw pushTokens;
-
+      // The avatar's row. The file itself goes earlier, while the session still works.
       const { error: profileFiles } = await supabaseAdmin
         .from('files_profiles')
         .delete()
@@ -283,25 +170,18 @@ export const authAPI = {
 
       if (profileFiles) throw profileFiles;
 
-      const { error: pairedDevices } = await supabaseAdmin
-        .from('devices')
-        .delete()
-        .eq('user_id', userId)
-
-      if (pairedDevices) throw pairedDevices;
-
       await supabase.auth.signOut()
-      
+
       const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
-      if (deleteError) throw deleteError.message
+      if (deleteError) throw deleteError
 
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .delete()
-        .eq('id', userId)  
+        .eq('id', userId)
 
       if (profileError) throw profileError
-      
+
       return true
     } catch (error) {
       console.error('Error deleting account:', error)

@@ -9,6 +9,8 @@ import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Constants } from '@/constants/Constants';
+import { Alert } from 'react-native';
+import { MessageEncryption } from '@/utility/securedMessage/secured';
 
 /**
  * Bootstrap Screen
@@ -146,7 +148,42 @@ export default function Bootstrap() {
         router.replace('/tabs/managekeys/EnableBiometric')
         return;
       }
-      
+
+      /*
+        Check the identity key before letting the user into any conversation.
+
+        The private key lives in this device's Secure Store while the matching
+        public key lives in `profiles.public_key`, and only the peer's device
+        ever exercises the pair - the sender reads its own conversation key
+        straight from storage. So a device holding the wrong key looks perfectly
+        healthy to its owner while every message it sends is unreadable to
+        everyone else. Catching it here turns that into an immediate, fixable
+        problem instead of a silent one.
+      */
+      const identityKeyState = await MessageEncryption.verifyIdentityKey(
+        user.id,
+        profile?.public_key ?? ''
+      );
+
+      if (identityKeyState !== 'ok') {
+        Alert.alert(
+          'Sync your keys',
+          identityKeyState === 'missing'
+            ? 'This device does not have your encryption key yet. Open Share Keys on a device you already use, then scan the code shown here.'
+            : 'The encryption key on this device belongs to a different account. Scan the code from a device you already use to restore the right one.'
+        );
+        /*
+          `recovery` tells that screen it was reached from this guard rather
+          than from Settings, so it can offer a way out. It sits outside the
+          tabs, so without one the user has nowhere to go.
+        */
+        router.replace({
+          pathname: '/tabs/managekeys/ScanningKeys',
+          params: { recovery: '1' },
+        });
+        return;
+      }
+
       // Profile complete - go to chat
       router.replace('/tabs/(tabs)/Chat');
     };
