@@ -1,6 +1,6 @@
 # Chat Room Editing Screen
 
-**Source:** [`app/tabs/msg/ChatRoomEditing.tsx`](../../../app/tabs/msg/ChatRoomEditing.tsx)
+**Source:** [`app/tabs/msg/ChatRoomEditing.tsx`](../../../../app/tabs/msg/ChatRoomEditing.tsx)
 
 This stack screen displays conversation details and shared media. It supports editing group presentation details.
 

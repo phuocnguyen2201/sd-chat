@@ -3,6 +3,7 @@ import { storageAPIs } from '@/utility/handleStorage';
 import { SnapShot } from '@/utility/localstorage/snapshot';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
+import { deleteVaultBackup } from '@/utility/securedMessage/VaultBackup';
 
 /**
  * Delete an account and everything this device kept for it.
@@ -29,6 +30,22 @@ export async function deleteAccountAndLocalData(
     // Must run while the session is still valid: deleteAccount() signs out partway through.
     if (hasAvatar) {
       await storageAPIs.deleteAvatarFromSupabase(userId);
+    }
+
+    /*
+      The same applies to the key vault, which authenticates every request with
+      this session. Its `key_backups` row would cascade away with the profile,
+      but the ciphertext blob it points at lives outside Supabase and nothing
+      else would ever come to collect it.
+
+      An unreachable vault must not block the deletion: the account is the
+      user's to delete, and what would be left behind is an opaque blob that no
+      longer has a passphrase attached to anyone.
+    */
+    try {
+      await deleteVaultBackup(userId);
+    } catch (error) {
+      console.error('Could not remove the key backup from the vault:', error);
     }
 
     const success = await authAPI.deleteAccount();

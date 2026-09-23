@@ -195,13 +195,19 @@ A single POST endpoint, dispatched by an `action` field in the JSON body. All ac
 
 ### Database Schema
 
-Three tables, all added via hand-run SQL (not currently tracked under `supabase/migrations/` — see the project owner before assuming Supabase CLI migrations manage this; see also `in-progress.md`):
+Four tables, all added via hand-run SQL (not currently tracked under `supabase/migrations/` — see the project owner before assuming Supabase CLI migrations manage this; see also `in-progress.md`). The fourth, `key_backups`, is **written but not yet applied**:
 
 **`devices`** — bookkeeping only (device name, `synced_key`, `is_new`, a client-generated stable `device_id` for upsert idempotency across re-logins on the same install). No secrets. RLS: `auth.uid() = user_id` for select/insert/update/delete — safe for the app to read/write directly.
 
 **`device_pairing_requests`** — the actual handshake state: requester's ephemeral public key, `code_hash`, sealed `ciphertext`/`nonce`/sender ephemeral public key, and a `status` state machine (`pending → code_issued → approved|denied`, plus `expired`/`completed` as terminal bookkeeping). RLS is enabled with **no policies** for `authenticated`/`anon` — see the "Why not just RLS" note above. A partial unique index (`status in ('pending','code_issued')`) allows only one in-flight request per account at a time.
 
 **`local_pairing_codes`** — added 2026-09-15 (commit `3104094`) for the same-room pairing-code gate: `user_id`, `issued_by_device_id`, `code_hash` (never the plaintext code), `status` (`pending → verified`, plus `expired`), `expires_at`, `attempts`, `locked_until`, `verified_by_device_id`. Same RLS rationale as `device_pairing_requests` — **no client-facing policies**; every read/write goes through the `local-code-*` actions above. A partial unique index limits one active (`pending`/`verified`) code per account.
+
+**`key_backups`** — added 2026-09-22 for the key vault, migration at `sd-chat-vault/supabase/migrations/20260922000000_key_backups.sql`, **not applied yet**. One row per account: the scrypt parameters (`kdf_n`/`kdf_r`/`kdf_p`, `kdf_salt`) and `nonce` needed to re-derive the sealing key, plus `vault_ref` and `blob_version`. **No key material and no passphrase** — none of it is secret on its own, and none of it is any use without the passphrase, which is stored nowhere. The sealed key itself lives outside Supabase entirely, on the vault service (`sd-chat-vault/`). RLS: `auth.uid() = user_id` for all four verbs, so the client reads and writes it directly. `on delete cascade` from `profiles`, so the row goes when the account does — the blob on the vault does not, which is why `deleteAccountAndLocalData` deletes it explicitly before signing out.
+
+### The key vault (outside Supabase)
+
+`sd-chat-vault/` holds a small Fastify service that stores the sealed identity-key blobs, deployed with Docker Compose behind a Cloudflare Tunnel. It is not a Supabase component, but it authenticates with Supabase session JWTs, verified **locally** against a cached JWKS or the legacy shared secret rather than by calling Supabase — so it keeps working if the Supabase API is down mid-recovery. It accepts both signing schemes, chosen per token by `alg`, because the project currently signs HS256 with ES256 in standby. Setup, verification and the ES256 promotion are in `sd-chat-vault/DEPLOY.md`.
 
 ## Configuration
 

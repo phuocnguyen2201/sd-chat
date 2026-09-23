@@ -22,6 +22,7 @@
     "@gorhom/bottom-sheet": "^5.0.0-alpha.11",
     "@legendapp/motion": "^2.4.0",
     "@react-aria/utils": "^3.29.0",
+    "@noble/hashes": "^1.8.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/native": "^7.1.6",
     "@rneui/themed": "^4.0.0-rc.8",

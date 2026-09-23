@@ -151,11 +151,25 @@ export default function ScanningKeys() {
                         </Text>
                         <QrScannerView active={phase === 'scan'} onScanned={onScannedCode} />
 
+                        <Box className="mt-8 w-full items-center">
+                            <Text className="mb-3 text-center text-xs text-gray-500">
+                                No other device to scan from?
+                            </Text>
+                            <Button
+                                action="primary"
+                                variant="outline"
+                                size="sm"
+                                onPress={() => router.push('/tabs/managekeys/RecoverKey')}
+                            >
+                                <ButtonText>Recover from backup</ButtonText>
+                            </Button>
+                        </Box>
+
                         {isRecovery && (
                             <Box className="mt-8 w-full items-center">
                                 <Text className="mb-3 text-center text-xs text-gray-500">
-                                    No other device to scan from? This account&apos;s messages cannot
-                                    be recovered without its key.
+                                    No backup either? This account&apos;s messages cannot be
+                                    recovered without its key.
                                 </Text>
                                 <Button
                                     action="negative"

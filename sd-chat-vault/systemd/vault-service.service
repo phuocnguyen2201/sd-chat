@@ -1,0 +1,27 @@
+# /etc/systemd/system/vault-service.service
+# Runs the vault under a dedicated, unprivileged user with no shell.
+# Create it first:
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin vault-svc
+#   sudo mkdir -p /opt/sd-chat-vault/backups
+#   sudo chown -R vault-svc:vault-svc /opt/sd-chat-vault
+#   sudo chmod 700 /opt/sd-chat-vault /opt/sd-chat-vault/backups
+
+[Unit]
+Description=SD Chat key-backup vault service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sd-chat-vault/vault-service
+EnvironmentFile=/opt/sd-chat-vault/vault-service/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+User=vault-svc
+Group=vault-svc
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/sd-chat-vault/backups /opt/sd-chat-vault/jwks-cache.json
+
+[Install]
+WantedBy=multi-user.target

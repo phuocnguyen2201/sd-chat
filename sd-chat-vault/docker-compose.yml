@@ -1,0 +1,62 @@
+# SD Chat key vault, as it runs on the Pi.
+#
+# Note what is NOT here: any `ports:` mapping. The vault is unreachable from the
+# Pi's LAN and from the internet. The only route in is the outbound connection
+# cloudflared makes to Cloudflare's edge, and the only path that route carries
+# is /backup/*. Adding a `ports:` line to "make testing easier" would undo that;
+# test with `docker compose exec cloudflared ...` instead.
+
+# Pinned so the volume and network are named after the project, not after the
+# directory this file happens to sit in (~/clouflared on the Pi). Without it the
+# volume would be `clouflared_vault-data`, and it would silently become a
+# different, empty volume if the directory were ever renamed.
+name: sd-chat-vault
+
+services:
+  vault-service:
+    build: ./vault-service
+    container_name: sd-chat-vault
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - vault-data:/opt/sd-chat-vault
+    # No ports exposed to the host at all — cloudflared reaches it over the
+    # Docker network by service name, nothing else can.
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    # The dashboard ingress for this tunnel must point at
+    # http://vault-service:8443 — the compose service name. 127.0.0.1 there
+    # would mean cloudflared itself.
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    depends_on:
+      - vault-service
+
+  # Keeps the cached Supabase public keys fresh. Not needed while the project
+  # signs HS256, but running it now means promoting ES256 later is a dashboard
+  # click and a restart rather than a scramble. A failed fetch leaves the
+  # existing cache untouched, which is the behaviour that matters in an outage.
+  jwks-refresh:
+    build: ./vault-service
+    container_name: sd-chat-vault-jwks
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - vault-data:/opt/sd-chat-vault
+    # No surrounding quotes: the entrypoint is exec-form, so this whole string
+    # is handed to `sh -c` as one argument. Wrapping it in quotes made sh treat
+    # the entire loop as the *name* of a command to run, and the container
+    # crash-looped with "command not found" - never writing a JWKS cache.
+    entrypoint: ["/bin/sh", "-c"]
+    command: while true; do node dist/jwks-refresh.js || echo "jwks refresh failed, keeping cache"; sleep 43200; done
+
+volumes:
+  # Named volume, which on a stock Pi means the SD card. Nothing here is
+  # replicated: if that card dies, every backup dies with it. The blobs are
+  # client-encrypted, so syncing them anywhere — S3, another box, a USB disk —
+  # leaks nothing and is the obvious fix when this stops being a prototype.
+  vault-data:

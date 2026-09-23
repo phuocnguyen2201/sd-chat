@@ -1,0 +1,18 @@
+# /etc/systemd/system/cloudflared.service
+# Keeps the tunnel running across reboots and restarts it if it dies.
+
+[Unit]
+Description=Cloudflare Tunnel (SD Chat vault)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared tunnel run sd-chat-vault
+Restart=always
+RestartSec=5
+User=cloudflared
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

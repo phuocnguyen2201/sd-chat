@@ -28,6 +28,8 @@ This folder documents the current Expo Router application under `app/`.
 | `/tabs/managekeys/PairingCode` | `tabs/managekeys/PairingCode.tsx` | Old device: show a 4-digit same-room pairing code |
 | `/tabs/managekeys/EnterPairingCode` | `tabs/managekeys/EnterPairingCode.tsx` | New device: enter that code |
 | `/tabs/managekeys/ScanningKeys` | `tabs/managekeys/ScanningKeys.tsx` | Scan and import a key QR payload |
+| `/tabs/managekeys/BackupKey` | `tabs/managekeys/BackupKey.tsx` | Seal the identity key behind a passphrase and upload it to the vault |
+| `/tabs/managekeys/RecoverKey` | `tabs/managekeys/RecoverKey.tsx` | Recover the identity key from the vault when no device is left to pair with |
 
 ## Authenticated startup flow
 
@@ -46,6 +48,7 @@ Push notification registration and notification response handling are centralize
 - Authentication, profile, conversation, message, and reaction calls are exposed by `utility/messages`.
 - Message encryption uses `utility/securedMessage/secured`; conversation keys are cached by `ConversationKeyManager`.
 - Device-to-device key sync gates `ManageKeys`/`ScanningKeys` behind a same-room 4-digit code (`PairingCode`/`EnterPairingCode`, `utility/securedMessage/LocalPairingCode`), then shares a plaintext key QR built by `utility/securedMessage/KeySyncPayload`. A separate, not-yet-wired server-relayed transport (`RemoteDevicePairing`, `DeviceIdentity`) also exists. See `tabs/managekeys/ManageKeys.md`, `PairingCode.md`, `EnterPairingCode.md`, `ScanningKeys.md`, and `documentation/supabase/README.md`.
+- A second, independent recovery path stores the identity key encrypted at rest on a self-hosted vault (`utility/securedMessage/VaultBackup.ts`, `tabs/managekeys/BackupKey.tsx`, `RecoverKey.tsx`). Unlike pairing it needs no second device, but it needs the user to remember a recovery passphrase. See `tabs/managekeys/BackupKey.md`, `RecoverKey.md`, and `sd-chat-vault/DEPLOY.md`.
 - Avatars and message/group files use `utility/handleStorage`.
 - Gluestack UI primitives are under `components/ui`; `components/QrScannerView` is a shared camera/permission component used by the key-management screens.
 
@@ -55,4 +58,5 @@ Push notification registration and notification response handling are centralize
 - **`ManageKeys` / `ScanningKeys` exchange a single QR containing the plaintext private key again** (commit `4e02cce`, 2026-09-16) — the brief two-QR ephemeral-ECDH handshake (sealed ciphertext, never a raw key on screen) was removed. The only remaining protection before a QR is generated is the `PairingCode`/`EnterPairingCode` same-room 4-digit code gate plus a 30s QR display window. See `tabs/managekeys/ManageKeys.md` and `ScanningKeys.md` for the full flow and the security-model note. `utility/securedMessage/DevicePairing.ts` (the removed handshake's crypto) is left in the tree unused.
 - A second, server-relayed pairing transport exists (`device-pairing` Supabase Edge Function + `RemoteDevicePairing.ts`, for syncing devices that aren't physically together) but has no screen wired to it yet — only the local QR flow is reachable from the UI today.
 - There is still no true multi-device identity model: `generateKeyPair()` only runs once, at sign-up (`login.tsx`), and its private key never leaves that device automatically. Every additional device must obtain that same private key through one of the pairing flows above before it can decrypt anything — this is not an optional backup feature, it's required onboarding for any device beyond the first.
+- **The key vault is built but has never run on a device** (2026-09-22). The client, the service and its Docker deployment are all in place and typecheck/build clean, and the service was smoke-tested locally in both JWT modes — but the `key_backups` migration is not applied, the Pi is not deployed, and no phone has exercised either screen. Until that happens, QR pairing remains the only recovery path that has actually worked. See `in-progress.md`.
 - **The key-sync QR's rendering props are load-bearing** (fixed 2026-09-17): `quietZone`, a white background behind the code, and a large enough `size` are all required for it to be scannable at all — `react-native-qrcode-svg` defaults `quietZone` to `0`, which silently produces a code no scanner can decode while still looking correct on screen. It failed only in dark mode. See the "QR rendering requirements" section in `tabs/managekeys/ManageKeys.md` before changing anything about that QR.

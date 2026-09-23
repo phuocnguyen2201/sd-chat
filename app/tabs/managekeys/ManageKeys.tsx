@@ -122,6 +122,24 @@ export default function ManageKeys() {
                 className="bg-blue-500 mb-4">
                 <ButtonText className="text-white">Receive Keys</ButtonText>
             </Button>
+
+            {/*
+              The other recovery path: pairing needs a second device that is
+              still working, and this covers the case where there isn't one.
+            */}
+            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
+                <Text>
+                    Back up your key to recover it on a new device even if every device you own is
+                    lost or wiped. It is encrypted with a passphrase you choose before it leaves
+                    this device.
+                </Text>
+            </Box>
+            <Button onPress={() => { router.push('/tabs/managekeys/BackupKey'); }}
+                size="md"
+                action="primary"
+                className="bg-blue-500 mb-8">
+                <ButtonText className="text-white">Back up my key</ButtonText>
+            </Button>
         </ScrollView>
     )
 

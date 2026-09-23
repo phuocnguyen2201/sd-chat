@@ -1,0 +1,27 @@
+# Only used if you run cloudflared from a config file and credentials JSON.
+# With a token-managed tunnel (the default in docker-compose.yml) this file is
+# unused and the same ingress rules are entered in the Cloudflare Zero Trust
+# dashboard instead.
+#
+# Setup (run once, on any machine logged into the Cloudflare account):
+#   cloudflared tunnel login
+#   cloudflared tunnel create sd-chat-vault
+#   cloudflared tunnel route dns sd-chat-vault <your vault hostname>
+# Then fill in <tunnel-id>, mount this directory and the credentials JSON at
+# /etc/cloudflared in the tunnel container, and switch its command to:
+#   tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+
+tunnel: <tunnel-id>
+credentials-file: /etc/cloudflared/<tunnel-id>.json
+
+ingress:
+  # `vault` is the compose service name. Not 127.0.0.1 - inside the cloudflared
+  # container that would resolve to cloudflared itself.
+  - hostname: <your vault hostname>
+    path: /backup/.*
+    service: http://vault:8443
+  - hostname: <your vault hostname>
+    path: /healthz
+    service: http://vault:8443
+  # Anything else is refused at the edge, before it reaches the Pi.
+  - service: http_status:404

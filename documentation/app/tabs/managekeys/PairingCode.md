@@ -1,6 +1,6 @@
 # Pairing Code Screen
 
-**Source:** [`app/tabs/managekeys/PairingCode.tsx`](../../../app/tabs/managekeys/PairingCode.tsx)
+**Source:** [`app/tabs/managekeys/PairingCode.tsx`](../../../../app/tabs/managekeys/PairingCode.tsx)
 
 `PairingCode` is the "old device" (already has the keys) half of the local, same-room pairing-code gate. It sits between `ManageKeys`'s `Share Keys` button and the QR-sharing step, proving the two devices are physically together before any key material is prepared. Added 2026-09-15 (commit `3104094`).
 

@@ -1,6 +1,6 @@
 # Manage Keys Screen
 
-**Source:** [`app/tabs/managekeys/ManageKeys.tsx`](../../../app/tabs/managekeys/ManageKeys.tsx)
+**Source:** [`app/tabs/managekeys/ManageKeys.tsx`](../../../../app/tabs/managekeys/ManageKeys.tsx)
 
 `ManageKeys` is the "sharing device" side of key sync, and also the hub screen for both directions (it renders the `Share Keys` / `Receive Keys` entry points). It is reached from `BiometricAuthentication` after a successful biometric check.
 
@@ -26,6 +26,8 @@ Payload size scales with the number of conversations, so a user with many chats 
 
 `Receive Keys` pushes `/tabs/managekeys/EnterPairingCode` (the new device's half of the same code gate) rather than going straight to `ScanningKeys`.
 
+`Back up my key` pushes `/tabs/managekeys/BackupKey`, the entry point to the vault — the recovery path that does not need a second device. It sits on this screen, behind the same biometric gate, because there is nothing to back up unless this device already holds the key. See `BackupKey.md`.
+
 ## Security model (changed 2026-09-16, commit `4e02cce`)
 
 This screen previously ran a two-QR ephemeral-ECDH handshake (`utility/securedMessage/DevicePairing.ts`) so that a bystander who photographed a QR never got a usable private key. **That layer was removed.** The QR rendered in step 4 now contains the private key in the clear — the code comment and on-screen copy both say so. The only protection left against an unintended recipient is:
@@ -40,4 +42,5 @@ This screen previously ran a two-QR ephemeral-ECDH handshake (`utility/securedMe
 - `app/tabs/managekeys/PairingCode.tsx` — the 4-digit code gate this screen pushes into before sharing.
 - `app/tabs/managekeys/EnterPairingCode.tsx` — the 4-digit code gate for the receiving side.
 - `utility/securedMessage/KeySyncPayload.ts` — builds the `KeyObject` rendered into the QR.
+- `app/tabs/managekeys/BackupKey.tsx` — the vault backup flow this screen links to.
 - For the server-relayed alternative (no camera, works when devices aren't in the same room), see `documentation/supabase/README.md` (`device-pairing` function) and `utility/securedMessage/RemoteDevicePairing.ts` — not yet wired into a screen.

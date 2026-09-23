@@ -206,3 +206,227 @@ Two failure modes fixed while extracting the helper:
 - **Local cleanup failures were reported as deletion failures.** Once the account is gone it is gone; failing to tidy Secure Store or SQLite must not send the user back to a screen for an account that no longer exists. The local purge now has its own `try`/`catch`, logs, and still returns success.
 
 `npx tsc --noEmit` unchanged at 3 pre-existing errors. Not run on a device.
+
+## 2026-09-22 — Doomsday key-backup vault: reviewed the handoff, then built it
+
+The `sd-chat-vault/` handoff was a design sketch written without the repo in
+front of it. Reviewed it against the real code, corrected what did not match,
+and wired the whole path end to end. Nothing has run on a device yet.
+
+### What the sketch got wrong about this app
+- **The identity key is not Ed25519.** It is a tweetnacl `nacl.box` X25519
+  secret key, 32 bytes, base64, at `user_encryption_key_${userId}`
+  (`secured.ts:152/165/171`). The sketch sealed an "Ed25519 seed" and restored
+  it to `ed25519_private_key_seed` — a slot nothing reads. Recovery would have
+  reported success and left the device keyless.
+- **`Buffer` was used throughout and does not exist here** — no polyfill, no
+  `buffer` dependency. Replaced with `MessageEncryption.bytesToBase64` /
+  `base64ToBytes`.
+- **`react-native-argon2` is not a dependency** and is a native module. Swapped
+  for scrypt via `@noble/hashes` (added to `package.json`, already present
+  transitively at 1.8.0): pure JS, no native module, no dev-client rebuild.
+- **The device row was updated by `device_id`.** The repo's convention is
+  `DeviceIdentity.registerCurrentDevice()` → row `id` → `markKeySynced(rowId)`,
+  which also clears `is_new`.
+
+### Client — `utility/securedMessage/VaultBackup.ts`
+`backupIdentityKey` / `recoverIdentityKey` / `deleteVaultBackup` /
+`hasVaultBackup`. scrypt N=2^15, r=8, p=1 → ChaCha20-Poly1305, with the account
+id bound in as associated data so a blob cannot be opened under another account.
+Parameters are stored per backup in `key_backups`, so the cost can be lowered
+later without stranding existing backups.
+
+The recovered key is derived to a public key and checked against
+`profiles.public_key` **before** anything is written. A blob belonging to a
+different identity is refused rather than cementing the exact silent mismatch
+that `verifyIdentityKey` exists to catch.
+
+Only the identity key is backed up, not conversation keys — those come back
+through `ConversationKeyResolver` from each `conversation_participants.wrapped_key`
+row. Conversations where this user has no wrapped key of their own (the ones a
+device minted and never wrapped for itself) stay unreadable. Accepted, documented.
+
+### Client — UI
+- `app/tabs/managekeys/BackupKey.tsx`: passphrase + confirmation, a warning that
+  a forgotten passphrase is unrecoverable, and a second warning when a backup
+  already exists (saving replaces it, and the old passphrase stops working).
+- `app/tabs/managekeys/RecoverKey.tsx`: passphrase, then recovery, with a
+  distinct message per failure — wrong passphrase, no backup, vault unreachable,
+  identity mismatch — because each calls for a different response.
+- Entry points: "Back up my key" on `ManageKeys` (behind the existing biometric
+  gate), "Recover from backup" on `ScanningKeys`, which is where Bootstrap
+  already sends a device that holds no key. Both registered in `app/tabs/_layout.tsx`.
+- `deleteAccountAndLocalData` now removes the vault backup **before**
+  `authAPI.deleteAccount()` signs out, since the vault authenticates with that
+  session. Best-effort: an unreachable Pi must not block deleting an account.
+
+### Vault service
+- `PUT`/`GET`/`DELETE /backup/:userId`, base64-in-JSON rather than raw binary
+  bodies (RN's fetch is an XHR polyfill with uneven binary support). Writes are
+  write-then-rename, so a pulled plug leaves the previous backup intact.
+- **Dual-mode JWT verification**, chosen per token by its `alg`: HS256 against
+  the shared secret, ES256 against the cached JWKS. The project signs HS256 with
+  ES256 in standby, so promoting the standby key later needs no code change —
+  just delete the secret from the Pi's `.env`.
+- Docker, not systemd: `vault-service/Dockerfile`, `docker-compose.yml`
+  (vault + cloudflared + a JWKS refresher on a 12h loop), `.env.example`,
+  `DEPLOY.md`. No `ports:` mapping anywhere — the only route in is the tunnel.
+  The `systemd/` units are left in place but unused.
+- `supabase/migrations/20260922000000_key_backups.sql` reworked for scrypt
+  parameters. Not applied yet.
+
+### Verified
+- **Service, end to end** (local, both auth modes): unauthenticated → 401;
+  another account's token → 401; GET before PUT → 404; PUT → 204; GET returns
+  the blob; non-base64 → 400; oversize → 413; path traversal → 401; DELETE →
+  204, then 404; no file left behind. ES256-only, HS256-only and dual-mode
+  configurations all behave as intended, and dropping the secret cleanly
+  rejects HS tokens — which is the promotion path.
+- **Crypto round trip** against the project's own modules: seal/open passes,
+  the recovered secret derives the original public key, a wrong passphrase is
+  rejected, and a wrong account id as associated data is rejected. Sealed blob
+  is 48 bytes, 64 base64 chars. scrypt N=2^15 takes ~140ms on Node — Hermes
+  will be several times slower and needs measuring on a real phone.
+- `npx tsc --noEmit` unchanged at 27 pre-existing errors, all in
+  `components/ui/` and `supabase/functions/`; none in `app/` or `utility/`.
+
+### Not done
+Nothing has run on a device. The migration is not applied, the Pi is not
+deployed, and ES256 is not promoted — while it is not, the Pi would hold a
+symmetric secret that can mint `service_role` tokens.
+
+### Documentation updated (same session)
+- **New**: `documentation/app/tabs/managekeys/BackupKey.md`, `RecoverKey.md` — flow, why the confirmation field and the "already have a backup" warning exist, the four typed errors and why each gets its own message, and a table comparing vault recovery against QR pairing.
+- **Updated**: `app/README.md` (route map, implementation boundaries, a caveat that the vault has never run on a device), `utility/README.md` (new `VaultBackup.ts` and `ConversationKeyResolver.ts` sections, `@noble/hashes` dependency, a security note on how backups are sealed), `supabase/README.md` (the `key_backups` table and a section on the vault service), `ManageKeys.md` and `ScanningKeys.md` (the new entry points on each).
+- **Corrected a misconception in `utility/README.md`**: it described `tweetnacl` as "Ed25519 key pairs and ECDH". The identity key is X25519 (`nacl.box`). That is exactly the assumption that made the first draft of the vault restore a key to a Secure Store slot nothing reads, so the line now says so explicitly.
+- **Fixed relative links** in `documentation/app/tabs/managekeys/*.md` and `msg/*.md`: eight files used `../../../app/...` where their depth needs `../../../../`, so every "Source:" link in them pointed at nothing. All relative links in `documentation/` now resolve.
+
+### Aligned to the Pi's actual compose file (2026-09-23)
+The Pi is already running a compose stack with different names and paths than
+the repo assumed. Repo now matches it rather than the other way round:
+- Service name is `vault-service` (not `vault`), so the Cloudflare ingress must
+  target `http://vault-service:8443`.
+- The volume mounts at `/opt/sd-chat-vault`, not `/data`. Dockerfile `VOLUME`,
+  `VAULT_DIR` / `JWKS_CACHE_PATH` defaults and `.env.example` all moved.
+- **Dockerfile fix that matters**: the image now creates
+  `/opt/sd-chat-vault/backups` owned by `node` *before* the volume mounts over
+  it. Docker copies the image directory's ownership onto a named volume when it
+  first creates it; with no such directory the volume is created root-owned and
+  the unprivileged process cannot write a single backup. Reasoned, not tested —
+  no Docker daemon available here — so DEPLOY.md step 6 opens with a one-line
+  writability probe and the `chown` recovery command.
+- Added a `jwks-refresh` service to their layout, sharing the volume.
+- One `.env` at the vault root (their `env_file:`); removed the stale per-service
+  `.env.example`, which still advertised `AUTH_MODE` and `HOST=127.0.0.1` — the
+  latter would make the service unreachable from cloudflared and 502 everything.
+- `DEPLOY.md` rewritten as a step-by-step runbook for this exact setup, with the
+  verification ordered so each check isolates one layer.
+
+### `install-vault.sh` (2026-09-23)
+Getting the source onto the Pi by hand kept losing files — first the
+`Dockerfile`, then `src/`. Added `sd-chat-vault/install-vault.sh`, generated
+from the repo files so it cannot drift: it writes `docker-compose.yml`,
+`.env.example` and the whole `vault-service/` tree, overwrites only those, and
+leaves an existing `.env` alone. Verified by running it into a scratch
+directory and diffing all eight files against the originals — byte-for-byte
+identical. Can be run without copying anything:
+`ssh pi@host 'mkdir -p ~/clouflared && cd ~/clouflared && sh -s' < install-vault.sh`
+
+## 2026-09-23 — Vault deployed to the Pi and reachable through the tunnel
+
+The service is live. `curl https://sd-chat-tunnel.bid/backup/<uuid>` from
+outside returns **401**: the tunnel reached the service and the service refused
+an unauthenticated caller, so both halves work. No phone has touched it yet.
+
+### What the deployment actually needed, beyond DEPLOY.md
+- **The compose file on the Pi had been merged rather than replaced**, leaving
+  two top-level `services:` and two `volumes:` keys —
+  `mapping key "services" already defined`. `docker compose config -q` now
+  appears in DEPLOY.md as a pre-flight check.
+- **Pinned the compose project name** to `sd-chat-vault`. Compose derives it
+  from the directory otherwise, so the volume would have been
+  `clouflared_vault-data` and would have silently become a different, empty
+  volume if the folder were ever renamed. Consequence documented: the old
+  project's containers use fixed `container_name`s and must be removed first, or
+  the new project collides with *container name is already in use*.
+- **Getting the source onto the Pi kept losing files** — first the `Dockerfile`
+  (`failed to read dockerfile`), then `src/` (`COPY src ./src`). Fixed properly
+  with `sd-chat-vault/install-vault.sh`, generated from the repo so it cannot
+  drift: it writes `docker-compose.yml`, `.env.example` and the whole
+  `vault-service/` tree, overwrites only those, and leaves an existing `.env`
+  alone. Verified by running it into a scratch directory and diffing all eight
+  outputs against the originals — byte-for-byte identical. Usable with no file
+  copying at all:
+  `ssh pi@host 'mkdir -p ~/clouflared && cd ~/clouflared && sh -s' < install-vault.sh`
+- **A `listening on 127.0.0.1` log line with `HOST=0.0.0.0` set** turned out to
+  be a stale line replayed by `docker compose logs`, not a live misconfiguration
+  — an explicit `HOST` always beat the default, even in the original source, so
+  a container started with that env could not have logged it. The check that
+  settles it regardless of logs is
+  `docker compose exec jwks-refresh wget -qO- http://vault-service:8443/healthz`.
+
+### Paths and names, now fixed
+The stack lives in `/home/<user>/clouflared/` on the Pi; the volume mounts at
+`/opt/sd-chat-vault` **inside the container**. `Dockerfile`, the `VAULT_DIR` /
+`JWKS_CACHE_PATH` defaults and `.env.example` were all realigned to that, and
+the Dockerfile now creates `/opt/sd-chat-vault/backups` owned by `node` before
+the volume mounts over it — without that the named volume comes up root-owned
+and the unprivileged process cannot write a single backup. Reasoned, not tested
+(no Docker daemon on the Mac), so DEPLOY.md step 6 opens with a writability
+probe and the `chown` recovery command.
+
+### `eas.json` — would have shipped a broken build
+`EXPO_PUBLIC_VAULT_URL` was in `.env`, which is gitignored, and **EAS excludes
+gitignored files from the upload** — which is exactly why every other
+`EXPO_PUBLIC_*` var is duplicated into `eas.json`'s `env` blocks. The vault URL
+was not, so a build would have shipped it `undefined` and both screens would
+have failed with "there is no vault to talk to". Added to the `development` and
+`production` profiles. Noted in passing: `preview` has no `env` block at all, so
+it gets no Supabase configuration either.
+
+### Not done
+The migration has not been confirmed applied (the 401 does not prove it — the
+vault never calls Supabase for an unauthenticated request), the app has not been
+rebuilt, no device has exercised either screen, scrypt has never run on Hermes,
+and ES256 is still in standby with the symmetric secret sitting on the Pi.
+See in-progress.md for the ordered pick-up list.
+
+## 2026-09-23 (later) — First real backup stored; the 401 was two compounding faults
+
+`Back up my key` from the APK now succeeds end to end: phone → Cloudflare Tunnel
+→ vault → blob on the Pi.
+
+### Why it returned 401 at first
+1. **The project signs ES256, not HS256.** Its JWKS publishes exactly one key
+   (`alg=ES256`, `kty=EC`), so every token takes the JWKS path and the HS256
+   secret on the Pi was never consulted. The earlier plan — "dual-mode now,
+   promote ES256 later" — turned out to be describing a promotion that had
+   already happened.
+2. **The JWKS cache was never written, because the refresher's compose command
+   was wrong.** `command: >` kept the surrounding single quotes, and with an
+   exec-form `entrypoint: ["/bin/sh","-c"]` the whole loop arrived as one
+   argument, so sh treated it as a *command name*:
+   `while true; do node dist/jwks-refresh.js ...; done: command not found`.
+   The container had been crash-looping since first start.
+
+Together: ES256 token → JWKS path → no cache file → `AuthError` → 401 on every
+request. Fixed by unquoting the command in `docker-compose.yml`. The immediate
+unblock needed no redeploy at all, since the vault re-reads the cache from disk
+on every request: `docker compose exec vault-service node dist/jwks-refresh.js`.
+
+### Diagnostics added, because this was harder to see than it should have been
+- **Client** (`VaultBackup.ts`): `describeRefusal()` now reads the response body
+  at all three call sites, so the app reports `401 - <the vault's reason>`
+  instead of a bare status. It also names the case where the responder was not
+  the vault at all (an HTML body), which is what a Cloudflare Access policy in
+  front of the tunnel would look like.
+- **Service** (`index.ts`): auth refusals are logged with their reason. A 401
+  here is never the user's fault, and the person who can fix it is reading the
+  Pi's logs, not the phone's screen.
+- `install-vault.sh` regenerated so it carries both.
+
+### Consequence for the security item
+Since the project is already asymmetric, `SUPABASE_JWT_SECRET` on the Pi is
+doing nothing and can simply be deleted from `~/clouflared/.env`. The concern
+about the Pi being able to mint `service_role` tokens goes away with it — no
+dashboard rotation needed, it was already done.

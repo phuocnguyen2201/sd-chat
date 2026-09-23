@@ -1,6 +1,6 @@
 # Enter Pairing Code Screen
 
-**Source:** [`app/tabs/managekeys/EnterPairingCode.tsx`](../../../app/tabs/managekeys/EnterPairingCode.tsx)
+**Source:** [`app/tabs/managekeys/EnterPairingCode.tsx`](../../../../app/tabs/managekeys/EnterPairingCode.tsx)
 
 `EnterPairingCode` is the "new device" half of the local pairing-code gate — the counterpart to `PairingCode.tsx`. It sits between `ManageKeys`'s `Receive Keys` button and `ScanningKeys`. Added 2026-09-15 (commit `3104094`).
 

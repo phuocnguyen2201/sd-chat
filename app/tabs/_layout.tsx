@@ -21,6 +21,8 @@ export default function AppLayout() {
       <Stack.Screen name='managekeys/ScanningKeys' options={{ title: 'Scan keys' }}/>
       <Stack.Screen name='managekeys/EnableBiometric' options={{ title: 'Enable Biometric Authentication'}}/>
       <Stack.Screen name='managekeys/PairingCode' options={{ title: 'Pairing Code'}}/>
+      <Stack.Screen name='managekeys/BackupKey' options={{ title: 'Back Up Key'}}/>
+      <Stack.Screen name='managekeys/RecoverKey' options={{ title: 'Recover From Backup'}}/>
     </Stack>
   );
 }

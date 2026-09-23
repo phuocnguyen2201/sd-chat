@@ -1,6 +1,6 @@
 # Scanning Keys Screen
 
-**Source:** [`app/tabs/managekeys/ScanningKeys.tsx`](../../../app/tabs/managekeys/ScanningKeys.tsx)
+**Source:** [`app/tabs/managekeys/ScanningKeys.tsx`](../../../../app/tabs/managekeys/ScanningKeys.tsx)
 
 `ScanningKeys` is the "receiving device" side of key sync. It is reached from `EnterPairingCode` (see `EnterPairingCode.md`) after that screen's 4-digit code is verified — never directly from `ManageKeys`.
 
@@ -10,6 +10,12 @@
 2. On a scan, parses the QR as JSON and checks it has a `list` array (`isArray`) before trusting it — not a full shape/signature check.
 3. `importKeysToNewDevice()` validates: a session exists, the payload's `userId` matches the signed-in user, and `validTime` hasn't passed (`Date.now() > payload.validTime` → "QR code expired" alert).
 4. On success, restores the private key via `MessageEncryption.setPrivateKey()` and stores any conversation keys not already present via `ConversationKeyManager`, then shows the `done` completion dialog (`Ok` returns to Settings).
+
+## The way out when there is nothing to scan
+
+Below the camera, this screen offers `Recover from backup`, which pushes `/tabs/managekeys/RecoverKey`. That matters most when `Bootstrap` has sent someone here with `?recovery=1` — a device holding no usable key, whose owner may have no second device to scan from. The `recovery=1` branch additionally offers account deletion, as the last resort when neither a QR nor a backup exists.
+
+See `RecoverKey.md` for what recovery restores (the identity key) and what it does not (conversation keys, which come back lazily through `ConversationKeyResolver`).
 
 ## Security model (changed 2026-09-16, commit `4e02cce`)
 
@@ -29,3 +35,4 @@ This screen previously generated its own ephemeral key pair and scanned a *secon
 - `app/tabs/managekeys/EnterPairingCode.tsx` — the 4-digit code gate that must pass before this screen is reachable.
 - `components/QrScannerView.tsx` — shared camera/permission component.
 - `utility/types/user.ts` — `KeyObject` is the shape scanned here.
+- `app/tabs/managekeys/RecoverKey.tsx` — the vault recovery flow this screen links to.

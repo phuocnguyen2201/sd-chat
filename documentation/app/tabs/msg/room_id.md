@@ -1,6 +1,6 @@
 # Chat Room Screen
 
-**Source:** [`app/tabs/msg/[room_id].tsx`](../../../app/tabs/msg/[room_id].tsx)
+**Source:** [`app/tabs/msg/[room_id].tsx`](../../../../app/tabs/msg/[room_id].tsx)
 
 ## Overview
 The Chat Room screen (`[room_id].tsx`) is the individual conversation interface where users can send and receive messages in real-time. It supports text messages, image sharing, and file attachments with end-to-end encryption.

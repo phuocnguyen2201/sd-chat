@@ -97,3 +97,66 @@ Implemented, typechecks, never run. To verify:
 - Watch for a **navigation loop** on `ScanningKeys` if a user backs out of it without syncing — Bootstrap's `hasNavigated` ref guards one pass per mount, but this path has not been exercised.
 
 Open question deliberately not addressed: `verifyIdentityKey` returns `ok` when `profiles.public_key` is empty and a key is present, because there is nothing to compare against. If an account can legitimately have a null public key, that is a hole worth closing.
+
+## Doomsday key-backup vault — Pi deployed and reachable, app not yet built (2026-09-23)
+The vault service is **live on the Pi and serving through the tunnel**. Verified
+end to end from outside: `curl https://sd-chat-tunnel.bid/backup/<uuid>` returns
+**401**, which means the tunnel reached the service and the service refused an
+unauthenticated caller — both halves working. Nothing has touched it from a
+phone yet.
+
+### Pick up here
+1. **Confirm the migration is applied.** `select * from key_backups;` in the
+   Supabase SQL editor — `0 rows` is right, `relation does not exist` means it
+   still needs running from
+   `sd-chat-vault/supabase/migrations/20260922000000_key_backups.sql`. The 401
+   above does **not** prove this: the vault never calls Supabase for an
+   unauthenticated request.
+2. **Build the app.** `eas build --platform android --profile production`.
+   `EXPO_PUBLIC_VAULT_URL` was added to `eas.json` this session (see
+   progress.md) — without it the build ships the variable undefined. Use
+   `production` or `development`; `preview` has no `env` block at all and gets
+   none of the Supabase vars either.
+3. **Device test**, in this order, with `docker compose logs -f vault-service`
+   open on the Pi: back up on a device that holds a key (expect `PUT` + `204`)
+   → `docker compose exec vault-service ls -l /opt/sd-chat-vault/backups/` (one
+   `<user-id>.b64`, 64 bytes) → check the `key_backups` row → reinstall or use a
+   second device → sign in → `Recover from backup` → open a conversation and
+   confirm messages decrypt.
+4. **Time the passphrase steps.** That is scrypt on Hermes, the one number that
+   could not be measured off-device. ~140ms on Node; if it is more than a few
+   seconds on a phone, drop `SCRYPT_PARAMS.N` to `1 << 14` in
+   `utility/securedMessage/VaultBackup.ts`. Backups written at the old value
+   still open — the parameters travel with each one.
+
+The failure worth watching for at step 3 is **"This backup does not match this
+account"**: the recovered key did not match `profiles.public_key`, nothing was
+written, and that would point at a real bug rather than user error.
+
+### Still open after that
+- **Promote ES256, then delete `SUPABASE_JWT_SECRET` from the Pi's `.env` and
+  restart.** The verifier picks the scheme per token, so no code change. Until
+  then the Pi holds a symmetric secret that can mint `service_role` tokens,
+  which makes it as sensitive as the service key. `DEPLOY.md` step 9.
+- **Blob durability.** The volume is the SD card and nothing replicates it. The
+  blobs are client-encrypted, so syncing them anywhere leaks nothing; there is a
+  one-line `tar` snapshot command at the end of `DEPLOY.md`.
+- **Rate limiting.** A Cloudflare WAF rule on the hostname (~10 req/min/IP).
+- **Unmeasured gap**: conversations where this user has no wrapped key of their
+  own stay unreadable after vault recovery. Worth counting before deciding
+  whether to widen what the blob holds.
+
+### Decisions taken (2026-09-22/23, user)
+- **KDF**: scrypt via `@noble/hashes` (pure JS, no native module). Parameters
+  stored per backup as `kdf_n` / `kdf_r` / `kdf_p`.
+- **Blob scope**: identity private key only.
+- **UX**: `BackupKey` from ManageKeys, `RecoverKey` from ScanningKeys.
+- **Rotation**: overwrite, paired with a confirm-passphrase field and an
+  explicit warning when a backup already exists.
+- **JWT**: dual-mode now, ES256 promoted later.
+- **Deployment**: Docker Compose in `/home/<user>/clouflared/` on the Pi,
+  token-managed cloudflared with ingress in the Zero Trust dashboard
+  (`backup/.*` → `http://vault-service:8443`). The `systemd/` units and
+  `cloudflared/config.yml` are unused. Compose project name pinned to
+  `sd-chat-vault` so the volume is not named after the directory.
+- **Durability**: accepted as unsolved for now.

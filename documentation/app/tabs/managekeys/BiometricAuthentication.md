@@ -1,6 +1,6 @@
 # Biometric Authentication Screen
 
-**Source:** [`app/tabs/managekeys/BiometricAuthentication.tsx`](../../../app/tabs/managekeys/BiometricAuthentication.tsx)
+**Source:** [`app/tabs/managekeys/BiometricAuthentication.tsx`](../../../../app/tabs/managekeys/BiometricAuthentication.tsx)
 
 This screen is the access check before opening the key-management QR screen.
 

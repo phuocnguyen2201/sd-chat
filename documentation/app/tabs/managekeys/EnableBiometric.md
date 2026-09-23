@@ -1,6 +1,6 @@
 # Enable Biometric Screen
 
-**Source:** [`app/tabs/managekeys/EnableBiometric.tsx`](../../../app/tabs/managekeys/EnableBiometric.tsx)
+**Source:** [`app/tabs/managekeys/EnableBiometric.tsx`](../../../../app/tabs/managekeys/EnableBiometric.tsx)
 
 This screen is shown during first authenticated startup when the user has not enabled or skipped biometric setup. It can also be opened from Settings with `previousScreen=setting`.
 

@@ -1,0 +1,13 @@
+# /etc/systemd/system/jwks-refresh.service
+# Triggered by jwks-refresh.timer. Not enabled directly.
+
+[Unit]
+Description=Refresh cached Supabase JWKS (one-shot)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sd-chat-vault/vault-service
+EnvironmentFile=/opt/sd-chat-vault/vault-service/.env
+ExecStart=/usr/bin/node dist/jwks-refresh.js
+User=vault-svc
+Group=vault-svc
