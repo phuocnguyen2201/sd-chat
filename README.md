@@ -10,9 +10,10 @@ SD Chat is a modern messaging application that prioritizes security and user exp
 
 ### 🔐 Security & Encryption
 - **End-to-End Encryption**: All messages are encrypted using ChaCha20-Poly1305 encryption algorithm
-- **Key Management**: Automatic key pair generation during registration using Ed25519 cryptography
+- **Key Management**: Automatic key pair generation during registration using X25519 (`nacl.box`) cryptography
 - **Secure Key Storage**: Private keys stored securely on device using Expo Secure Store
 - **Conversation Keys**: Unique encryption keys for each conversation, wrapped with participants' public keys
+- **Key Backup Vault**: Optional passphrase-protected backup of the identity key to a self-hosted vault, for recovery when no paired device is left
 
 ### 💬 Messaging
 - **Real-time Messaging**: Instant message delivery using Supabase real-time subscriptions
@@ -131,9 +132,18 @@ sd-chat/
 │       │   ├── _layout.tsx     # Tabs layout (Chat, Settings)
 │       │   ├── Chat.tsx        # Main chat list
 │       │   └── Settings.tsx    # User settings
-│       └── msg/                # Message / room routes
-│           ├── [room_id].tsx   # Individual encrypted chat room
-│           └── ChatRoomEditing.tsx # Room editing utilities
+│       ├── msg/                # Message / room routes
+│       │   ├── [room_id].tsx   # Individual encrypted chat room
+│       │   └── ChatRoomEditing.tsx # Room editing utilities
+│       └── managekeys/         # Key management, pairing and recovery
+│           ├── BiometricAuthentication.tsx # Gate in front of key management
+│           ├── EnableBiometric.tsx     # Touch ID / Face ID setup
+│           ├── ManageKeys.tsx          # Hub: share keys, receive keys, back up
+│           ├── PairingCode.tsx         # Old device: show the 4-digit code
+│           ├── EnterPairingCode.tsx    # New device: enter that code
+│           ├── ScanningKeys.tsx        # New device: scan the key QR
+│           ├── BackupKey.tsx           # Seal the key behind a passphrase
+│           └── RecoverKey.tsx          # Recover the key from the vault
 ├── components/                 # Reusable UI components
 │   ├── CreateGroupChat.tsx
 │   ├── EditScreenInfo.tsx
@@ -142,6 +152,7 @@ sd-chat/
 │   ├── LoadingModal.tsx
 │   ├── MessageAction.tsx
 │   ├── Push.tsx
+│   ├── QrScannerView.tsx       # Shared camera + permission component
 │   ├── Themed.tsx
 │   ├── ZoomImage.tsx
 │   ├── useClientOnlyValue.ts
@@ -154,11 +165,21 @@ sd-chat/
 │   ├── handleStorage.ts        # File/image storage (Supabase buckets)
 │   ├── messages.ts             # Domain APIs (auth, profiles, conversations, messages, realtime)
 │   ├── localstorage/           # Local persistence helpers
+│   ├── account/                # Account deletion (server + local teardown)
+│   ├── biometricsSecurity/     # Touch ID / Face ID checks
 │   ├── push-notification/      # Push notification registration + token storage
 │   │   └── push-Notification.ts
-│   ├── securedMessage/         # E2E encryption utilities
+│   ├── securedMessage/         # E2E encryption, key sync and key recovery
 │   │   ├── secured.ts          # Message encryption / key wrapping
-│   │   └── ConversationKeyManagement.ts # Conversation key cache + SecureStore
+│   │   ├── ConversationKeyManagement.ts # Conversation key cache + SecureStore
+│   │   ├── ConversationKeyResolver.ts   # Find or unwrap a conversation's key
+│   │   ├── KeySyncPayload.ts   # Builds the payload a paired device hands over
+│   │   ├── LocalPairingCode.ts # Same-room 4-digit code gate client
+│   │   ├── DeviceIdentity.ts   # Stable device id + `devices` registration
+│   │   ├── RemoteDevicePairing.ts # Server-relayed pairing (no screen yet)
+│   │   ├── DevicePairingFunctionClient.ts # Edge Function caller
+│   │   ├── DevicePairing.ts    # Unused: removed ephemeral-ECDH handshake
+│   │   └── VaultBackup.ts      # Key backup / recovery via the vault
 │   ├── session/                # Global session state
 │   │   └── SessionProvider.tsx # Session context (user, profile, conversationKey)
 │   └── types/                  # Shared TS types
@@ -167,17 +188,35 @@ sd-chat/
 ├── supabase/                   # Supabase project files
 │   ├── config.toml             # Supabase CLI config
 │   └── functions/              # Edge Functions (Deno)
-│       └── push/               # Push notification function
-│           ├── index.ts
-│           └── deno.json, .npmrc
+│       ├── push/               # Push notification function
+│       │   ├── index.ts
+│       │   └── deno.json, .npmrc
+│       └── device-pairing/     # Pairing codes + server-relayed key handover
+├── sd-chat-vault/              # Self-hosted key vault (runs on a Raspberry Pi)
+│   ├── DEPLOY.md               # Setup, verification, ES256 promotion
+│   ├── NOTES.md                # Design decisions and what changed in build-out
+│   ├── install-vault.sh        # Writes the whole stack onto the Pi
+│   ├── docker-compose.yml      # vault-service + cloudflared + JWKS refresher
+│   ├── .env.example            # What the Pi needs configured
+│   ├── vault-service/          # Fastify blob store (Node 22, unprivileged)
+│   │   ├── Dockerfile
+│   │   └── src/
+│   │       ├── index.ts        # PUT/GET/DELETE /backup/:userId
+│   │       ├── auth.ts         # Local JWT verification (ES256 or HS256)
+│   │       └── jwks-refresh.ts # Refreshes the cached Supabase public keys
+│   ├── supabase/migrations/    # `key_backups` table + RLS
+│   └── cloudflared/            # Only used for a config-file tunnel
 ├── documentation/              # In-repo documentation grouped by feature
 │   ├── app/
 │   │   ├── index.md            # Auth screen docs
 │   │   ├── CompleteProfile.md  # Profile screen docs
 │   │   └── tabs/
 │   │       ├── Chat.md
-│   │       └── msg/
-│   │           └── room_id.md
+│   │       ├── Settings.md
+│   │       ├── msg/
+│   │       │   └── room_id.md
+│   │       └── managekeys/     # One file per key-management screen,
+│   │                           # including BackupKey.md and RecoverKey.md
 │   ├── supabase/README.md      # Supabase & Edge Functions docs
 │   └── utility/README.md       # Utility layer (APIs, encryption, session)
 ├── maestro/                    # Automated test scenario definitions
@@ -208,7 +247,7 @@ sd-chat/
 ## Security Architecture
 
 ### Encryption Flow
-1. **Registration**: User generates Ed25519 key pair (public/private)
+1. **Registration**: User generates an X25519 key pair (public/private)
 2. **Key Exchange**: Public keys stored in database, private keys in device secure storage
 3. **Conversation Setup**: Unique conversation key generated and wrapped with each participant's public key
 4. **Message Encryption**: Each message encrypted with unique key, wrapped with conversation key
@@ -219,6 +258,28 @@ sd-chat/
 - **Key Wrapping**: Conversation keys securely exchanged using ECDH
 - **Secure Storage**: Private keys never leave the device
 - **Key Caching**: Conversation keys cached for performance while maintaining security
+
+### Key Recovery
+
+Two independent paths restore an account's identity key on a new device:
+
+1. **Device pairing** — a same-room 4-digit code gate, then a QR handover from a
+   device that still holds the key. Restores conversation keys too, but needs a
+   second working device.
+2. **Key backup vault** *(new)* — the key is sealed on-device with a scrypt-derived
+   key from a recovery passphrase, and only the ciphertext is uploaded to a
+   self-hosted vault (a Raspberry Pi behind a Cloudflare Tunnel). Needs no second
+   device, but the user must remember the passphrase.
+
+The vault is zero-knowledge: it stores an opaque blob, verifies the caller's
+Supabase JWT locally, and never sees the passphrase or any plaintext key. The
+recovery passphrase is separate from the login password and is stored nowhere —
+if it is forgotten, the backup cannot be opened by anyone, by design. Supabase
+holds only the non-secret KDF parameters and nonce; the ciphertext never touches
+it. Conversation keys are not in the blob — after recovery they are re-derived
+from each participant row.
+
+Setup and operation: `sd-chat-vault/DEPLOY.md`.
 
 ## Documentation
 
