@@ -450,6 +450,57 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       return { data: null, error: error as Error }
     }
   },
+  /**
+   * Like storeConversationKey, but only writes a row that has no wrapped key
+   * yet. The `wrapped_key is null` filter is applied by the database, so a row
+   * another device filled in the meantime is never overwritten - overwriting
+   * one is how a conversation ends up with two different keys.
+   */
+  async fillMissingConversationKey(conversationId: string, userId: string, wrappedKey: string, nonce: string, other_Public_Key: string): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await supabase
+        .from('conversation_participants')
+        .update({
+          wrapped_key: wrappedKey,
+          key_nonce: nonce,
+          other_party_pub_key: other_Public_Key
+        })
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId)
+        .is('wrapped_key', null)
+
+      if (error) throw error
+      return { data: undefined, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async getParticipantKeyRows(conversationId: string): Promise<ApiResponse<Array<{ user_id: string; wrapped_key: string | null }>>> {
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('user_id, wrapped_key')
+        .eq('conversation_id', conversationId)
+
+      if (error) throw error
+      return { data: data as Array<{ user_id: string; wrapped_key: string | null }>, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+  async hasMessages(conversationId: string): Promise<ApiResponse<boolean>> {
+    try {
+      const { count, error } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+
+      if (error) throw error
+      return { data: (count ?? 0) > 0, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
    async getWrappedKeyCurrent(conversationId: string, currentUser: string): Promise<ApiResponse<Array<any>>>{
     try {
       const { data, error } = await supabase

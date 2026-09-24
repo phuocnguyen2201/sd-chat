@@ -135,13 +135,19 @@ written, and that would point at a real bug rather than user error.
 
 ### Still open after that
 - **Promote ES256, then delete `SUPABASE_JWT_SECRET` from the Pi's `.env` and
-  restart.** The verifier picks the scheme per token, so no code change. Until
+  restart.** (2026-09-24: this is STILL needed. The 2026-09-23 note saying
+  the promotion had already happened was wrong; see progress.md. Until then
+  `SUPABASE_JWT_SECRET` **must stay** in `.env`, or every backup and recovery
+  returns 401. Order: check that `jwks-cache.json` exists, promote in the
+  dashboard, wait ~1h for sessions to refresh, then remove the secret.) The verifier picks the scheme per token, so no code change. Until
   then the Pi holds a symmetric secret that can mint `service_role` tokens,
   which makes it as sensitive as the service key. `DEPLOY.md` step 9.
 - **Blob durability.** The volume is the SD card and nothing replicates it. The
   blobs are client-encrypted, so syncing them anywhere leaks nothing; there is a
   one-line `tar` snapshot command at the end of `DEPLOY.md`.
-- **Rate limiting.** A Cloudflare WAF rule on the hostname (~10 req/min/IP).
+- **Rate limiting.** Now in Traefik (deployed 2026-09-24; the `429` path has not been checked). A
+  Cloudflare WAF rule on the hostname is still worth adding, to stop requests
+  at the edge.
 - **Unmeasured gap**: conversations where this user has no wrapped key of their
   own stay unreadable after vault recovery. Worth counting before deciding
   whether to widen what the blob holds.
@@ -160,3 +166,191 @@ written, and that would point at a real bug rather than user error.
   `cloudflared/config.yml` are unused. Compose project name pinned to
   `sd-chat-vault` so the volume is not named after the directory.
 - **Durability**: accepted as unsolved for now.
+
+## Supabase → Pi replication — planning (2026-09-23), nothing built
+Goal not yet fixed: **cold backup** (scheduled `pg_dump` + storage sync to the
+Pi), **warm standby** (logical replication into Postgres on the Pi), or
+**failover** (Pi serves the app when Supabase is down). Recommended: cold backup
+first. Gaps found:
+- No schema in the repo: no `supabase/migrations/` for the main project. Hand-applied
+  tables and RPCs (`devices`, `device_pairing_requests`, `local_pairing_codes`,
+  `key_backups`, `get_conversation_between_users`, `create_conversation_with_participants`,
+  `get_messages_with_reactions`, …) exist only in the live DB. Capture them with
+  `supabase db pull` before anything else.
+- No DB connection string or DB password anywhere (only REST URL + keys).
+  Direct connection is IPv6-only; from a home network use the session pooler (5432).
+  Logical replication needs the direct connection.
+- No Postgres on the Pi: `docker-compose.yml` only has vault + cloudflared + jwks.
+  Match Supabase's PG major version; arm64 image.
+- The Supabase-specific pieces won't restore into plain Postgres: `auth` schema,
+  the `anon`/`authenticated`/`service_role` roles, RLS policies that call `auth.uid()`.
+  Either dump `public` only with `--no-owner --no-acl`, or pre-create stubs.
+- Storage buckets (`files`, `files_profiles`, `files_group`) are not in `pg_dump`.
+  Needs Supabase S3 access keys + rclone. **Files are uploaded unencrypted**
+  (`utility/handleStorage.ts`), unlike messages.
+- Disk: the vault volume is already on the SD card with no replication; a DB
+  replica needs a USB SSD.
+- Privacy: the replica holds message ciphertext (fine) but also plaintext
+  metadata, emails, push tokens, files and possibly `auth.users` password hashes.
+  Needs to be encrypted at rest, and deleted accounts/messages stay in old
+  snapshots, so a retention period has to be set.
+- No scheduler, retention, monitoring or restore test yet.
+
+## Keyless new device creates orphan chats — FIXED IN CODE 2026-09-24, needs device testing
+
+**Status:** fixes 1–4 below are implemented (see progress.md, 2026-09-24).
+Nothing has been run on a device yet. The crash (item 5) is still unexplained.
+The diagnosis is kept below for reference.
+
+### Reproduction (user's report)
+1. Sign in on a **new device** that has no private key for the account.
+2. Login succeeds and lands on the chat list, **not** the recovery screen.
+3. Create a chat with user X. It opens and appears to work.
+4. A few seconds later the app crashes to the phone's home screen.
+5. Relaunch: the recovery screen appears (correct). Recover from the vault backup.
+6. Create a chat with a **different** user Y.
+7. On the **original** device, same account: the chat with Y opens, the
+   **chat with X does not**.
+
+### Why step 2 happens: the guard runs too late
+`app/Bootstrap.tsx` runs its checks in this order: session → profile →
+**biometric flags** → `verifyIdentityKey`. The biometric flags
+(`SKIP`/`TOUCH_ID`/`FACE_ID` + userId) live in AsyncStorage, so **every new
+device fails that check**. Bootstrap routes to `EnableBiometric` and returns.
+`EnableBiometric.tsx` (lines 33, 48, 55) then goes straight to
+`/tabs/(tabs)/Chat`. The identity check is never reached. On relaunch the flags
+exist, Bootstrap gets as far as the identity check, and the recovery screen
+appears. That is exactly what the user saw.
+
+### Why step 3 "works" without a key
+`MessageEncryption.wrapConversationKey` (`secured.ts:239`) **returns `null`**
+when there is no private key; it does not throw. The callers treat `null` as
+"skip":
+- `createAndDistributeConversationKey` (`Chat.tsx` ~line 219): writes no row
+  for the recipient and none for itself, **then returns the fresh key anyway**.
+  `handleUserPress` saves it through `setCurrentConversation` (Secure Store,
+  `ck_<userId>_<hash>`) and opens the room.
+- `createGroupChat` (`Chat.tsx:99`): same pattern. Every participant's row is
+  skipped, and the key is saved locally only.
+- Also, `getOrCreateDM` / `createGroupConversation` have **already inserted the
+  conversation and its participants** before any key exists. The conversation
+  row is left behind even when key minting fails.
+
+The result is an **orphan conversation**: the only copy of its key is in the
+new device's Secure Store, and there are no wrapped key rows in
+`conversation_participants`. Messages sent in it are encrypted with a key that
+only that device holds.
+
+### Why step 7: the first chat fails and the second works
+- The chat with X has no wrapped row for this user, so the original device has
+  nothing to unwrap (`resolveConversationKey` returns `absent`), and X cannot
+  read it either.
+- The chat with Y was created **after** recovery, when the private key existed
+  and matched `profiles.public_key`, so its rows were wrapped correctly.
+
+**Hidden risk:** in the `absent` case, `handleUserPress` (tapping the person in
+the avatar list) **mints a new key** and writes rows. If the original device or
+X does that for the orphan chat, the conversation ends up with **two different
+keys**. The new device keeps its local one (local cache wins), and every
+message it sent before becomes unreadable for everyone else. **Don't open the
+orphan chat through the avatar list before the fix below is in.**
+
+### The crash in step 4 is still unexplained
+It is not proven by the code. Leading suspect: `unwrapConversationKey` **throws**
+`No private key found` (`secured.ts:301`), unlike `wrap`, which returns null.
+Anything that unwraps on the chat list or in the room (opening an existing
+conversation, a realtime insert, a notification) will throw. An unhandled
+rejection or a render-time throw in a release build would close the app. **If
+it happens again, capture `adb logcat *:E ReactNativeJS:V`** (or the iOS device
+console) before changing anything. Fix 1 below should make it impossible to
+reach, but it is still worth confirming.
+
+### Fix plan (implemented 2026-09-24, except item 5)
+1. **Close the gate (main fix).** In `Bootstrap.tsx`, move
+   `verifyIdentityKey` **above** the biometric branch, so a keyless device goes
+   to `ScanningKeys` (recovery) before anything else. Also change
+   `EnableBiometric` to `router.replace('/Bootstrap')` instead of going to
+   `Chat` directly, so Bootstrap stays the only way in. For extra safety, add
+   the same check to `app/tabs/(tabs)/_layout.tsx`, so no route (a deep link,
+   a notification tap, `router.push` from anywhere) can reach the tabs without
+   a valid key.
+2. **Make key minting fail closed.** `wrapConversationKey` should **throw**
+   when the private key is missing, not return `null`. In
+   `createAndDistributeConversationKey` and `createGroupChat`, require the
+   **self** row to be written before the key is saved locally or the room is
+   opened. If that fails, show an alert, don't store anything and don't
+   navigate. Optionally call `verifyIdentityKey` first, so we never mint with a
+   key that doesn't match the profile either.
+3. **Don't leave empty conversations behind.** Either run the key check before
+   `getOrCreateDM` / `createGroupConversation`, or delete the conversation when
+   minting fails. The check-first option is simpler and needs no server change.
+4. **Repair the existing orphan chat (self-heal backfill).** The recovered
+   device **still holds the X chat's key** in Secure Store, and now has a valid
+   identity key. When a conversation opens and the key is found **locally**
+   but this user's participant row has no `wrapped_key`, wrap the key for
+   **every participant whose row is empty** (including self) and write those
+   rows. **Only fill empty rows, never overwrite existing ones**, or we recreate
+   the two-key problem. That recovers the X chat for the original device and
+   for X, without the user having to do anything. Run it from the recovered
+   device.
+5. **Crash:** reproduce once with logs attached (see above), before or after
+   fix 1, to confirm the suspect.
+
+### Checks after the fix
+- New device, no key, first login: lands on the recovery screen, never on the
+  chat list. Check both **Skip** and **Enable Touch/Face ID** on `EnableBiometric`.
+- Force a missing key (delete the Secure Store entry): creating a DM or a group
+  shows an error, **no conversation row** appears in Supabase, and nothing is
+  saved locally.
+- Orphan X chat: open it on the recovered device → the rows are filled in →
+  it opens on the original device and on X's device, and the old messages
+  decrypt.
+- A chat whose rows are already filled is left untouched by the backfill.
+- **Avatar-list guard:** on the original device, tapping X in the avatar list
+  *before* the recovered device has repaired the chat should show "Conversation
+  key not available", not open a new, second key.
+- **Group creator row:** create a group, then check in Supabase that the
+  creator's own `conversation_participants` row now has a `wrapped_key`. It
+  used to stay empty.
+- **After recovery:** a new device that recovers its key lands on Settings and
+  skips `EnableBiometric` that first time. It should appear on the next launch.
+  Confirm, and decide whether that is acceptable.
+- **RLS assumption:** the backfill writes *other* participants' rows, and
+  `hasMessages` counts with `head: true`. Group creation already writes other
+  people's rows, so the first should be allowed. If either query is refused,
+  the console shows `Unable to backfill…`, or the avatar-list alert appears
+  for every existing chat.
+
+## Traefik + load-balanced vault replicas — DEPLOYED, working (2026-09-24)
+Live on the Pi and confirmed by the user: backups go through
+`cloudflared → traefik:8000 → vault-1/vault-2`. The tunnel's Public Hostname
+now points at `http://traefik:8000` (path `backup/.*`).
+
+### Still to do
+1. **Confirm which 401 fix was applied**: `grep SUPABASE_JWT_SECRET ~/clouflared/.env`
+   and check which key is Current in Supabase → JWT Keys.
+   - If the secret was restored, promoting ES256 is still pending (see the
+     vault section above for the order).
+   - If ES256 was promoted, delete the secret from `.env` (if it is still
+     there) and run `docker compose up -d`.
+2. **Check the parts nobody has tested yet**:
+   - the rate limit (about 20 fast `curl`s from outside should return `429`)
+   - a normal backup, then recover, from the app, without hitting that limit
+   - a rolling restart (`up -d --no-deps vault-1`, then `vault-2`) with no
+     failed requests
+   - the dashboard over SSH, showing both servers up
+3. **Pin the images**: `traefik:v3` → the exact version now running
+   (`docker compose exec traefik traefik version`), and `cloudflared:latest`
+   → its running version.
+4. **Optional**: a Cloudflare WAF rate-limit rule on `sd-chat-tunnel.bid`, to
+   stop abusive traffic at the edge instead of on the Pi.
+
+### Decisions taken (defaults, not confirmed by the user)
+- Tunnel only, no LAN access. Answered implicitly by going ahead; revisit if
+  LAN access is wanted.
+- File provider, no Docker socket. Two replicas, round-robin, health check
+  every 10s, retry ×2 on connection errors only.
+- The load balancer is **single-host**: it covers crashes and zero-downtime
+  restarts, not a dead Pi or SD card. A second machine needs shared or
+  replicated blob storage first, which is the same gap as "Blob durability"
+  above.

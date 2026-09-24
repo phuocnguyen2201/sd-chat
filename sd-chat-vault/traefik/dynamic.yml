@@ -1,0 +1,81 @@
+# Traefik dynamic configuration: routes, middlewares and the vault's load
+# balancer. Watched, so edits apply without a restart.
+
+http:
+  routers:
+    # Only /backup/* reaches the vault. The tunnel's dashboard ingress filters
+    # on the same path; this is the second copy of that rule, so a loosened
+    # dashboard rule still cannot expose /healthz or anything added later.
+    vault:
+      entryPoints: [web]
+      rule: "PathPrefix(`/backup/`)"
+      service: vault
+      middlewares:
+        - vault-ratelimit
+        - vault-body-limit
+        - vault-retry
+        - security-headers
+
+    # Dashboard + API, on the loopback-only admin entry point.
+    dashboard:
+      entryPoints: [admin]
+      rule: "PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      service: api@internal
+
+  middlewares:
+    # Behind cloudflared every request arrives from the cloudflared container,
+    # so limiting by source address would put every user in one shared bucket.
+    # Key on the client address Cloudflare reports instead. That header is
+    # only trustworthy because Traefik publishes no public port: the one way to
+    # reach :8000 is through the tunnel, and Cloudflare overwrites the header.
+    # Publishing :8000 on the host would let anyone forge it.
+    vault-ratelimit:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 5
+        sourceCriterion:
+          requestHeaderName: CF-Connecting-IP
+
+    # A backup blob is 64 characters of base64 in a small JSON body. The vault
+    # rejects anything over 4 KB itself; this stops large bodies before they
+    # are even forwarded.
+    vault-body-limit:
+      buffering:
+        maxRequestBodyBytes: 16384
+
+    # Retries only on connection failures, never on an HTTP response - so a
+    # request that lands on a replica mid-restart is replayed on the other one,
+    # and nothing is ever sent twice to a replica that actually answered.
+    vault-retry:
+      retry:
+        attempts: 2
+        initialInterval: 100ms
+
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        stsSeconds: 31536000
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+  services:
+    # Round-robin across the vault replicas. They are stateless - every blob
+    # and the JWKS cache live on the shared `vault-data` volume - so any
+    # replica can serve any request and no sticky sessions are needed.
+    #
+    # To add a replica: add a `vault-N` service in docker-compose.yml and one
+    # line here. The health check takes a replica out of rotation while it is
+    # down or restarting, and puts it back once /healthz answers again.
+    vault:
+      loadBalancer:
+        servers:
+          - url: "http://vault-1:8443"
+          - url: "http://vault-2:8443"
+        healthCheck:
+          path: /healthz
+          interval: 10s
+          timeout: 3s

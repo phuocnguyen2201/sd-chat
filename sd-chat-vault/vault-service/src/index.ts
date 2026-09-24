@@ -3,10 +3,12 @@
 // This service never sees plaintext key material and performs no cryptography
 // on anyone's behalf. It is a blob store that checks who is asking.
 //
-// It runs as a container with no published ports, reachable only through the
-// Cloudflare Tunnel that sits beside it on a private compose network. Nothing
-// on the LAN and nothing on the internet can address it directly, so binding
-// 0.0.0.0 here is the container's loopback, not an exposure.
+// It runs as one or more replicas with no published ports, reachable only
+// through Traefik, which in turn is reachable only through the Cloudflare
+// Tunnel. Nothing on the LAN and nothing on the internet can address it
+// directly, so binding 0.0.0.0 here is the container's loopback, not an
+// exposure. Replicas keep no state in memory - blobs and the JWKS cache live on
+// the shared volume - so any of them can serve any request.
 //
 // Blobs arrive as base64 inside JSON rather than as raw bodies: the client is
 // React Native, whose fetch is an XHR polyfill with uneven binary support, and
@@ -17,6 +19,7 @@
 import Fastify from 'fastify';
 import { mkdir, readFile, writeFile, rename, unlink, stat } from 'fs/promises';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { requireOwner, AuthError } from './auth.js';
 
 const VAULT_DIR = process.env.VAULT_DIR ?? '/opt/sd-chat-vault/backups';
@@ -94,10 +97,20 @@ app.put('/backup/:userId', async (req, reply) => {
 
   // Write-then-rename, so a crash or a pulled plug midway leaves the previous
   // backup intact rather than a half-written file where a key used to be.
+  //
+  // The temp name is unique per write. Several replicas share this directory
+  // behind the load balancer, so two writes for the same user can overlap; with
+  // one fixed `.tmp` name the second rename would find the file already moved
+  // and fail. rename() itself is atomic, so the last writer simply wins.
   const target = blobPath(userId);
-  const temp = `${target}.tmp`;
-  await writeFile(temp, ciphertext, 'utf-8');
-  await rename(temp, target);
+  const temp = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, ciphertext, 'utf-8');
+    await rename(temp, target);
+  } catch (err) {
+    await unlink(temp).catch(() => {});
+    throw err;
+  }
 
   return reply.code(204).send();
 });

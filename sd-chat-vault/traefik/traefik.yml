@@ -1,0 +1,56 @@
+# Traefik static configuration for the SD Chat vault stack.
+#
+# TLS is NOT terminated here. Cloudflare ends HTTPS at its edge and cloudflared
+# carries the request over the tunnel, so everything this file sees is plain
+# HTTP on a private Docker network. No certificates, no ACME, no writable
+# storage - which is what lets the container run read-only as an unprivileged
+# user.
+#
+# Unprivileged ports (8000/8080) for the same reason: nothing has to bind :80.
+
+entryPoints:
+  # The only entry point cloudflared talks to. The tunnel's dashboard ingress
+  # points at http://traefik:8000.
+  web:
+    address: ":8000"
+  # Dashboard, API and ping. Published on the Pi's loopback only (see
+  # docker-compose.yml) and reached over an SSH tunnel - never through
+  # cloudflared.
+  admin:
+    address: ":8080"
+
+api:
+  dashboard: true
+  # `insecure` would serve the dashboard on its own entry point with no router
+  # in front of it. The router in dynamic.yml does the same job explicitly.
+  insecure: false
+
+ping:
+  entryPoint: admin
+
+providers:
+  # File provider instead of the Docker provider on purpose: the Docker
+  # provider needs /var/run/docker.sock, which is root on the Pi. For a
+  # handful of services a file is simpler and gives Traefik nothing to abuse.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+
+accessLog:
+  format: json
+  fields:
+    headers:
+      # Drop every header by default - above all `Authorization`, which carries
+      # a live Supabase session token on every vault request - and keep only
+      # the two that say who asked and which Cloudflare request it was.
+      defaultMode: drop
+      names:
+        CF-Connecting-IP: keep
+        CF-Ray: keep
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false

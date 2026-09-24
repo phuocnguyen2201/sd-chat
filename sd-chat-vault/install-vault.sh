@@ -13,65 +13,138 @@
 
 set -e
 
-mkdir -p vault-service/src
+mkdir -p vault-service/src traefik
 
 echo '  docker-compose.yml'
 cat > docker-compose.yml <<'SDCHAT_EOF'
 # SD Chat key vault, as it runs on the Pi.
 #
-# Note what is NOT here: any `ports:` mapping. The vault is unreachable from the
-# Pi's LAN and from the internet. The only route in is the outbound connection
-# cloudflared makes to Cloudflare's edge, and the only path that route carries
-# is /backup/*. Adding a `ports:` line to "make testing easier" would undo that;
-# test with `docker compose exec cloudflared ...` instead.
+# Request path:
+#   Cloudflare edge -> cloudflared -> traefik:8000 -> vault-1 / vault-2 :8443
+#
+# Note what is NOT here: any public `ports:` mapping. The vault is unreachable
+# from the Pi's LAN and from the internet. The only route in is the outbound
+# connection cloudflared makes to Cloudflare's edge, and the only path that
+# route carries is /backup/*. The single mapping below is Traefik's dashboard,
+# bound to the Pi's loopback (127.0.0.1) and reached over SSH. Adding any other
+# `ports:` line to "make testing easier" would undo this, and would also let
+# anyone forge the CF-Connecting-IP header the rate limit trusts. Test from a
+# throwaway container on the network instead (see DEPLOY.md).
+#
+# Two networks keep the layers apart: cloudflared can reach Traefik and
+# nothing else, and only Traefik can reach the vault replicas.
 
-# Pinned so the volume and network are named after the project, not after the
-# directory this file happens to sit in (~/clouflared on the Pi). Without it the
-# volume would be `clouflared_vault-data`, and it would silently become a
-# different, empty volume if the directory were ever renamed.
 name: sd-chat-vault
 
+# Shared definition for every vault replica. Each replica is its own service,
+# with a fixed name that traefik/dynamic.yml lists as a load-balancer server.
+# `docker compose --scale` is not used: the file provider cannot discover
+# scaled containers, and fixed names make a rolling restart one command each.
+#
+# Only vault-1 carries `build:`. Compose builds before it starts anything, so
+# the other services find the image already tagged; `pull_policy: never` stops
+# them trying Docker Hub for a local-only tag.
+x-vault: &vault
+  image: sd-chat-vault:local
+  pull_policy: never
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - vault-data:/opt/sd-chat-vault
+  networks:
+    - backend
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8443/healthz"]
+    interval: 15s
+    timeout: 3s
+    retries: 3
+
 services:
-  vault-service:
+  vault-1:
+    <<: *vault
     build: ./vault-service
-    container_name: sd-chat-vault
+    pull_policy: build
+    container_name: sd-chat-vault-1
+
+  vault-2:
+    <<: *vault
+    container_name: sd-chat-vault-2
+
+  traefik:
+    # Major version pinned. Pin to an exact v3.x.y once it has run on the Pi.
+    image: traefik:v3
+    container_name: sd-chat-traefik
     restart: unless-stopped
-    env_file: .env
+    # Nothing here needs root or a writable filesystem: no ACME, no certificate
+    # store, ports above 1024, logs to stdout.
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - vault-data:/opt/sd-chat-vault
-    # No ports exposed to the host at all — cloudflared reaches it over the
-    # Docker network by service name, nothing else can.
+      # The directory, not the two files: editors save by replacing the file,
+      # and a single-file bind mount keeps pointing at the old one, so the
+      # `watch` in traefik.yml would never see an edit.
+      - ./traefik:/etc/traefik:ro
+    ports:
+      # Dashboard only, loopback only: ssh -L 8080:127.0.0.1:8080 <user>@<pi>
+      # then open http://localhost:8080/dashboard/
+      - "127.0.0.1:8080:8080"
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    # The dashboard ingress for this tunnel must point at
-    # http://vault-service:8443 — the compose service name. 127.0.0.1 there
-    # would mean cloudflared itself.
+    # The dashboard ingress for this tunnel must point at http://traefik:8000
+    # - the compose service name. 127.0.0.1 there would mean cloudflared
+    # itself, and the vault replicas are not on this container's network.
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    networks:
+      - edge
     depends_on:
-      - vault-service
+      - traefik
 
   # Keeps the cached Supabase public keys fresh. Not needed while the project
   # signs HS256, but running it now means promoting ES256 later is a dashboard
   # click and a restart rather than a scramble. A failed fetch leaves the
   # existing cache untouched, which is the behaviour that matters in an outage.
   jwks-refresh:
-    build: ./vault-service
+    # Same image as the replicas, built once by them.
+    image: sd-chat-vault:local
+    pull_policy: never
     container_name: sd-chat-vault-jwks
     restart: unless-stopped
     env_file: .env
     volumes:
       - vault-data:/opt/sd-chat-vault
+    networks:
+      - backend
+    depends_on:
+      - vault-1
     # No surrounding quotes: the entrypoint is exec-form, so this whole string
     # is handed to `sh -c` as one argument. Wrapping it in quotes made sh treat
     # the entire loop as the *name* of a command to run, and the container
     # crash-looped with "command not found" - never writing a JWKS cache.
     entrypoint: ["/bin/sh", "-c"]
     command: while true; do node dist/jwks-refresh.js || echo "jwks refresh failed, keeping cache"; sleep 43200; done
+
+networks:
+  # cloudflared <-> traefik.
+  edge:
+  # traefik <-> vault replicas and the JWKS refresher. Not `internal: true`:
+  # the replicas and the refresher need outbound access to Supabase.
+  backend:
 
 volumes:
   # Named volume, which on a stock Pi means the SD card. Nothing here is
@@ -112,9 +185,10 @@ VAULT_DIR=/opt/sd-chat-vault/backups
 JWKS_CACHE_PATH=/opt/sd-chat-vault/jwks-cache.json
 
 # --- Bind ---
-# 0.0.0.0 is correct here and is NOT an exposure: compose publishes no ports, so
-# this is only reachable from the Docker network. Setting 127.0.0.1 would make
-# the service unreachable from cloudflared and every request would 502.
+# 0.0.0.0 is correct here and is NOT an exposure: compose publishes no vault
+# ports, so this is only reachable from the Docker network. Setting 127.0.0.1
+# would make the replicas unreachable from Traefik - its health check would
+# mark every one down and every request would 503.
 HOST=0.0.0.0
 PORT=8443
 
@@ -122,6 +196,151 @@ PORT=8443
 # Zero Trust -> Networks -> Tunnels -> your tunnel -> the token from the install
 # command. Read by docker-compose.yml, not by the service.
 CF_TUNNEL_TOKEN=
+SDCHAT_EOF
+
+echo '  traefik/traefik.yml'
+cat > traefik/traefik.yml <<'SDCHAT_EOF'
+# Traefik static configuration for the SD Chat vault stack.
+#
+# TLS is NOT terminated here. Cloudflare ends HTTPS at its edge and cloudflared
+# carries the request over the tunnel, so everything this file sees is plain
+# HTTP on a private Docker network. No certificates, no ACME, no writable
+# storage - which is what lets the container run read-only as an unprivileged
+# user.
+#
+# Unprivileged ports (8000/8080) for the same reason: nothing has to bind :80.
+
+entryPoints:
+  # The only entry point cloudflared talks to. The tunnel's dashboard ingress
+  # points at http://traefik:8000.
+  web:
+    address: ":8000"
+  # Dashboard, API and ping. Published on the Pi's loopback only (see
+  # docker-compose.yml) and reached over an SSH tunnel - never through
+  # cloudflared.
+  admin:
+    address: ":8080"
+
+api:
+  dashboard: true
+  # `insecure` would serve the dashboard on its own entry point with no router
+  # in front of it. The router in dynamic.yml does the same job explicitly.
+  insecure: false
+
+ping:
+  entryPoint: admin
+
+providers:
+  # File provider instead of the Docker provider on purpose: the Docker
+  # provider needs /var/run/docker.sock, which is root on the Pi. For a
+  # handful of services a file is simpler and gives Traefik nothing to abuse.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+
+accessLog:
+  format: json
+  fields:
+    headers:
+      # Drop every header by default - above all `Authorization`, which carries
+      # a live Supabase session token on every vault request - and keep only
+      # the two that say who asked and which Cloudflare request it was.
+      defaultMode: drop
+      names:
+        CF-Connecting-IP: keep
+        CF-Ray: keep
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+SDCHAT_EOF
+
+echo '  traefik/dynamic.yml'
+cat > traefik/dynamic.yml <<'SDCHAT_EOF'
+# Traefik dynamic configuration: routes, middlewares and the vault's load
+# balancer. Watched, so edits apply without a restart.
+
+http:
+  routers:
+    # Only /backup/* reaches the vault. The tunnel's dashboard ingress filters
+    # on the same path; this is the second copy of that rule, so a loosened
+    # dashboard rule still cannot expose /healthz or anything added later.
+    vault:
+      entryPoints: [web]
+      rule: "PathPrefix(`/backup/`)"
+      service: vault
+      middlewares:
+        - vault-ratelimit
+        - vault-body-limit
+        - vault-retry
+        - security-headers
+
+    # Dashboard + API, on the loopback-only admin entry point.
+    dashboard:
+      entryPoints: [admin]
+      rule: "PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      service: api@internal
+
+  middlewares:
+    # Behind cloudflared every request arrives from the cloudflared container,
+    # so limiting by source address would put every user in one shared bucket.
+    # Key on the client address Cloudflare reports instead. That header is
+    # only trustworthy because Traefik publishes no public port: the one way to
+    # reach :8000 is through the tunnel, and Cloudflare overwrites the header.
+    # Publishing :8000 on the host would let anyone forge it.
+    vault-ratelimit:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 5
+        sourceCriterion:
+          requestHeaderName: CF-Connecting-IP
+
+    # A backup blob is 64 characters of base64 in a small JSON body. The vault
+    # rejects anything over 4 KB itself; this stops large bodies before they
+    # are even forwarded.
+    vault-body-limit:
+      buffering:
+        maxRequestBodyBytes: 16384
+
+    # Retries only on connection failures, never on an HTTP response - so a
+    # request that lands on a replica mid-restart is replayed on the other one,
+    # and nothing is ever sent twice to a replica that actually answered.
+    vault-retry:
+      retry:
+        attempts: 2
+        initialInterval: 100ms
+
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        stsSeconds: 31536000
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+  services:
+    # Round-robin across the vault replicas. They are stateless - every blob
+    # and the JWKS cache live on the shared `vault-data` volume - so any
+    # replica can serve any request and no sticky sessions are needed.
+    #
+    # To add a replica: add a `vault-N` service in docker-compose.yml and one
+    # line here. The health check takes a replica out of rotation while it is
+    # down or restarting, and puts it back once /healthz answers again.
+    vault:
+      loadBalancer:
+        servers:
+          - url: "http://vault-1:8443"
+          - url: "http://vault-2:8443"
+        healthCheck:
+          path: /healthz
+          interval: 10s
+          timeout: 3s
 SDCHAT_EOF
 
 echo '  vault-service/package.json'
@@ -211,10 +430,12 @@ cat > vault-service/src/index.ts <<'SDCHAT_EOF'
 // This service never sees plaintext key material and performs no cryptography
 // on anyone's behalf. It is a blob store that checks who is asking.
 //
-// It runs as a container with no published ports, reachable only through the
-// Cloudflare Tunnel that sits beside it on a private compose network. Nothing
-// on the LAN and nothing on the internet can address it directly, so binding
-// 0.0.0.0 here is the container's loopback, not an exposure.
+// It runs as one or more replicas with no published ports, reachable only
+// through Traefik, which in turn is reachable only through the Cloudflare
+// Tunnel. Nothing on the LAN and nothing on the internet can address it
+// directly, so binding 0.0.0.0 here is the container's loopback, not an
+// exposure. Replicas keep no state in memory - blobs and the JWKS cache live on
+// the shared volume - so any of them can serve any request.
 //
 // Blobs arrive as base64 inside JSON rather than as raw bodies: the client is
 // React Native, whose fetch is an XHR polyfill with uneven binary support, and
@@ -225,6 +446,7 @@ cat > vault-service/src/index.ts <<'SDCHAT_EOF'
 import Fastify from 'fastify';
 import { mkdir, readFile, writeFile, rename, unlink, stat } from 'fs/promises';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { requireOwner, AuthError } from './auth.js';
 
 const VAULT_DIR = process.env.VAULT_DIR ?? '/opt/sd-chat-vault/backups';
@@ -302,10 +524,20 @@ app.put('/backup/:userId', async (req, reply) => {
 
   // Write-then-rename, so a crash or a pulled plug midway leaves the previous
   // backup intact rather than a half-written file where a key used to be.
+  //
+  // The temp name is unique per write. Several replicas share this directory
+  // behind the load balancer, so two writes for the same user can overlap; with
+  // one fixed `.tmp` name the second rename would find the file already moved
+  // and fail. rename() itself is atomic, so the last writer simply wins.
   const target = blobPath(userId);
-  const temp = `${target}.tmp`;
-  await writeFile(temp, ciphertext, 'utf-8');
-  await rename(temp, target);
+  const temp = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, ciphertext, 'utf-8');
+    await rename(temp, target);
+  } catch (err) {
+    await unlink(temp).catch(() => {});
+    throw err;
+  }
 
   return reply.code(204).send();
 });

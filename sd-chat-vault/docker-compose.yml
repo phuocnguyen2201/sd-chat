@@ -1,58 +1,131 @@
 # SD Chat key vault, as it runs on the Pi.
 #
-# Note what is NOT here: any `ports:` mapping. The vault is unreachable from the
-# Pi's LAN and from the internet. The only route in is the outbound connection
-# cloudflared makes to Cloudflare's edge, and the only path that route carries
-# is /backup/*. Adding a `ports:` line to "make testing easier" would undo that;
-# test with `docker compose exec cloudflared ...` instead.
+# Request path:
+#   Cloudflare edge -> cloudflared -> traefik:8000 -> vault-1 / vault-2 :8443
+#
+# Note what is NOT here: any public `ports:` mapping. The vault is unreachable
+# from the Pi's LAN and from the internet. The only route in is the outbound
+# connection cloudflared makes to Cloudflare's edge, and the only path that
+# route carries is /backup/*. The single mapping below is Traefik's dashboard,
+# bound to the Pi's loopback (127.0.0.1) and reached over SSH. Adding any other
+# `ports:` line to "make testing easier" would undo this, and would also let
+# anyone forge the CF-Connecting-IP header the rate limit trusts. Test from a
+# throwaway container on the network instead (see DEPLOY.md).
+#
+# Two networks keep the layers apart: cloudflared can reach Traefik and
+# nothing else, and only Traefik can reach the vault replicas.
 
-# Pinned so the volume and network are named after the project, not after the
-# directory this file happens to sit in (~/clouflared on the Pi). Without it the
-# volume would be `clouflared_vault-data`, and it would silently become a
-# different, empty volume if the directory were ever renamed.
 name: sd-chat-vault
 
+# Shared definition for every vault replica. Each replica is its own service,
+# with a fixed name that traefik/dynamic.yml lists as a load-balancer server.
+# `docker compose --scale` is not used: the file provider cannot discover
+# scaled containers, and fixed names make a rolling restart one command each.
+#
+# Only vault-1 carries `build:`. Compose builds before it starts anything, so
+# the other services find the image already tagged; `pull_policy: never` stops
+# them trying Docker Hub for a local-only tag.
+x-vault: &vault
+  image: sd-chat-vault:local
+  pull_policy: never
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - vault-data:/opt/sd-chat-vault
+  networks:
+    - backend
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8443/healthz"]
+    interval: 15s
+    timeout: 3s
+    retries: 3
+
 services:
-  vault-service:
+  vault-1:
+    <<: *vault
     build: ./vault-service
-    container_name: sd-chat-vault
+    pull_policy: build
+    container_name: sd-chat-vault-1
+
+  vault-2:
+    <<: *vault
+    container_name: sd-chat-vault-2
+
+  traefik:
+    # Major version pinned. Pin to an exact v3.x.y once it has run on the Pi.
+    image: traefik:v3
+    container_name: sd-chat-traefik
     restart: unless-stopped
-    env_file: .env
+    # Nothing here needs root or a writable filesystem: no ACME, no certificate
+    # store, ports above 1024, logs to stdout.
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - vault-data:/opt/sd-chat-vault
-    # No ports exposed to the host at all — cloudflared reaches it over the
-    # Docker network by service name, nothing else can.
+      # The directory, not the two files: editors save by replacing the file,
+      # and a single-file bind mount keeps pointing at the old one, so the
+      # `watch` in traefik.yml would never see an edit.
+      - ./traefik:/etc/traefik:ro
+    ports:
+      # Dashboard only, loopback only: ssh -L 8080:127.0.0.1:8080 <user>@<pi>
+      # then open http://localhost:8080/dashboard/
+      - "127.0.0.1:8080:8080"
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    # The dashboard ingress for this tunnel must point at
-    # http://vault-service:8443 — the compose service name. 127.0.0.1 there
-    # would mean cloudflared itself.
+    # The dashboard ingress for this tunnel must point at http://traefik:8000
+    # - the compose service name. 127.0.0.1 there would mean cloudflared
+    # itself, and the vault replicas are not on this container's network.
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    networks:
+      - edge
     depends_on:
-      - vault-service
+      - traefik
 
   # Keeps the cached Supabase public keys fresh. Not needed while the project
   # signs HS256, but running it now means promoting ES256 later is a dashboard
   # click and a restart rather than a scramble. A failed fetch leaves the
   # existing cache untouched, which is the behaviour that matters in an outage.
   jwks-refresh:
-    build: ./vault-service
+    # Same image as the replicas, built once by them.
+    image: sd-chat-vault:local
+    pull_policy: never
     container_name: sd-chat-vault-jwks
     restart: unless-stopped
     env_file: .env
     volumes:
       - vault-data:/opt/sd-chat-vault
+    networks:
+      - backend
+    depends_on:
+      - vault-1
     # No surrounding quotes: the entrypoint is exec-form, so this whole string
     # is handed to `sh -c` as one argument. Wrapping it in quotes made sh treat
     # the entire loop as the *name* of a command to run, and the container
     # crash-looped with "command not found" - never writing a JWKS cache.
     entrypoint: ["/bin/sh", "-c"]
     command: while true; do node dist/jwks-refresh.js || echo "jwks refresh failed, keeping cache"; sleep 43200; done
+
+networks:
+  # cloudflared <-> traefik.
+  edge:
+  # traefik <-> vault replicas and the JWKS refresher. Not `internal: true`:
+  # the replicas and the refresher need outbound access to Supabase.
+  backend:
 
 volumes:
   # Named volume, which on a stock Pi means the SD card. Nothing here is

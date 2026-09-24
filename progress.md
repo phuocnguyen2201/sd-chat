@@ -430,3 +430,139 @@ Since the project is already asymmetric, `SUPABASE_JWT_SECRET` on the Pi is
 doing nothing and can simply be deleted from `~/clouflared/.env`. The concern
 about the Pi being able to mint `service_role` tokens goes away with it — no
 dashboard rotation needed, it was already done.
+
+## 2026-09-23 (session 3) — Planning: replicate Supabase data to the Pi
+Planning only, no code changed. Audited what a Supabase → Raspberry Pi
+replica would need; the gap list and open decisions are in in-progress.md
+under "Supabase → Pi replication".
+
+## 2026-09-23 (session 4) — Diagnosed: a keyless new device can create chats that nobody else can open
+Investigation only, no code changed. The user reported: signing in on a new
+device with no private key went straight to the chat list, a chat could be
+created, the app crashed to the home screen a few seconds later, and the
+recovery screen appeared on relaunch. After a vault recovery a second chat
+worked on both devices, but the **first** chat would not open on the original
+device.
+
+Root cause is two separate defects stacking up; the full write-up and the fix
+plan are in in-progress.md under "OPEN — keyless new device creates orphan chats".
+1. **The identity-key guard can be skipped.** `app/Bootstrap.tsx` checks the
+   biometric flags *before* `verifyIdentityKey`. They are stored per user in
+   AsyncStorage, so a new device never has them. Bootstrap therefore routes to
+   `EnableBiometric` and returns, and `EnableBiometric` sends the user straight
+   to `/tabs/(tabs)/Chat`. The key check never runs on first login on a device.
+2. **Minting a conversation key does not fail when there is no private key.**
+   `wrapConversationKey` returns `null` when the key is missing, and both
+   `createAndDistributeConversationKey` and `createGroupChat` in
+   `app/tabs/(tabs)/Chat.tsx` skip writing the row on `null` but still return
+   the key, save it on the device and open the room. The result is a
+   conversation with a key on that one device and **no wrapped key rows in the
+   database**, so no other device or participant can open it.
+
+## 2026-09-24 — Fix: keyless devices can no longer reach the chats or create orphan chats
+Implements fixes 1–4 from yesterday's diagnosis (in-progress.md, "Keyless new
+device creates orphan chats"). Typechecks: same 22 pre-existing errors as
+before (`components/ui`, Deno edge functions), none in files touched here.
+**Not run on a device.**
+
+- **Gate order** (`app/Bootstrap.tsx`): `verifyIdentityKey` now runs *before*
+  the biometric branch. The Alert + redirect moved into the new
+  `utility/securedMessage/IdentityKeyGuard.ts` (`routeToKeyRecovery`), shared
+  with the tabs guard.
+- **Tabs guard** (`app/tabs/(tabs)/_layout.tsx`): renders nothing until the
+  identity key is verified, and sends the user to recovery otherwise. This
+  covers the routes that skip Bootstrap: `EnableBiometric`, notification taps,
+  direct `router` calls. `EnableBiometric` itself was left unchanged, since the
+  guard makes changing it unnecessary.
+- **Fail closed** (`secured.ts`): `wrapConversationKey` now throws when there
+  is no private key, instead of returning `null`.
+- **`Chat.tsx`**
+  - New `ensureIdentityKey()`, called before `getOrCreateDM` /
+    `createGroupConversation`, so a failure leaves no empty conversation behind.
+  - DM: the self row is written first and is required. If it fails, the key is
+    thrown away instead of kept locally. A failed recipient row is logged and
+    repaired later by the backfill.
+  - Group: the creator is now wrapped for too. The member picker never
+    included them, so **the creator's own row was always empty**, and a group
+    opened only from the creating device's local key. This probably explains
+    some of the "legacy group" failures from 2026-09-17. A failed creator row
+    now aborts the creation.
+  - `handleUserPress`: when this user has no row (`absent`) but the
+    conversation already **has messages**, it refuses to create a new key and
+    shows an alert. Creating one there was how a conversation got split into
+    two keys.
+- **Self-heal backfill** (`ConversationKeyResolver.backfillMissingWrappedKeys`):
+  runs in the background whenever a key is found while opening a chat. It
+  wraps the key for every participant whose row has **no** `wrapped_key`, and
+  only when this device's derived public key matches the profile. New
+  `conversationAPI.fillMissingConversationKey` adds `.is('wrapped_key', null)`,
+  so the database refuses to overwrite a row that is already filled. Also new:
+  `getParticipantKeyRows`, `hasMessages`.
+
+## 2026-09-24 (session 2) — Traefik + load-balanced vault replicas (built, not deployed)
+Request path is now `cloudflared → traefik:8000 → vault-1 / vault-2 :8443`.
+All changes are in `sd-chat-vault/`.
+
+- **`traefik/traefik.yml`** (static): entrypoints `web :8000` (tunnel) and
+  `admin :8080` (dashboard + ping); file provider, **no Docker socket**; JSON
+  access log that drops every header except `CF-Connecting-IP` / `CF-Ray`, so
+  bearer tokens are never logged. No TLS: Cloudflare terminates HTTPS.
+- **`traefik/dynamic.yml`**: router ``PathPrefix(`/backup/`)`` → service
+  `vault`, which load-balances across `vault-1`/`vault-2` with a `/healthz`
+  check every 10s. Middlewares:
+  - rate limit, 10/min with burst 5, **keyed on `CF-Connecting-IP`** (behind
+    cloudflared every request otherwise shares one source address)
+  - 16 KB body cap
+  - retry ×2 on connection errors only
+  - security headers
+
+  `/healthz` is not routed.
+- **`docker-compose.yml`**:
+  - The replicas share an `x-vault` anchor. Only `vault-1` builds; the others
+    use `image: sd-chat-vault:local` with `pull_policy: never`.
+  - Two networks: `edge` (cloudflared, traefik) and `backend` (traefik,
+    replicas, jwks-refresh). cloudflared can no longer reach the vault
+    directly.
+  - Traefik runs as `65534`, `read_only`, `cap_drop: ALL`,
+    `no-new-privileges`. Its only port mapping is the dashboard on
+    `127.0.0.1:8080`.
+- **`vault-service/src/index.ts`**: the write-then-rename temp file is now
+  `<id>.b64.<uuid>.tmp` and is removed on failure. With one fixed `.tmp` name,
+  two replicas writing the same user at once could make one rename fail with
+  ENOENT → 500.
+- **`.env.example`**: the `HOST` comment now names Traefik as the caller. No
+  new variables.
+- **`install-vault.sh`** regenerated with the `traefik/` files. Round-trip
+  checked: running it in an empty directory reproduces all 10 files byte for
+  byte.
+- **`DEPLOY.md`**: the ingress now points at `http://traefik:8000`, and the
+  verify steps name the replicas and add in-network `curlimages/curl` checks.
+  New sections: "Moving to Traefik…" (migration, `429` check, rollback) and
+  "Operating the load balancer" (rolling restart, adding a replica,
+  dashboard over SSH). The "no rate limit" note was replaced with the new
+  limits, and the single-host limitation is recorded.
+
+Validated with `docker compose config -q` and `tsc` only. There is no Docker
+daemon on the Mac, so nothing has actually run.
+
+## 2026-09-24 (session 3) — Traefik deployed on the Pi; two issues found at cutover
+- **502 after migrating**: cloudflared logged `lookup vault-service … no such
+  host`, because the tunnel ingress still pointed at the removed container.
+  Fixed by changing the dashboard Public Hostname service to
+  `http://traefik:8000`, as DEPLOY.md's migration step 5 says. Routing through
+  Traefik then worked (the next error came from the vault itself).
+- **401 `token is HS-signed but no shared secret is configured`**. The app
+  sends the real session token (`VaultBackup.ts` → `getSession()`), so **the
+  project still signs sessions with the legacy HS256 secret**.
+  **Correction to the 2026-09-23 (later) entry:** its claim that "the project
+  signs ES256" and that `SUPABASE_JWT_SECRET` "is doing nothing and can simply
+  be deleted" was wrong. The JWKS endpoint also lists a key that is only on
+  **standby**, and the HS256 secret is symmetric so it never appears there.
+  One ES256 key in the JWKS does not show which key is current. The deleted
+  secret only started to matter when the migration recreated the containers
+  from `.env`.
+- **Resolved: confirmed working by the user.** After the 401 fix, backups
+  work end to end on the new stack:
+  `app → Cloudflare → cloudflared → traefik:8000 → vault-1/vault-2`.
+  Not recorded: whether the fix was **restoring `SUPABASE_JWT_SECRET`** or
+  **promoting ES256**. See in-progress.md.

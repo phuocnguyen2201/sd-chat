@@ -1,10 +1,15 @@
 # Deploying the key vault on the Pi
 
 Written against the compose file already running on the Pi: the stack lives in
-`/home/<user>/clouflared/`, with service names `vault-service` and
-`cloudflared`, a `vault-data` volume mounted at `/opt/sd-chat-vault`, a
-token-managed tunnel, and one `.env` beside `docker-compose.yml`. The repo's
-`docker-compose.yml` now matches that, plus a `jwks-refresh` service.
+`/home/<user>/clouflared/`, a `vault-data` volume mounted at
+`/opt/sd-chat-vault`, a token-managed tunnel, and one `.env` beside
+`docker-compose.yml`.
+
+Since 2026-09-24 the stack is: `cloudflared` → `traefik` → two vault replicas
+(`vault-1`, `vault-2`), plus `jwks-refresh`. Traefik load-balances across the
+replicas, health-checks them, rate-limits and caps request size. **Upgrading
+a Pi that still runs the single `vault-service` container? Go to
+[Moving to Traefik](#moving-to-traefik-from-the-single-vault-service-stack).**
 
 Two paths that are easy to confuse, because they look alike and are unrelated:
 
@@ -17,9 +22,10 @@ Renaming the Pi directory is safe: `docker-compose.yml` pins `name:
 sd-chat-vault`, so the volume stays `sd-chat-vault_vault-data` rather than being
 derived from the folder.
 
-Nothing publishes a port. The only route in is the outbound connection
-cloudflared makes to Cloudflare's edge, and the only path it carries is
-`/backup/*`.
+Nothing publishes a public port. The only route in is the outbound
+connection cloudflared makes to Cloudflare's edge, and the only path it carries
+is `/backup/*`. The one mapping is Traefik's dashboard on the Pi's
+`127.0.0.1:8080`, reachable only over SSH.
 
 ---
 
@@ -118,13 +124,14 @@ Zero Trust → Networks → Tunnels → your tunnel → **Public Hostnames**.
 | -------- | --------------------------- |
 | Subdomain / Domain | your vault hostname |
 | Path     | `backup/.*`                 |
-| Service  | `http://vault-service:8443` |
+| Service  | `http://traefik:8000`       |
 
 Two things to get right:
 
-- **`vault-service`, not `127.0.0.1`.** Inside the cloudflared container,
-  `127.0.0.1` is cloudflared itself. The service name resolves over the compose
-  network.
+- **`traefik:8000`, not `127.0.0.1` and not a vault replica.** Inside the
+  cloudflared container, `127.0.0.1` is cloudflared itself, and the replicas
+  are on a network cloudflared is not part of. The service name resolves over
+  the `edge` network.
 - **The Path field is a regex and takes no leading slash.** If a valid request
   comes back 404 in step 6, this is the first thing to check.
 
@@ -171,7 +178,7 @@ Each step isolates one layer, so a failure tells you where the problem is.
 image would be owned by root:
 
 ```sh
-docker compose exec vault-service sh -c \
+docker compose exec vault-1 sh -c \
   'touch /opt/sd-chat-vault/backups/.probe && echo writable && rm /opt/sd-chat-vault/backups/.probe'
 ```
 
@@ -179,34 +186,50 @@ Expect `writable`. If it says permission denied, the volume predates the
 Dockerfile that creates and chowns that path — fix it once with:
 
 ```sh
-docker compose run --rm --user root vault-service chown -R node:node /opt/sd-chat-vault
+docker compose run --rm --user root vault-1 chown -R node:node /opt/sd-chat-vault
 docker compose up -d
 ```
 
 **The service is up:**
 
 ```sh
-docker compose logs vault-service | tail
+docker compose logs vault-1 vault-2 | tail
 ```
 
-Expect `vault service listening on http://0.0.0.0:8443`.
+Expect `vault service listening on http://0.0.0.0:8443` from each replica, and
+all five containers `healthy` or `running` in `docker compose ps`.
 
 **It is reachable across the compose network by name** — this is exactly what
 cloudflared does, and the `jwks-refresh` container shares the image and has a
 shell, while the cloudflared image does not:
 
 ```sh
-docker compose exec jwks-refresh wget -qO- http://vault-service:8443/healthz
+docker compose exec jwks-refresh wget -qO- http://vault-1:8443/healthz
+docker compose exec jwks-refresh wget -qO- http://vault-2:8443/healthz
 ```
 
-Expect `{"ok":true}`.
+Expect `{"ok":true}` twice.
+
+**Traefik routes to them.** The cloudflared image has no shell, so use a
+throwaway container on the `edge` network - the same network cloudflared uses:
+
+```sh
+docker run --rm --network sd-chat-vault_edge curlimages/curl -si \
+  http://traefik:8000/backup/00000000-0000-0000-0000-000000000000
+docker run --rm --network sd-chat-vault_edge curlimages/curl -si http://traefik:8000/healthz
+```
+
+Expect `401` from the vault for the first (it carries the vault's JSON error
+body), and `404` from Traefik for the second - `/healthz` is deliberately not
+routed. A `503` means Traefik considers every replica down: check
+`docker compose logs traefik` for health-check failures.
 
 **The JWKS cache exists** (not needed while HS256 is current, but you want it in
 place before promoting ES256):
 
 ```sh
 docker compose logs jwks-refresh | tail
-docker compose exec vault-service ls -l /opt/sd-chat-vault/
+docker compose exec vault-1 ls -l /opt/sd-chat-vault/
 ```
 
 **From the outside**, on any machine:
@@ -220,7 +243,8 @@ Expect `401` for the first — the tunnel reached the service and the service
 refused an unauthenticated request, which is both halves working. Expect `404`
 for the second, refused at the edge.
 
-A `502` means the ingress or `HOST` is wrong (step 3 or 4). A `404` on the first
+A `502` means the ingress points somewhere cloudflared cannot reach (step 3). A
+`503` means Traefik has no healthy replica, which is most often `HOST` (step 4). A `404` on the first
 URL means the Path matcher is wrong.
 
 ## 7. Point the app at it
@@ -234,9 +258,10 @@ will — a new build is required before either screen can work.
 In this order, because each step depends on the last:
 
 1. On a device that holds a key: Settings → Manage Keys → **Back up my key**.
-   Watch `docker compose logs -f vault-service` — expect a `PUT` and a 204.
+   Watch `docker compose logs -f vault-1 vault-2` — expect a `PUT` and a 204
+   on one of them.
 2. Confirm the blob landed:
-   `docker compose exec vault-service ls -l /opt/sd-chat-vault/backups/`
+   `docker compose exec vault-1 ls -l /opt/sd-chat-vault/backups/`
    — one `<user-id>.b64` file, 64 bytes.
 3. Confirm the row landed: `select * from key_backups;` in Supabase.
 4. On a second device, or the same one after a reinstall: sign in. Bootstrap
@@ -279,11 +304,86 @@ docker run --rm -v sd-chat-vault_vault-data:/data -v $PWD:/out alpine \
   tar czf /out/vault-backup-$(date +%F).tar.gz -C /data .
 ```
 
-**There is no rate limit.** The JWT check is what gates access, so a Cloudflare
-WAF rule on the hostname (~10 req/min/IP) is noise reduction rather than a
-control — but it is a few clicks.
+**The rate limit is on the Pi, not at the edge.** Traefik allows ~10 req/min
+per client (burst 5), keyed on `CF-Connecting-IP`. Rejected requests still
+cross the tunnel and cost the Pi a little work; a Cloudflare WAF rule on the
+hostname stops them before they leave Cloudflare, and is a few clicks. The JWT
+check is what actually gates access either way.
+
+**The load balancer does not survive the Pi.** Both replicas run on the same
+machine and share one volume on one SD card. That covers a crashed process and
+zero-downtime restarts - not a dead Pi or a dead card. Spreading replicas over
+a second machine would need the blobs on shared or replicated storage first.
 
 **Recovery still needs Supabase to be up**, because every vault request carries
 a live session JWT. Verifying that token locally means the vault survives the
 Supabase API going down *mid-recovery*; it does not let someone recover while
 unable to log in at all.
+
+## Moving to Traefik from the single `vault-service` stack
+
+Do this once, on a Pi that still runs the old single-container stack. Budget a
+minute or two in which the vault answers `502`: the old container goes away
+when the new stack comes up, and the tunnel keeps pointing at it until the
+dashboard is changed. The vault is only used during backup and recovery, so
+pick a quiet moment rather than engineering around it.
+
+1. `cd ~/clouflared && sh install-vault.sh` (writes `traefik/` and the new
+   compose file; `.env` is untouched and needs no new values).
+2. `docker compose config -q` - catches a YAML mistake before anything stops.
+3. `docker compose up -d --build --remove-orphans`. `--remove-orphans` removes
+   the old `sd-chat-vault` container. **The `vault-data` volume and every blob
+   in it are kept** - same project name, same volume name.
+4. Run the step 6 checks, including the two `curlimages/curl` requests.
+5. **Change the tunnel ingress** (step 3) from `http://vault-service:8443` to
+   `http://traefik:8000`. Keep the `backup/.*` path.
+6. From outside: `curl -i https://<your vault hostname>/backup/00000000-0000-0000-0000-000000000000`
+   → `401`.
+7. Rate limit: run that same `curl` about 20 times quickly. Expect `429` once
+   the burst is used up, and `401` again after a minute.
+8. From the app: **Back up my key**, and watch
+   `docker compose logs -f traefik vault-1 vault-2`.
+
+**Rollback:** re-run the previous `install-vault.sh` (from git history) and
+`docker compose up -d --build --remove-orphans`, then point the ingress back at
+`http://vault-service:8443`. The volume is shared by both layouts.
+
+## Operating the load balancer
+
+**Rolling restart / update, no downtime.** Rebuild, then replace one replica
+at a time. Traefik's health check (every 10s) takes the restarting one out of
+rotation, and the retry middleware replays any request that hit it mid-restart
+on the other:
+
+```sh
+docker compose build vault-1
+docker compose up -d --no-deps vault-1
+# wait until `docker compose ps` shows vault-1 healthy
+docker compose up -d --no-deps vault-2
+docker compose up -d --no-deps jwks-refresh
+```
+
+**Adding a replica.** Add a service to `docker-compose.yml`:
+
+```yaml
+  vault-3:
+    <<: *vault
+    container_name: sd-chat-vault-3
+```
+
+and one line under `servers:` in `traefik/dynamic.yml`
+(`- url: "http://vault-3:8443"`). Then `docker compose up -d vault-3`. Traefik
+watches the file, so it needs no restart. Each Node replica costs roughly
+40-60 MB of RAM, so two is plenty for this traffic.
+
+**Dashboard.** From your Mac:
+
+```sh
+ssh -L 8080:127.0.0.1:8080 <user>@<pi>
+```
+
+then open <http://localhost:8080/dashboard/>. The `vault` service should list
+both servers as up.
+
+**Tuning the rate limit or body limit.** Edit `traefik/dynamic.yml`; it
+applies within a second or two, no restart.
