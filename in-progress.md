@@ -354,3 +354,9 @@ now points at `http://traefik:8000` (path `backup/.*`).
   restarts, not a dead Pi or SD card. A second machine needs shared or
   replicated blob storage first, which is the same gap as "Blob durability"
   above.
+
+## Maestro CI workflow — needs secrets + a first run (added 2026-09-24)
+`.github/workflows/maestro-e2e.yml` hasn't run yet. Before it can:
+- Add repo secrets: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`, `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`, `EXPO_PUBLIC_PAIRING_KEY_URL`, `EXPO_PUBLIC_VAULT_URL`, `MAESTRO_PASSWORD`, `GOOGLE_SERVICES_JSON_BASE64` (`base64 -i google-services.json`).
+- Expect first-run failures: `maestro/ci/setup-account.yaml` reuses `delete-account.yaml`'s unproven "Skip" biometric path; Supabase may reject `@example.com` emails; the chat flows still need the seeded `"Android Simulator"` peer and `search-bar` needs a user matching "iphone" in the DB.
+- Not in CI yet: gallery-based flows (would need `addMedia` + selectors that don't match a specific photo date), and iOS.

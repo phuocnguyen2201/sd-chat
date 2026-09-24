@@ -1,0 +1,39 @@
+appId: com.phuocng23000.sdchat
+---
+# CI only: register a fresh account for this run (${EMAIL} is unique per
+# workflow run) and land on the Chat screen, so the rest of the suite starts
+# logged in with this device holding the account's keys.
+# Same steps as delete-account.yaml's registration half.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+- tapOn: "Enter your email"
+- inputText: ${EMAIL}
+- tapOn: "Enter your password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+
+- tapOn: "Register"
+- assertVisible: ".*Registration successful!.*"
+- tapOn: "Okay"
+- tapOn: "Login"
+
+- extendedWaitUntil:
+    visible: "Complete the profile"
+    timeout: 15000
+- tapOn: "Input Field"
+- inputRandomPersonName
+- hideKeyboard
+- tapOn: "Save"
+
+- extendedWaitUntil:
+    visible: "Enable Biometric"
+    timeout: 15000
+- tapOn: "Skip"
+
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 15000
+- assertVisible: { id: "users-scroll" }

@@ -1,0 +1,29 @@
+appId: com.phuocng23000.sdchat
+---
+# CI only: delete the account setup-account.yaml created, so runs don't pile
+# up test users. Logs back in first in case a failed flow left the app
+# signed out.
+- launchApp
+- runFlow:
+    when:
+      visible: "Authentication.*"
+    commands:
+      - tapOn: "Enter your email"
+      - inputText: ${EMAIL}
+      - tapOn: "Enter your password"
+      - inputText: ${PASSWORD}
+      - hideKeyboard
+      - tapOn: "Login"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 20000
+
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: { id: "delete-account-button" }
+- tapOn: { id: "delete-account-button" }
+- assertVisible: "Notification"
+- tapOn: "Okay"
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 20000

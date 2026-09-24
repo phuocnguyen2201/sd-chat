@@ -1,0 +1,96 @@
+name: Maestro E2E (Android)
+
+# The suite runs against the real Supabase project and creates, then deletes,
+# a test account per run, so it doesn't run on every PR. Run it by hand from
+# the Actions tab, or let it run on pushes to main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - 'sd-chat-vault/**'
+
+concurrency:
+  group: maestro-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
+      EXPO_PUBLIC_SUPABASE_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_SERVICE_KEY }}
+      EXPO_PUBLIC_PREPATH_STORAGE: storage/v1/object/sign
+      EXPO_PUBLIC_SQLITE: snapshot
+      EXPO_PUBLIC_NOTIFICATION_URL: https://exp.host/--/api/v2/push/send
+      EXPO_PUBLIC_PAIRING_KEY_URL: ${{ secrets.EXPO_PUBLIC_PAIRING_KEY_URL }}
+      EXPO_PUBLIC_VAULT_URL: ${{ secrets.EXPO_PUBLIC_VAULT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      # google-services.json isn't committed; app.json points at it.
+      - name: Write google-services.json
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}' | base64 -d > google-services.json
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --platform android --no-install
+
+      # Release build bundles the JS, so no Metro server is needed.
+      # The generated project signs release with the debug keystore.
+      - name: Build release APK (x86_64 only)
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Maestro on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          EMAIL: sdchat-ci-${{ github.run_id }}-${{ github.run_attempt }}@example.com
+          PASSWORD: ${{ secrets.MAESTRO_PASSWORD }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: |
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            bash .github/scripts/run-maestro.sh
+
+      - name: Upload Maestro results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results
+          path: maestro-results/
+          if-no-files-found: ignore
