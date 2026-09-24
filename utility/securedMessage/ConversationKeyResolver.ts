@@ -1,4 +1,4 @@
-import { conversationAPI } from '@/utility/messages';
+import { conversationAPI, profileAPI } from '@/utility/messages';
 import { ConversationKeyManager } from './ConversationKeyManagement';
 import { MessageEncryption } from './secured';
 
@@ -89,4 +89,66 @@ export async function resolveConversationKey(
   console.error('Unable to unwrap the conversation key for', conversationId);
 
   return { status: 'failed' };
+}
+
+/**
+ * Wrap `conversationKey` for every participant whose row has no wrapped key,
+ * and leave every other row alone.
+ *
+ * This repairs conversations created on a device that had no identity key:
+ * the key was kept on that device only and no rows were written, so nobody
+ * else could open the chat. Once that device has a valid identity key again,
+ * opening the conversation there fills the rows in.
+ *
+ * Two rules keep this from making things worse:
+ * - it only runs when this device's identity key matches `profilePublicKey`.
+ *   A row wrapped with the wrong key is no longer empty, so it could never be
+ *   repaired afterwards.
+ * - it only fills empty rows (enforced by the database, see
+ *   `fillMissingConversationKey`), so it never replaces a key another device
+ *   already distributed.
+ */
+export async function backfillMissingWrappedKeys(
+  conversationId: string,
+  userId: string,
+  profilePublicKey: string,
+  conversationKey: Uint8Array
+): Promise<void> {
+  const rows = await conversationAPI.getParticipantKeyRows(conversationId);
+  const missingIds = (rows.data ?? [])
+    .filter((row) => !row.wrapped_key)
+    .map((row) => row.user_id);
+
+  if (missingIds.length === 0) {
+    return;
+  }
+
+  // Every row records the wrapper's public key, which has to be the key this
+  // device really holds - derive it rather than trusting the profile alone.
+  const myPublicKey = await MessageEncryption.derivePublicKey(userId);
+  if (!myPublicKey || myPublicKey !== profilePublicKey) {
+    return;
+  }
+
+  const { data: profiles } = await profileAPI.getParticipantsPublicKey(missingIds);
+
+  for (const participant of profiles ?? []) {
+    if (!participant?.id || !participant.public_key) continue;
+
+    const recipientKey = MessageEncryption.base64ToBytes(participant.public_key);
+    if (recipientKey.length !== 32) continue;
+
+    const wrapped = await MessageEncryption.wrapConversationKey(conversationKey, recipientKey, userId);
+    const { error } = await conversationAPI.fillMissingConversationKey(
+      conversationId,
+      participant.id,
+      MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+      MessageEncryption.bytesToBase64(wrapped.nonce),
+      myPublicKey
+    );
+
+    if (error) {
+      console.error('Unable to backfill the conversation key for', conversationId);
+    }
+  }
 }

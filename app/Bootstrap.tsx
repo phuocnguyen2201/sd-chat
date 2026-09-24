@@ -9,8 +9,8 @@ import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Constants } from '@/constants/Constants';
-import { Alert } from 'react-native';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { routeToKeyRecovery } from '@/utility/securedMessage/IdentityKeyGuard';
 
 /**
  * Bootstrap Screen
@@ -140,15 +140,6 @@ export default function Bootstrap() {
         return;
       }
 
-      if (
-        skipBiometricAuthen !== 'true' && 
-        touchIdEnabled !== 'true' && 
-        faceIdEnabled !== 'true'
-      ) {
-        router.replace('/tabs/managekeys/EnableBiometric')
-        return;
-      }
-
       /*
         Check the identity key before letting the user into any conversation.
 
@@ -166,21 +157,24 @@ export default function Bootstrap() {
       );
 
       if (identityKeyState !== 'ok') {
-        Alert.alert(
-          'Sync your keys',
-          identityKeyState === 'missing'
-            ? 'This device does not have your encryption key yet. Open Share Keys on a device you already use, then scan the code shown here.'
-            : 'The encryption key on this device belongs to a different account. Scan the code from a device you already use to restore the right one.'
-        );
-        /*
-          `recovery` tells that screen it was reached from this guard rather
-          than from Settings, so it can offer a way out. It sits outside the
-          tabs, so without one the user has nowhere to go.
-        */
-        router.replace({
-          pathname: '/tabs/managekeys/ScanningKeys',
-          params: { recovery: '1' },
-        });
+        routeToKeyRecovery(identityKeyState);
+        return;
+      }
+
+      /*
+        The biometric prompt comes after the key check on purpose. Its flags are
+        stored per device, so a device signing in for the first time always
+        lands on EnableBiometric - and that screen goes straight to the chat
+        list. When this branch ran first, a device with no key at all got into
+        the chats, could create conversations, and only met the key check on
+        its next launch.
+      */
+      if (
+        skipBiometricAuthen !== 'true' && 
+        touchIdEnabled !== 'true' && 
+        faceIdEnabled !== 'true'
+      ) {
+        router.replace('/tabs/managekeys/EnableBiometric')
         return;
       }
 

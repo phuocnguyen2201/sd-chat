@@ -240,13 +240,18 @@ export class MessageEncryption {
     conversationKey: Uint8Array,
     recipientPublicKey: Uint8Array,
     userId: string
-  ): Promise<{ wrappedKey: Uint8Array; nonce: Uint8Array } | null> {
+  ): Promise<{ wrappedKey: Uint8Array; nonce: Uint8Array }> {
     //console.log('Wrapping conversation key');
     // 1. Load sender private key
     const prvKeyBase64 = await SecureStore.getItemAsync(this.userKeyStorage(userId));
     if (!prvKeyBase64) {
-      console.error('No private key found');
-      return null;
+      /*
+        Throw rather than return null. Callers used to treat null as "skip this
+        row" and carry on, which let a device with no identity key mint a
+        conversation key, keep it locally and write no rows at all - a chat
+        nobody else could ever open.
+      */
+      throw new Error('No private key found');
   }
 
   const senderPrivateKey = this.base64ToBytes(prvKeyBase64);

@@ -15,6 +15,7 @@ import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import {
   resolveConversationKey,
+  backfillMissingWrappedKeys,
   ConversationKeyLookup,
 } from '@/utility/securedMessage/ConversationKeyResolver';
 import * as Notifications from 'expo-notifications';
@@ -95,23 +96,37 @@ export default function Chat() {
     }
   };
 
+  /*
+    Refuse to mint or wrap anything unless this device's identity key matches
+    the account. The tabs layout already guards this, but creation is where a
+    missing key does lasting damage - a conversation whose key exists on one
+    device only - so it is checked again right before anything is created.
+  */
+  const ensureIdentityKey = async (): Promise<boolean> => {
+    const state = await MessageEncryption.verifyIdentityKey(userId, profile?.public_key ?? '');
+    if (state === 'ok' && profile?.public_key) {
+      return true;
+    }
+
+    Alert.alert(
+      'Sync your keys',
+      'This device does not have a working encryption key for your account, so it cannot start a conversation. Restore your key from Settings first.'
+    );
+    return false;
+  };
+
   // Create a new group chat
   const createGroupChat = async (name: string, recipientIds: string[]) => {
     try {
+      // Before the conversation exists, so a failure leaves nothing behind.
+      if (!(await ensureIdentityKey())) {
+        return null;
+      }
+
+      const groupCreatorPublicKey = profile!.public_key!;
 
       // create group conversation ID
       const { data, error } = await conversationAPI.createGroupConversation(name , userId, recipientIds);
-
-      // Generate group conversation key
-      const conversationKey = await MessageEncryption.createConversationKey();
-
-      // Retrieve public keys for all recipients
-      const { data: publicKeys, error: storeKeyError } = await profileAPI.getParticipantsPublicKey(recipientIds);
-
-      // Get group creator public key
-      const groupCreatorPublicKey = profile?.public_key || publicKeys?.find((pk: any) => pk.id === userId)?.public_key || null;
-      
-      // Error handling
 
       if (error) {
         throw new Error(error.message || 'Failed to create group chat');
@@ -121,6 +136,20 @@ export default function Chat() {
         throw new Error('Invalid conversation data received');
       }
 
+      // Generate group conversation key
+      const conversationKey = await MessageEncryption.createConversationKey();
+
+      /*
+        Wrap for the creator as well. The member picker never includes the
+        creator, so their own row used to stay empty and the group opened only
+        from the key held on the creating device - lose that and the creator is
+        locked out of their own group.
+      */
+      const participantIds = Array.from(new Set([userId, ...recipientIds]));
+
+      // Retrieve public keys for all participants
+      const { data: publicKeys, error: storeKeyError } = await profileAPI.getParticipantsPublicKey(participantIds);
+
       if (storeKeyError) {
         throw new Error(storeKeyError.message || 'Failed to retrieve public keys for recipients');
       }
@@ -129,16 +158,12 @@ export default function Chat() {
         throw new Error('No public keys found for the selected recipients');
       }
 
-      if (!groupCreatorPublicKey) {
-        throw new Error('Group creator public key not found');
-      }
-
-      // Wrap and store the conversation key for each recipient
-      for (const pkEntry of publicKeys || []) {
+      // Wrap and store the conversation key for each participant
+      for (const pkEntry of publicKeys) {
         const recipientId = pkEntry?.id;
         const public_key = pkEntry?.public_key;
 
-        if (!public_key) {
+        if (!recipientId || !public_key) {
           console.warn(`Public key not found for user ${recipientId}, skipping key storage.`);
           continue;
         }
@@ -151,23 +176,27 @@ export default function Chat() {
           - User C: private_key_A + public_key_C
         */ 
 
+        // Throws when this device has no private key - never silently skipped.
         const wrappedKeyForEachParticipants = await MessageEncryption.wrapConversationKey(
           conversationKey,
-          MessageEncryption.base64ToBytes(public_key || ''),
+          MessageEncryption.base64ToBytes(public_key),
           userId
         );
 
-        if (wrappedKeyForEachParticipants) {
-          // Store the wrapped key and nonce to the database for current user
-          await conversationAPI.storeConversationKey(
-            data.conversation_id,
-            recipientId || '',
-            MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.wrappedKey),
-            MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.nonce),
-            // Every row was wrapped with the creator's private key, so the
-            // creator's public key is what opens it - including their own row.
-            groupCreatorPublicKey,
-          );
+        const { error: storeError } = await conversationAPI.storeConversationKey(
+          data.conversation_id,
+          recipientId,
+          MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.wrappedKey),
+          MessageEncryption.bytesToBase64(wrappedKeyForEachParticipants.nonce),
+          // Every row was wrapped with the creator's private key, so the
+          // creator's public key is what opens it - including their own row.
+          groupCreatorPublicKey,
+        );
+
+        // The creator's own row is the one that makes the key recoverable, so
+        // without it the key must not be kept or used.
+        if (storeError && recipientId === userId) {
+          throw new Error(storeError.message || 'Failed to store the conversation key');
         }
       }
 
@@ -186,6 +215,7 @@ export default function Chat() {
       return data;
     } catch (error) {
       console.error('Error creating group chat:', error);
+      Alert.alert('Error', 'Failed to create group chat');
       return null;
     }
   };
@@ -202,6 +232,19 @@ export default function Chat() {
   ): Promise<Uint8Array | null> => {
     const lookup = await lookupConversationKey(public_key, conversationId);
     return lookup.status === 'found' ? lookup.key : null;
+  };
+
+  /*
+    Fill in any participant row that is missing its wrapped key. Runs in the
+    background: opening the room must not wait on it, and a failure only
+    means the next open tries again.
+  */
+  const repairConversationKeyRows = (conversationId: string, conversationKey: Uint8Array) => {
+    if (!profile?.public_key) return;
+
+    backfillMissingWrappedKeys(conversationId, userId, profile.public_key, conversationKey).catch(
+      (error) => console.error('Unable to repair conversation key rows:', error)
+    );
   };
 
   /*
@@ -232,36 +275,49 @@ export default function Chat() {
 
     const conversationKey = await MessageEncryption.createConversationKey();
 
-    const wrappedForRecipient = await MessageEncryption.wrapConversationKey(
-      conversationKey,
-      recipientKeyBytes,
-      userId
-    );
-
-    if (wrappedForRecipient) {
-      await conversationAPI.storeConversationKey(
-        conversationId,
-        recipientId,
-        MessageEncryption.bytesToBase64(wrappedForRecipient.wrappedKey),
-        MessageEncryption.bytesToBase64(wrappedForRecipient.nonce),
-        profile.public_key
-      );
-    }
-
+    /*
+      Self row first, and it is required: it is what lets this user's other
+      devices open the conversation. If it cannot be written the key is thrown
+      away rather than kept on this device only. wrapConversationKey throws
+      when there is no private key, which the caller reports.
+    */
     const wrappedForSelf = await MessageEncryption.wrapConversationKey(
       conversationKey,
       MessageEncryption.base64ToBytes(profile.public_key),
       userId
     );
 
-    if (wrappedForSelf) {
-      await conversationAPI.storeConversationKey(
-        conversationId,
-        userId,
-        MessageEncryption.bytesToBase64(wrappedForSelf.wrappedKey),
-        MessageEncryption.bytesToBase64(wrappedForSelf.nonce),
-        profile.public_key
-      );
+    const { error: selfError } = await conversationAPI.storeConversationKey(
+      conversationId,
+      userId,
+      MessageEncryption.bytesToBase64(wrappedForSelf.wrappedKey),
+      MessageEncryption.bytesToBase64(wrappedForSelf.nonce),
+      profile.public_key
+    );
+
+    if (selfError) {
+      Alert.alert('Error', 'Failed to store the conversation key');
+      return null;
+    }
+
+    const wrappedForRecipient = await MessageEncryption.wrapConversationKey(
+      conversationKey,
+      recipientKeyBytes,
+      userId
+    );
+
+    const { error: recipientError } = await conversationAPI.storeConversationKey(
+      conversationId,
+      recipientId,
+      MessageEncryption.bytesToBase64(wrappedForRecipient.wrappedKey),
+      MessageEncryption.bytesToBase64(wrappedForRecipient.nonce),
+      profile.public_key
+    );
+
+    if (recipientError) {
+      // Not fatal: the recipient's row stays empty, and the next time this user
+      // opens the conversation backfillMissingWrappedKeys fills it in.
+      console.error('Unable to store the recipient conversation key for', conversationId);
     }
 
     return conversationKey;
@@ -368,6 +424,12 @@ export default function Chat() {
     }
 
     try {
+      // Before getOrCreateDM, so a device without a key never leaves an empty
+      // conversation behind.
+      if (!(await ensureIdentityKey())) {
+        return;
+      }
+
       const existing = await conversationAPI.verifyDMConversation(users.id);
       const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       let conversationId: string = '';
@@ -406,6 +468,25 @@ export default function Chat() {
         return;
       }
 
+      if (lookup.status === 'absent') {
+        /*
+          No row for this user, but messages already exist: the key lives only
+          on the device that created the conversation (see
+          backfillMissingWrappedKeys). Minting a second key here would split the
+          conversation for good, so wait for that device to fill the row in.
+        */
+        const { data: hasMessages, error: messagesError } =
+          await conversationAPI.hasMessages(conversationId);
+
+        if (messagesError || hasMessages) {
+          Alert.alert(
+            'Conversation key not available',
+            'This conversation was started on another device that has not shared its key yet. Open the conversation on that device, then try again here.'
+          );
+          return;
+        }
+      }
+
       const conversationKey =
         lookup.status === 'found'
           ? lookup.key
@@ -413,6 +494,10 @@ export default function Chat() {
 
       if (!conversationKey) {
         return;
+      }
+
+      if (lookup.status === 'found') {
+        repairConversationKeyRows(conversationId, conversationKey);
       }
 
       // Store in cache and secure storage via SessionProvider
@@ -502,6 +587,8 @@ export default function Chat() {
         );
         return;
       }
+      repairConversationKeyRows(room.id, conversationKeyBytes);
+
       // Set in session context
       await setCurrentConversation(room.id, conversationKeyBytes);
 
