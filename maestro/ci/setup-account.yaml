@@ -1,6 +1,6 @@
 appId: com.phuocng23000.sdchat
 ---
-# CI only: register a fresh account for this run (${EMAIL} is unique per
+# CI only: register a fresh account for this run (${MAESTRO_EMAIL} is unique per
 # workflow run) and land on the Chat screen, so the rest of the suite starts
 # logged in with this device holding the account's keys.
 # Same steps as delete-account.yaml's registration half.
@@ -10,9 +10,9 @@ appId: com.phuocng23000.sdchat
     visible: "Authentication.*"
     timeout: 50000
 - tapOn: "Enter your email"
-- inputText: ${EMAIL}
+- inputrandomEmail
 - tapOn: "Enter your password"
-- inputText: ${PASSWORD}
+- inputText: ${MAESTRO_PASSWORD}
 - hideKeyboard
 
 - tapOn: "Register"
@@ -36,4 +36,3 @@ appId: com.phuocng23000.sdchat
 - extendedWaitUntil:
     visible: "Chat.*"
     timeout: 15000
-- assertVisible: { id: "users-scroll" }

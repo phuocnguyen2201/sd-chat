@@ -9,9 +9,9 @@ appId: com.phuocng23000.sdchat
       visible: "Authentication.*"
     commands:
       - tapOn: "Enter your email"
-      - inputText: ${EMAIL}
+      - inputText: ${MAESTRO_EMAIL}
       - tapOn: "Enter your password"
-      - inputText: ${PASSWORD}
+      - inputText: ${MAESTRO_PASSWORD}
       - hideKeyboard
       - tapOn: "Login"
 - extendedWaitUntil:
