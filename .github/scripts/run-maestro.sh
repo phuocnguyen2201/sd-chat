@@ -30,6 +30,7 @@ FLOWS=(
   maestro/send-reaction.yaml
   maestro/edit-message.yaml
   maestro/forward-message.yaml
+  maestro/forward-cancel-then-send.yaml
   maestro/delete-message.yaml
   maestro/interactive-users.yaml
   maestro/search-bar.yaml

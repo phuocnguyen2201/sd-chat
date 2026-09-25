@@ -591,3 +591,17 @@ daemon on the Mac, so nothing has actually run.
 - Open: `run-maestro.sh` passes `MAESTRO_USER="$USER"` for forward-message's target, but nothing sets it, so on the runner it's the OS user `runner`.
 - Dark mode switch needed two taps: `Settings.tsx` used `defaultValue={isDarkMode == 'light'}` (inverted, and uncontrolled so it never followed the async-loaded theme). Now `value={isDarkMode === 'dark'}`. `toggle-darkmode.yaml` (one tap per change) was correct; needs a new APK.
 - Display name couldn't be changed: the Settings effect re-ran `getProfile()` on every `displayName` change whenever `!avatar || !displayName` (always true without an avatar), putting the old name back on each keystroke. Now the profile loads on `[user?.id, profile]`, the dialog edits a separate `draftDisplayName`, and `updateProfile` checks the returned `error` (it never rejected, so failures showed "success"), then calls `refreshProfile()`. Needs a new APK.
+
+## 2026-09-26 — Fixed: cancelling Forward made the next Send edit the forwarded message
+**Repro (user):** send a message → long-press → Forward → tap a recipient once (nothing happens, the input bar looks pushed up) → Cancel → type and send a new message → the forwarded message is edited instead.
+
+**Root cause:** `activeMessage` in `app/tabs/msg/[room_id].tsx` was used for two things: "message whose action menu is open" and "message being edited". `handleSend` treated any non-empty `activeMessage` as edit mode. Long-press sets it, and the Forward dialog's `onClose` (and the Delete dialog's Cancel) never cleared it, so the next send ran the UPDATE path. The first-tap problem came from the open keyboard: the recipient `ScrollView` in `components/ForwardMessage.tsx` used the default `keyboardShouldPersistTaps="never"`, so the first tap only closed the keyboard. `KeyboardAvoidingView` (`behavior="padding"`) then kept stale bottom padding.
+
+**Changes:**
+- `[room_id].tsx`: new `editingMessageId` state. It is set only by Edit, used by `handleSend`, and cleared only after a successful edit or through the new "Editing message · Cancel" row above the input (`cancel-edit-message-button`). New `closeMessageActions()` clears the menu selection on every close path: Forward close, Delete Cancel and backdrop close, after send.
+- Forward action now calls `Keyboard.dismiss()` and hides the action menu before it opens the dialog.
+- `handleForwardMessage` now awaits every recipient (`Promise.all`), so errors reach its `catch`. The `onForward` prop returns the promise, so the dialog shows "Forwarding..." until forwarding finishes.
+- `ForwardMessage.tsx`: `keyboardShouldPersistTaps="handled"` on the recipient list.
+- New Maestro flow `maestro/forward-cancel-then-send.yaml` (Forward → pick → Cancel → send, and Delete → Cancel → send; checks both messages exist). Added after `forward-message.yaml` in `run-maestro.sh` and `.eas/workflows/e2e-test-android.yml`.
+
+`npx tsc --noEmit`: no errors in the touched files. Not run on a device; needs a new APK.

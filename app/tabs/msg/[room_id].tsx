@@ -6,7 +6,7 @@ import { useLocalSearchParams, Link, useRouter, useNavigation } from 'expo-route
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
-import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -74,7 +74,11 @@ export default function ChatScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [showReaction, setShowReaction] = useState(false);
 
+  // Message whose action menu (react / edit / forward / delete) is open.
   const [activeMessage, setActiveMessage] = useState<string>('');
+  // Message being edited in the composer. Kept apart from activeMessage so that
+  // closing a menu or dialog can never turn the next send into an edit.
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [activeReaction, setActiveReaction] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -90,6 +94,17 @@ export default function ChatScreen() {
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
   const router = useRouter();
+
+  // Close the action menu and drop the selected message.
+  const closeMessageActions = () => {
+    setShowReaction(false);
+    setActiveMessage('');
+  };
+
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setNewMessage('');
+  };
 
   // Load conversation key when conversation_id changes
   useEffect(() => {
@@ -486,10 +501,12 @@ export default function ChatScreen() {
       return;
     }
     try {
-      recipientId?.map(async (recipient) => {
+      // Await every recipient so failures reach the catch below and the dialog
+      // stays open (showing "Forwarding...") until the work is actually done.
+      await Promise.all(recipientId.map(async (recipient) => {
         // get the conversation ID
-        const conversation = await conversationAPI.verifyDMConversation(recipient!);
-        
+        const conversation = await conversationAPI.verifyDMConversation(recipient);
+
         if (conversation?.data?.conversation_id) {
           if (messageToForward?.message_type === 'text') {
             await forwardTextMessage(messageToForward, conversation.data.conversation_id);
@@ -497,7 +514,7 @@ export default function ChatScreen() {
             await forwardFileOrImageMessage(messageToForward, conversation.data.conversation_id);
           }
         }
-      });
+      }));
 
     } catch (error) {
       console.error('Error in handleForwardMessage:', error);
@@ -547,8 +564,7 @@ export default function ChatScreen() {
     try {
       const encryptedMSG = MessageEncryption.encryptMessage(newMessage, conversationKey);
       // Check if editing or new message
-      if(activeMessage !== '') {
-        //console.log('Editing message:', activeMessage);
+      if(editingMessageId) {
         const { error } = await supabase
         .from('messages')
         .update({ 
@@ -556,7 +572,7 @@ export default function ChatScreen() {
           nonce: encryptedMSG.nonce, 
           key_nonce: encryptedMSG.keyNonce, 
           wrapped_key: encryptedMSG.wrappedKey })
-        .eq('id', activeMessage)
+        .eq('id', editingMessageId)
         .eq('sender_id', userId);
         
 
@@ -565,6 +581,7 @@ export default function ChatScreen() {
           Alert.alert('Error', 'Failed to edit message');
         } else {
           setNewMessage('');
+          setEditingMessageId(null);
         }
       }
       else {
@@ -595,7 +612,7 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
       setShowPicker(false);
-      setActiveMessage('');
+      closeMessageActions();
     }
   }
 
@@ -776,10 +793,14 @@ export default function ChatScreen() {
                           isDarkMode = {isDarkMode === 'dark'}
                           onEdit={() => {
                             setNewMessage(getDecryptedMessageText(m));
-                            setActiveMessage(m?.id ?? '');
-                            setShowReaction(false);
+                            setEditingMessageId(m?.id ?? null);
+                            closeMessageActions();
                           }}
                           onForward={() => {
+                            // An open keyboard swallows the first tap on a recipient
+                            // and leaves stale padding on the input bar when it closes.
+                            Keyboard.dismiss();
+                            setShowReaction(false);
                             setShowForwardDialog(true)
                           }}
                           onDelete={() => { 
@@ -861,7 +882,14 @@ export default function ChatScreen() {
         />
 
         {/* Delete Confirmation Dialog - Rendered globally to avoid blocking other interactions */}
-        <AlertDialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} size="md">
+        <AlertDialog
+          isOpen={showDeleteDialog}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setMessageToDelete(null);
+            closeMessageActions();
+          }}
+          size="md">
           <AlertDialogContent>
             <AlertDialogHeader>
               <Heading className="text-typography-950 font-semibold" size="md">
@@ -880,7 +908,8 @@ export default function ChatScreen() {
                 action="secondary"
                 onPress={() => {
                     setShowDeleteDialog(false)
-                    setShowReaction(false);
+                    setMessageToDelete(null);
+                    closeMessageActions();
                   }}
                 size="sm"
               >
@@ -901,11 +930,9 @@ export default function ChatScreen() {
           isOpen = {showForwardDialog}
           onClose = {() => {
             setShowForwardDialog(false)
-            setShowReaction(false);
+            closeMessageActions();
           }}
-          onForward = {(message, recipientIds) => {
-            handleForwardMessage(recipientIds);
-          }}
+          onForward = {(_message, recipientIds) => handleForwardMessage(recipientIds)}
           messagePreview = {getMessagePreview()}
         /> 
         {/* Input Bar - Fixed above keyboard */}
@@ -918,6 +945,14 @@ export default function ChatScreen() {
               }}
               showPreview={false}
             />
+          )}
+          {editingMessageId && (
+            <HStack space="sm" className="items-center justify-between mb-2 px-2">
+              <Text className={`text-xs ${isDarkMode == "dark" ? 'text-gray-300' : 'text-gray-500'}`}>Editing message</Text>
+              <Pressable testID={automationLocatorsDataState.chatScreen.cancelEditMessageButton} onPress={cancelEditing}>
+                <Text className="text-xs text-blue-500">Cancel</Text>
+              </Pressable>
+            </HStack>
           )}
           <HStack space="sm" className="items-center">
             {/* Image Upload Button */}

@@ -367,3 +367,10 @@ now points at `http://traefik:8000` (path `backup/.*`).
 - In the EAS **preview** environment, create: `GOOGLE_SERVICES_JSON` (type file: `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment preview`), `MAESTRO_PASSWORD` (secret), and every `EXPO_PUBLIC_*` the GitHub workflow sets (SUPABASE_URL/KEY/SERVICE_KEY, PREPATH_STORAGE, SQLITE, NOTIFICATION_URL, PAIRING_KEY_URL, VAULT_URL).
 - Unverified: whether the EAS `maestro` job keeps going past a failed flow. If it stops, teardown won't run and the `sdchat-eas-*` account is left in Supabase.
 - Trigger is `pull_request` (every PR costs an EAS build). Run by hand with `eas workflow:run .eas/workflows/e2e-test-android.yml`.
+
+## Forward-cancel → edit bug — fixed in code 2026-09-26, needs device check
+See progress.md (2026-09-26). To verify on a new APK:
+- The user's repro: Forward → one tap on a recipient selects it (shows `Forward (1)`), Cancel, then send → a **new** message appears and the original is unchanged.
+- No stale bottom padding on the input bar after the Forward dialog closes (Android). If it is still there, the next suspect is `KeyboardAvoidingView behavior="padding"` + `keyboardVerticalOffset=80` on Android, where `behavior="height"` or `undefined` (with `softwareKeyboardLayoutMode: "resize"`) is usually the fix.
+- Edit still works, and the new "Editing message · Cancel" row cancels it.
+- Run `maestro/forward-cancel-then-send.yaml` (never run yet).

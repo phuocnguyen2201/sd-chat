@@ -1,7 +1,5 @@
 appId: com.phuocng23000.sdchat
 ---
-- launchApp
-
 - assertVisible: { id: "user-list" }
 - swipe:
     from:
@@ -21,3 +19,6 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "Android Simulator"
 - assertVisible:
     point: 39%,13%
+    
+- tapOn: "Navigate up"
+- tapOn: "Navigate up"

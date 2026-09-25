@@ -97,7 +97,7 @@ export default function ForwardMessage({
 
         <Text className="text-sm text-gray-600 mb-2">Choose recipients</Text>
         <Box>
-            <ScrollView style={{ maxHeight: 150 }} className="mb-3" horizontal>
+            <ScrollView style={{ maxHeight: 150 }} className="mb-3" horizontal keyboardShouldPersistTaps="handled">
                 <HStack space="sm" className="mb-3">
                 {loadingProfiles ? (
                     <Text>Loading...</Text>

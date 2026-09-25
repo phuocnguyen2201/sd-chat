@@ -1,0 +1,48 @@
+appId: com.phuocng23000.sdchat
+---
+# Regression: closing the Forward dialog or the Delete dialog with Cancel used to
+# leave the message selected, so the next Send edited that message instead of
+# sending a new one. Runs inside the chat room left open by forward-message.yaml.
+
+# --- Forward -> pick recipient -> Cancel -> send a new message ---
+- assertVisible: { id: "message-input" }
+- tapOn: { id: "message-input" }
+- inputText: "Forward cancel original"
+- tapOn: { id: "send-button" }
+- extendedWaitUntil:
+    visible: "Forward cancel original"
+    timeout: 10000
+
+- longPressOn: "Forward cancel original"
+- assertVisible: { id: "forward-message-button" }
+- tapOn: { id: "forward-message-button" }
+- assertVisible: "Android Simulator"
+- waitForAnimationToEnd
+# One tap must select the recipient, even though the keyboard was just open.
+- tapOn: "Android Simulator"
+- assertVisible: "Forward \\(1\\)"
+- tapOn: { id: "cancel-forward-message-button" }
+
+- tapOn: { id: "message-input" }
+- inputText: "Sent after forward cancel"
+- tapOn: { id: "send-button" }
+- extendedWaitUntil:
+    visible: "Sent after forward cancel"
+    timeout: 10000
+# The original must still be there: the send was an insert, not an edit.
+- assertVisible: "Forward cancel original"
+
+# --- Delete -> Cancel -> send a new message ---
+- longPressOn: "Sent after forward cancel"
+- assertVisible: { id: "delete-message-button" }
+- tapOn: { id: "delete-message-button" }
+- assertVisible: "Notification"
+- tapOn: { id: "cancel-delete-message-button" }
+
+- tapOn: { id: "message-input" }
+- inputText: "Sent after delete cancel"
+- tapOn: { id: "send-button" }
+- extendedWaitUntil:
+    visible: "Sent after delete cancel"
+    timeout: 10000
+- assertVisible: "Sent after forward cancel"

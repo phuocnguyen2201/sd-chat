@@ -1,6 +1,6 @@
 appId: com.phuocng23000.sdchat
 ---
-- launchApp
+
 - extendedWaitUntil:
     visible: "Chat.*"
     timeout: 50000
