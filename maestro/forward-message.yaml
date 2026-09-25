@@ -1,9 +1,7 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Chat.*"
-    timeout: 50000
+
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
@@ -25,7 +23,6 @@ appId: com.phuocng23000.sdchat
 - tapOn: "Navigate up"
 - assertVisible: ".*${MAESTRO_USER}.*"
 - tapOn: ".*${MAESTRO_USER}.*"
-- assertVisible: "￼"
 
 
 

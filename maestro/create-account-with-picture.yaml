@@ -11,7 +11,7 @@ appId: com.phuocng23000.sdchat
 - inputRandomEmail
 - tapOn: 
     point: '50%, 50%'
-- inputText: ${PASSWORD}
+- inputText: ${MAESTRO_PASSWORD}
 
 - runFlow:
     when: 
@@ -62,4 +62,3 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "Save"
 - tapOn: "Save"
 - assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }

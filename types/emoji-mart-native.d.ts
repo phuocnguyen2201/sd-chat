@@ -15,6 +15,8 @@ declare module "emoji-mart-native" {
     perLine?: number;
     showPreview?: boolean;
     showSkinTones?: boolean;
+    /** Render emojis as text instead of sprite images. */
+    native?: boolean;
   }
 
   export const Picker: React.ComponentType<PickerProps>;

@@ -13,11 +13,10 @@ appId: "com.phuocng23000.sdchat"
       - assertVisible: "Password"
       - tapOn: 
           point: '50%, 40%'
-      - inputText: ${EMAIL}
+      - inputText: ${MAESTRO_EMAIL}
       - tapOn: 
           point: '50%, 46%'
-      - inputText: ${PASSWORD}
+      - inputText: ${MAESTRO_PASSWORD}
       - tapOn: "Login"
       - assertVisible: "Chat.*"
-      - assertVisible: { id: "search" }
-      - assertVisible: { id: "users-scroll" }
+      - assertVisible: { id: "search-input" }

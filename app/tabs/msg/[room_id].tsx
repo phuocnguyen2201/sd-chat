@@ -20,6 +20,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { resolveConversationKey } from '@/utility/securedMessage/ConversationKeyResolver';
 import { Picker } from 'emoji-mart-native';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
 import {
   Popover,
@@ -180,6 +181,7 @@ export default function ChatScreen() {
         navigation.setOptions({
           headerRight: () => (
             <Pressable
+              testID={automationLocatorsDataState.chatScreen.editChatRoomButton}
               onPress={() => {
                 router.push({
                       pathname: '/tabs/msg/ChatRoomEditing',
@@ -909,6 +911,7 @@ export default function ChatScreen() {
         <Box className={`absolute left-0 right-0 bottom-5 p-3 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} border-t `}>
           {showPicker && (
             <Picker
+              native
               onSelect={(emo) => {
                 setNewMessage((prev) => prev + emo.native);
               }}
@@ -917,17 +920,18 @@ export default function ChatScreen() {
           )}
           <HStack space="sm" className="items-center">
             {/* Image Upload Button */}
-            <Pressable onPress={pickImage} className="p-2 rounded-full bg-gray-100">
+            <Pressable testID={automationLocatorsDataState.chatScreen.picturePickerButton} onPress={pickImage} className="p-2 rounded-full bg-gray-100">
               <Text className="text-lg">🖼️</Text>
             </Pressable>
 
             {/* File Upload Button */}
-            <Pressable onPress={pickFile} className="p-2 rounded-full bg-gray-100">
+            <Pressable testID={automationLocatorsDataState.chatScreen.filesPickerButton} onPress={pickFile} className="p-2 rounded-full bg-gray-100">
               <Text className="text-lg">📎</Text>
             </Pressable>
 
             <Input className="flex-1 rounded-full bg-gray-100 border border-gray-200">
               <InputField
+                testID={automationLocatorsDataState.chatScreen.messageInput}
                 className="text-black px-4"
                 value={newMessage}
                 onChangeText={setNewMessage}
@@ -936,11 +940,12 @@ export default function ChatScreen() {
               />
             </Input>
 
-            <Pressable onPress={() => setShowPicker(!showPicker)}>
+            <Pressable testID={automationLocatorsDataState.chatScreen.emojiPickerButton} onPress={() => setShowPicker(!showPicker)}>
               <Text style={{ fontSize: 20 }}>😀</Text>
             </Pressable>
 
             <Pressable
+              testID={automationLocatorsDataState.chatScreen.sendButton}
               onPress={handleSend}
               disabled={!newMessage.trim() || loading || !conversationKey}
               className={`p-2 rounded-full ${

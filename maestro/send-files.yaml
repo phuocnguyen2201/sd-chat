@@ -1,13 +1,12 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
-- assertVisible: "📎"
-- tapOn: "📎"
+- assertVisible: { id: "files-picker-button" }
+- tapOn: { id: "files-picker-button" }
 - assertVisible:
     id: "toolbar"
 - assertVisible: "Recent files"

@@ -6,7 +6,7 @@ appId: "com.phuocng23000.sdchat"
 - tapOn: "Enter your email"
 - inputRandomEmail
 - tapOn: "Enter your password"
-- inputText: ${PASSWORD}
+- inputText: ${MAESTRO_PASSWORD}
 - tapOn: "Register"
 - extendedWaitUntil:
     visible:

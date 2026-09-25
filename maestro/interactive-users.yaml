@@ -10,16 +10,13 @@ appId: com.phuocng23000.sdchat
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
-- assertVisible:
-    point: 0%,92%
-- assertVisible: "🖼️"
-- assertVisible: "📎"
-- assertVisible: "Input Field"
-- assertVisible: "➤"
-- assertVisible:
-    point: 88%,7%
-- tapOn:
-    point: 88%,7%
+- assertVisible: { id: "message-input" }
+- assertVisible: { id: "picture-picker-button" }
+- assertVisible: { id: "files-picker-button" }
+- assertVisible: { id: "emoji-picker-button" }
+- assertVisible: { id: "send-button" }
+- assertVisible: { id: "edit-chat-room-button" }
+- tapOn: { id: "edit-chat-room-button" }
 - assertVisible: "Edit Chat Room"
 - assertVisible: "Android Simulator"
 - assertVisible:

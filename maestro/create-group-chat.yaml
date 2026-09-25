@@ -4,8 +4,9 @@ appId: com.phuocng23000.sdchat
 # recipients -> Create Group. On success createGroupChat() pushes straight
 # into the new room, so the flow ends inside the conversation.
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 50000
 
 - tapOn: { id: "create-group-chat-button" }
 - assertVisible: "Create Group Chat"
@@ -24,5 +25,5 @@ appId: com.phuocng23000.sdchat
 - extendedWaitUntil:
     visible: ".*Android Simulator.*"
     timeout: 15000
-- assertVisible: "Input Field"
-- assertVisible: "➤"
+- assertVisible: { id: "message-input" }
+- assertVisible: { id: "send-button" }

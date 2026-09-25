@@ -7,11 +7,9 @@ appId: com.phuocng23000.sdchat
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
-- assertVisible:
-    point: 0%,92%
-- assertVisible: "Input Field"
-- assertVisible: "➤"
-- tapOn: "Input Field"
+- assertVisible: { id: "message-input" }
+- assertVisible: { id: "send-button" }
+- tapOn: { id: "message-input" }
 - inputText: "Testing message"
-- tapOn: "➤"
+- tapOn: { id: "send-button" }
 - assertVisible: "Testing message"

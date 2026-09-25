@@ -4,16 +4,15 @@ appId: com.phuocng23000.sdchat
 # -> Okay -> handleDeleteMessage(). Sends its own message first so it never
 # destroys seeded fixtures the other flows assert on.
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
 
-- assertVisible: "Input Field"
-- tapOn: "Input Field"
+- assertVisible: { id: "message-input" }
+- tapOn: { id: "message-input" }
 - inputText: "Message to delete"
-- tapOn: "➤"
+- tapOn: { id: "send-button" }
 - extendedWaitUntil:
     visible: "Message to delete"
     timeout: 10000

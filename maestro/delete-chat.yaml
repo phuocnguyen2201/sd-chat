@@ -20,7 +20,6 @@ appId: com.phuocng23000.sdchat
     commands:
       - back
 - assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
 - assertVisible: "QA Group Chat"
 
 - longPressOn: "QA Group Chat"

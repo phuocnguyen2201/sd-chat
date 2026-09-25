@@ -8,8 +8,7 @@ appId: com.phuocng23000.sdchat
 - runFlow: create-group-chat.yaml
 
 # Header edit button of the room (same target interactive-users.yaml uses)
-- tapOn:
-    point: 88%,7%
+- tapOn: { id: "edit-chat-room-button" }
 - assertVisible: "Edit Chat Room"
 - assertVisible: "Group Name"
 

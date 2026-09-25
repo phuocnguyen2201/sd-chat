@@ -1,21 +1,22 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Chat.*"
-    timeout: 50000
+
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
-- assertVisible:
-    point: 0%,92%
-- assertVisible: "😀"
-- tapOn: "😀"
-- tapOn:
-    point: 36%,89%
-- swipe:
-    direction: LEFT
-- tapOn:
-    point: 76%,82%
-- assertVisible: "😬"
-- tapOn: "➤"
+- assertVisible: { id: "message-input" }
+
+# The picker renders emojis as text (Picker `native`), so search for one
+# and tap it by its character instead of by screen position.
+- tapOn: { id: "emoji-picker-button" }
+- tapOn: "Search"
+- inputText: "grimacing"
+- tapOn: "😬"
+- tapOn: { id: "send-button" }
+
+# Sending closes the picker and clears the input, so the only 😬 left on
+# screen is the sent message.
+- extendedWaitUntil:
+    visible: "😬"
+    timeout: 10000
