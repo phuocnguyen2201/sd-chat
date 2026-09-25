@@ -10,7 +10,7 @@ appId: com.phuocng23000.sdchat
     visible: "Authentication.*"
     timeout: 50000
 - tapOn: "Enter your email"
-- inputrandomEmail
+- inputText: ${MAESTRO_EMAIL}
 - tapOn: "Enter your password"
 - inputText: ${MAESTRO_PASSWORD}
 - hideKeyboard
