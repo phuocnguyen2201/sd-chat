@@ -1,17 +1,34 @@
 appId: com.phuocng23000.sdchat
 ---
 # CI only: delete the account setup-account.yaml created, so runs don't pile
-# up test users. Logs back in first in case a failed flow left the app
-# signed out.
+# up test users. launchApp restarts the app, which always opens on Chat (or on
+# Authentication if a failed flow left it signed out), never on Settings.
 - launchApp
 # Wait for whichever first screen appears before deciding whether to log in;
 # checking straight after launch races the cold start.
-- assertVisible: "Settings"
+- extendedWaitUntil:
+    visible: "(Authentication|Chat).*"
+    timeout: 50000
+- runFlow:
+    when:
+      visible: "Authentication.*"
+    commands:
+      - tapOn: "Enter your email"
+      - inputText: ${MAESTRO_EMAIL}
+      - tapOn: "Enter your password"
+      - inputText: ${MAESTRO_PASSWORD}
+      - hideKeyboard
+      - tapOn: "Login"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 30000
 
-- assertVisible: { id: "delete-account-button" }
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: { id: "delete-account-button" }
 - tapOn: { id: "delete-account-button" }
 - assertVisible: "Notification"
 - tapOn: "Okay"
 - extendedWaitUntil:
-    visible: "Authentication"
+    visible: "Authentication.*"
     timeout: 20000
