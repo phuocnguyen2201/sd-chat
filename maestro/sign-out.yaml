@@ -1,0 +1,27 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: Settings -> Sign Out -> login screen, then signing back in on the
+# same device goes straight to the chats (the key is still on the device).
+- launchApp
+- assertVisible: "Chat.*"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: { id: "logout-button" }
+- tapOn: { id: "logout-button" }
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 15000
+- assertVisible: "Login"
+- assertVisible: "Register"
+
+- runFlow: subflows/login-with-fixture.yaml
+# Sign-out keeps this device's biometric choice, but skip the prompt if it shows
+- runFlow:
+    when:
+      visible: "Enable Biometric"
+    commands:
+      - tapOn: "Skip"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 20000
+- assertVisible: { id: "users-scroll" }

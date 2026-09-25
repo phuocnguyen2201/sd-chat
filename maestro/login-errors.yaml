@@ -1,0 +1,40 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: login screen validation and a rejected sign-in.
+#
+# NOTE: starts with clearState, which wipes this device's copy of ${EMAIL}'s
+# private key. Run recover-key-from-backup.yaml (after backup-key.yaml) next
+# to put it back.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+
+# Empty form
+- tapOn: "Login"
+- assertVisible: "Please enter both email and password"
+- tapOn: { id: "accept-button" }
+- tapOn: "Register"
+- assertVisible: "Please enter both email and password"
+- tapOn: { id: "accept-button" }
+
+# Email only
+- tapOn: "Enter your email"
+- inputText: ${EMAIL}
+- hideKeyboard
+- tapOn: "Login"
+- assertVisible: "Please enter both email and password"
+- tapOn: { id: "accept-button" }
+
+# Wrong password
+- tapOn: "Enter your password"
+- inputText: "wrong-password-123"
+- hideKeyboard
+- tapOn: "Login"
+- extendedWaitUntil:
+    visible: "Invalid login credentials"
+    timeout: 15000
+- tapOn: "Cancel"
+- assertVisible: "Authentication.*"
+- assertNotVisible: "Chat.*"

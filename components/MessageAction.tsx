@@ -3,6 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Icon } from "@/components/ui/icon";
 import { ForwardIcon, Trash2Icon, EditIcon } from "lucide-react-native";
 import { HStack } from "./ui/hstack";
+import { automationLocatorsDataState } from "@/constants/automationLocatorsDataState";
 type MessageActionProps = {
   readonly messageId: string;
   readonly msg_type: string;
@@ -16,9 +17,9 @@ type MessageActionProps = {
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
 const ACTIONS = [
-  { id: "edit", icon: EditIcon, label: "Edit", color: "#4b5563", dark_color: '#fff' },
-  { id: "forward", icon: ForwardIcon, label: "Forward", color: "#4b5563", dark_color: '#fff' },
-  { id: "delete", icon: Trash2Icon, label: "Delete", color: "#ef4444", dark_color: '#fff' },
+  { id: "edit", icon: EditIcon, label: "Edit", color: "#4b5563", dark_color: '#fff', testID: automationLocatorsDataState.chatScreen.editMessageButton },
+  { id: "forward", icon: ForwardIcon, label: "Forward", color: "#4b5563", dark_color: '#fff', testID: automationLocatorsDataState.chatScreen.forwardMessageButton },
+  { id: "delete", icon: Trash2Icon, label: "Delete", color: "#ef4444", dark_color: '#fff', testID: automationLocatorsDataState.chatScreen.deleteMessageButton },
 ];
 
 
@@ -70,6 +71,7 @@ export function MessageAction({
           return (
             <Pressable
               key = { action.id }
+              testID = { action.testID }
               onPress = {() => handleAction(action.id)}
               style = { isDarkMode ? styles.dark_contain : styles.action}
               disabled = {

@@ -1,0 +1,32 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: PairingCode shows a code + countdown, Cancel revokes it and returns
+# to Settings; EnterPairingCode then rejects any code because none is active
+# (device-pairing `local-code-verify` -> 404).
+- launchApp
+- assertVisible: "Chat.*"
+- runFlow: subflows/open-manage-keys.yaml
+
+- tapOn: "Share Keys"
+- extendedWaitUntil:
+    visible: '\d{4}'
+    timeout: 20000
+- assertVisible: '\d+s'
+- tapOn: "Cancel"
+- assertVisible: "Manage your profile and account"
+
+# No active code now, so a guess must fail with the server's error
+- runFlow: subflows/open-manage-keys.yaml
+- tapOn: "Receive Keys"
+- assertVisible: "Enter the 4-digit code shown on your other device"
+- tapOn: "0000"
+- inputText: "1234"
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: "No active pairing code for this account"
+    timeout: 15000
+- tapOn: "OK"
+
+- tapOn: "Cancel"
+- assertVisible: "Manage your profile and account"

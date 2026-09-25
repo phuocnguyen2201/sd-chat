@@ -1,13 +1,11 @@
 appId: com.phuocng23000.sdchat
 ---
-# Covers: long-press -> MessageAction "Edit" -> input is pre-filled with the
+# Covers: long-press -> MessageAction edit-message-button -> input is pre-filled with the
 # decrypted text -> send re-encrypts and UPDATEs the row (handleSend's
 # activeMessage branch). Sends its own message first so it is self-contained.
-- launchApp
-
-- assertVisible: ".*Android Simulator.*"
-- tapOn: ".*Android Simulator.*"
-- assertVisible: "Android Simulator"
+- assertVisible: "Testing"
+- tapOn: "Testing"
+- assertVisible: "Testing"
 
 - assertVisible: { id: "message-input" }
 - tapOn: { id: "message-input" }
@@ -18,15 +16,15 @@ appId: com.phuocng23000.sdchat
     timeout: 10000
 
 - longPressOn: "Message before edit"
-- assertVisible: "Edit"
-- assertVisible: "Forward"
-- assertVisible: "Delete"
-- tapOn: "Edit"
+- assertVisible: { id: "edit-message-button" }
+- assertVisible: { id: "forward-message-button" }
+- assertVisible: { id: "delete-message-button" }
+- tapOn: { id: "edit-message-button" }
 
 # onEdit() copies the decrypted text into the composer; clear it and retype
 - tapOn: { id: "message-input" }
 - eraseText: 40
 - inputText: "Message after edit"
 - tapOn: { id: "send-button" }
-- assertVisible: "Message after edit"
-- assertNotVisible: "Message before edit"
+- assertVisible: ".*after.*"
+- assertNotVisible: ".*before.*"

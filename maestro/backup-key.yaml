@@ -1,0 +1,32 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: ManageKeys -> Back up my key -> passphrase mismatch warning ->
+# sealed backup stored in the vault -> back on Settings.
+# Needs ${BACKUP_PASSPHRASE} (10+ characters); recover-key-from-backup.yaml
+# uses the same value.
+- launchApp
+- assertVisible: "Chat.*"
+- runFlow: subflows/open-manage-keys.yaml
+- scrollUntilVisible:
+    element: "Back up my key"
+- tapOn: "Back up my key"
+- assertVisible: "Back up your key"
+- assertVisible: "Choose a recovery passphrase"
+
+- tapOn: "Recovery passphrase"
+- inputText: ${BACKUP_PASSPHRASE}
+- tapOn: "Type it again"
+- inputText: ${BACKUP_PASSPHRASE + 'x'}
+- assertVisible: "These do not match yet."
+# Focus is still in the confirmation field; drop the extra character
+- eraseText: 1
+- assertNotVisible: "These do not match yet."
+- hideKeyboard
+
+# "Replace my backup" when this account already has one (local fixture runs)
+- tapOn: "Back up my key|Replace my backup"
+- extendedWaitUntil:
+    visible: "Backup saved"
+    timeout: 60000
+- tapOn: "OK"
+- assertVisible: "Manage your profile and account"

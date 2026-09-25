@@ -875,6 +875,7 @@ export default function ChatScreen() {
             </AlertDialogBody>
             <AlertDialogFooter>
               <Button
+                testID={automationLocatorsDataState.chatScreen.cancelDeleteMessageButton}
                 variant="outline"
                 action="secondary"
                 onPress={() => {
@@ -885,7 +886,7 @@ export default function ChatScreen() {
               >
                 <ButtonText>Cancel</ButtonText>
               </Button>
-              <Button size="sm" onPress={() => {
+              <Button testID={automationLocatorsDataState.chatScreen.confirmDeleteMessageButton} size="sm" onPress={() => {
                 if (messageToDelete) {
                   handleDeleteMessage(messageToDelete);
                 }

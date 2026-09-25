@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { profileAPI } from '@/utility/messages';
+import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 
 type ForwardMessageProps = {
   readonly isOpen: boolean;
@@ -122,10 +123,10 @@ export default function ForwardMessage({
         {error && <Text className="text-red-500 mb-2">{error}</Text>}
 
         <HStack space="sm" className="justify-end">
-          <Button variant="outline" action="secondary" size="sm" onPress={onClose}>
+          <Button testID={automationLocatorsDataState.chatScreen.cancelForwardMessageButton} variant="outline" action="secondary" size="sm" onPress={onClose}>
             <ButtonText>Cancel</ButtonText>
           </Button>
-          <Button size="sm" onPress={handleForward} disabled={submitting || selected.length === 0}>
+          <Button testID={automationLocatorsDataState.chatScreen.confirmForwardMessageButton} size="sm" onPress={handleForward} disabled={submitting || selected.length === 0}>
             <ButtonText>{submitting ? 'Forwarding...' : `Forward (${selected.length})`}</ButtonText>
           </Button>
         </HStack>

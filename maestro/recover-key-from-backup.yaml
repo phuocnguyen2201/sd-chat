@@ -1,0 +1,68 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: signing in on a device without the key -> Bootstrap's key check
+# sends it to ScanningKeys in recovery mode -> Recover from backup -> wrong
+# passphrase rejected -> right passphrase restores the key -> old messages
+# decrypt again.
+#
+# Expects: backup-key.yaml ran with the same ${BACKUP_PASSPHRASE}, then
+# login-errors.yaml wiped the device. "Testing message" comes from
+# send-messages.yaml.
+- launchApp
+- runFlow: subflows/login-with-fixture.yaml
+
+- extendedWaitUntil:
+    visible: "Sync your keys"
+    timeout: 30000
+- assertVisible: "This device does not have your encryption key yet.*"
+- tapOn: "OK"
+
+# ScanningKeys, recovery mode
+- tapOn:
+    text: "While using the app"
+    optional: true
+- assertVisible: "No other device to scan from?"
+- assertVisible: "No backup either?.*"
+- assertVisible: "Delete this account"
+
+# Wrong passphrase
+- tapOn: "Recover from backup"
+- assertVisible: "Enter the recovery passphrase.*"
+- tapOn: "Recovery passphrase"
+- inputText: "not-the-backup-passphrase"
+- hideKeyboard
+- tapOn: "Recover my key"
+- extendedWaitUntil:
+    visible: "That passphrase did not work"
+    timeout: 60000
+- tapOn: "OK"
+
+# Re-open the screen for an empty field, then the right passphrase
+- tapOn: "Back"
+- tapOn: "Recover from backup"
+- tapOn: "Recovery passphrase"
+- inputText: ${BACKUP_PASSPHRASE}
+- hideKeyboard
+- tapOn: "Recover my key"
+- extendedWaitUntil:
+    visible: "Key recovered"
+    timeout: 60000
+- tapOn: "OK"
+- assertVisible: "Manage your profile and account"
+
+# Fresh launch: the key check passes now; clearState also dropped the
+# biometric choice, so Bootstrap asks again first
+- launchApp
+- extendedWaitUntil:
+    visible: "Enable Biometric"
+    timeout: 30000
+- tapOn: "Skip"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 20000
+
+# A message sent before the wipe decrypts with the recovered key
+- tapOn: ".*Android Simulator.*"
+- extendedWaitUntil:
+    visible: "Testing message"
+    timeout: 20000

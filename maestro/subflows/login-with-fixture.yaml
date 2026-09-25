@@ -1,0 +1,13 @@
+appId: com.phuocng23000.sdchat
+---
+# From the login screen, sign in as ${EMAIL}. Stops right after tapping
+# Login; where Bootstrap sends the user next depends on the device.
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+- tapOn: "Enter your email"
+- inputText: ${EMAIL}
+- tapOn: "Enter your password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn: "Login"

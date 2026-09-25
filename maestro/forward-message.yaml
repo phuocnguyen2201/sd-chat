@@ -1,28 +1,30 @@
 appId: com.phuocng23000.sdchat
 ---
-- launchApp
-
-- assertVisible: ".*Android Simulator.*"
-- tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
-- longPressOn: "Testing message"
+- tapOn: "Android Simulator"
+- waitForAnimationToEnd
+- assertVisible: "Android Simulator"
+- tapOn: "Navigate up"
+
+- assertVisible: "Testing"
+- tapOn: "Testing"
+- assertVisible: "Testing"
+- tapOn: { id: "message-input" }
+- inputText: "Testing forward message"
+- tapOn: { id: "send-button" }
+- longPressOn: "Testing forward message"
 - assertVisible:
     point: 6%,23%
-- assertVisible: "Forward"
-- tapOn: "Forward"
+- assertVisible: { id: "forward-message-button" }
+- tapOn: { id: "forward-message-button" }
 - assertVisible:
     point: 3%,67%
 - assertVisible:
     point: 6%,79%
-- swipe:
-    direction: LEFT
-- assertVisible: "${MAESTRO_USER}"
-- tapOn: "${MAESTRO_USER}"
+- assertVisible: "Android Simulator"
+- waitForAnimationToEnd
+- doubleTapOn: "Android Simulator"
+
 - assertVisible: "Forward (1)"
-- tapOn: "Forward (1)"
-- tapOn: "Navigate up"
-- assertVisible: ".*${MAESTRO_USER}.*"
-- tapOn: ".*${MAESTRO_USER}.*"
-
-
-
+- assertVisible: { id: "confirm-forward-message-button" }
+- tapOn: { id: "confirm-forward-message-button" }

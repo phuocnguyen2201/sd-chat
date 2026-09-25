@@ -1,0 +1,14 @@
+appId: com.phuocng23000.sdchat
+---
+# ManageKeys -> Share Keys -> PairingCode. Leaves the 4-digit code in
+# ${maestro.copiedText} and returns to ManageKeys with the code still active
+# (leaving via back only stops polling; only Cancel revokes the code).
+- tapOn: "Share Keys"
+- assertVisible: "On your other device, tap \"Receive Keys\" and enter this code."
+- extendedWaitUntil:
+    visible: '\d{4}'
+    timeout: 20000
+- assertVisible: '\d+s'
+- copyTextFrom: '\d{4}'
+- back
+- assertVisible: "Receive Keys"

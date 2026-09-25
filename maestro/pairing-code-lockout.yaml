@@ -1,0 +1,61 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: EnterPairingCode's failure paths - each wrong code shows the attempts
+# left, and the 5th locks entry with a countdown (LOCAL_CODE_MAX_ATTEMPTS = 5,
+# 5-minute lockout in supabase/functions/device-pairing).
+#
+# NOTE: leaves this account's pairing locked for 5 minutes. Run it after the
+# other pairing-code flows.
+- launchApp
+- assertVisible: "Chat.*"
+- runFlow: subflows/open-manage-keys.yaml
+- runFlow: subflows/show-pairing-code.yaml
+
+# A code guaranteed to differ from the real one
+- evalScript: ${output.wrongCode = String((parseInt(maestro.copiedText, 10) + 1) % 10000).padStart(4, '0')}
+
+- tapOn: "Receive Keys"
+- assertVisible: "Enter the 4-digit code shown on your other device"
+
+- tapOn: "0000"
+- inputText: ${output.wrongCode}
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: "Incorrect code. 4 attempts left."
+    timeout: 15000
+
+- tapOn: "0000"
+- inputText: ${output.wrongCode}
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: "Incorrect code. 3 attempts left."
+    timeout: 15000
+
+- tapOn: "0000"
+- inputText: ${output.wrongCode}
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: "Incorrect code. 2 attempts left."
+    timeout: 15000
+
+- tapOn: "0000"
+- inputText: ${output.wrongCode}
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: "Incorrect code. 1 attempt left."
+    timeout: 15000
+
+- tapOn: "0000"
+- inputText: ${output.wrongCode}
+- hideKeyboard
+- tapOn: "Verify"
+- extendedWaitUntil:
+    visible: 'Too many attempts\. Try again once the timer runs out\. \(\d+s\)'
+    timeout: 15000
+
+- tapOn: "Cancel"
+- assertVisible: "Manage your profile and account"

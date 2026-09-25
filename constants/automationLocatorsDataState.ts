@@ -51,7 +51,13 @@ export const automationLocatorsDataState = {
         panelMessages: 'panel-messages',
         editingMessageInput: 'editing-message-input',
         forwardMessageInput: 'forward-message-input',
+        editMessageButton: 'edit-message-button',
+        forwardMessageButton: 'forward-message-button',
         deleteMessageButton: 'delete-message-button',
+        confirmDeleteMessageButton: 'confirm-delete-message-button',
+        cancelDeleteMessageButton: 'cancel-delete-message-button',
+        confirmForwardMessageButton: 'confirm-forward-message-button',
+        cancelForwardMessageButton: 'cancel-forward-message-button',
         editChatRoomButton: 'edit-chat-room-button',
     },
     editingChatScreen:{
