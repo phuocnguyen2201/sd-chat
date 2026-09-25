@@ -16,10 +16,14 @@ concurrency:
   group: maestro-e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Two jobs so a failed run can be resumed with "Re-run failed jobs":
+# a build failure reruns from the build, a test failure reuses the APK
+# uploaded by the successful build job and only reruns the tests.
 jobs:
-  e2e:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
+    # EXPO_PUBLIC_* values are inlined into the JS bundle at build time.
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
@@ -60,6 +64,27 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
+          if-no-files-found: error
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-apk
+          path: apk
+
       - name: Install Maestro
         run: |
           curl -Ls "https://get.maestro.mobile.dev" | bash
@@ -84,7 +109,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: |
-            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            adb install -r apk/app-release.apk
             bash .github/scripts/run-maestro.sh
 
       - name: Upload Maestro results

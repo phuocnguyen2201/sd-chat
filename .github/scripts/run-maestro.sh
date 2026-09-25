@@ -9,6 +9,13 @@ set -uo pipefail
 OUT=maestro-results
 mkdir -p "$OUT"
 
+# Keep the device log: a release build shows no red screen, so crashes and
+# JS errors ("AndroidRuntime", "ReactNativeJS") only show up here.
+adb logcat -c
+adb logcat -v time > "$OUT/logcat.txt" 2>&1 &
+LOGCAT_PID=$!
+trap 'kill "$LOGCAT_PID" 2>/dev/null' EXIT
+
 # Not run in CI:
 #   login.yaml, login-ios.yaml     expect a dev-client build ("Downloading…") and
 #                                  an account whose keys are already on the device
@@ -38,7 +45,7 @@ run_flow() {
   name=$(basename "$flow" .yaml)
   echo "::group::$name"
   maestro test "$flow" \
-    -e EMAIL="$EMAIL" -e PASSWORD="$PASSWORD" \
+    -e MAESTRO_EMAIL="$EMAIL" -e MAESTRO_PASSWORD="$PASSWORD" \
     --format junit --output "$OUT/$name.xml" \
     --test-output-dir "$OUT/$name"
   local status=$?

@@ -4,6 +4,11 @@ appId: com.phuocng23000.sdchat
 # up test users. Logs back in first in case a failed flow left the app
 # signed out.
 - launchApp
+# Wait for whichever first screen appears before deciding whether to log in;
+# checking straight after launch races the cold start.
+- extendedWaitUntil:
+    visible: "(Authentication|Chat).*"
+    timeout: 50000
 - runFlow:
     when:
       visible: "Authentication.*"

@@ -6,9 +6,7 @@ appId: com.phuocng23000.sdchat
 # Same steps as delete-account.yaml's registration half.
 - launchApp:
     clearState: true
-- extendedWaitUntil:
-    visible: "Authentication.*"
-    timeout: 50000
+- assertVisible: "Authentication"
 - tapOn: "Enter your email"
 - inputText: ${MAESTRO_EMAIL}
 - tapOn: "Enter your password"
