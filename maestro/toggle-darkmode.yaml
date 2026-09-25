@@ -1,9 +1,8 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
-- assertVisible: ".*Settings"
+
+- assertVisible: "Settings"
 - tapOn: "Settings"
 - assertVisible: "Key Management"
 - assertVisible: "Dark Mode.*"

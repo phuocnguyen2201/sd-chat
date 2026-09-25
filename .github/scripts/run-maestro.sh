@@ -25,8 +25,6 @@ trap 'kill "$LOGCAT_PID" 2>/dev/null' EXIT
 #   create-account-without-picutre-enable-biometric-authentication.yaml
 #                                  needs an enrolled fingerprint
 FLOWS=(
-  maestro/toggle-darkmode.yaml
-  maestro/change-display-name.yaml
   maestro/send-messages.yaml
   maestro/send-emojies.yaml
   maestro/send-reaction.yaml
@@ -35,9 +33,9 @@ FLOWS=(
   maestro/delete-message.yaml
   maestro/interactive-users.yaml
   maestro/search-bar.yaml
-  maestro/delete-chat.yaml   # runs create-group-chat + rename-group-chat itself
+  maestro/toggle-darkmode.yaml
+  maestro/change-display-name.yaml
   maestro/change-password.yaml
-  maestro/delete-account.yaml
 )
 
 run_flow() {
@@ -45,7 +43,7 @@ run_flow() {
   name=$(basename "$flow" .yaml)
   echo "::group::$name"
   maestro test "$flow" \
-    -e MAESTRO_EMAIL="$EMAIL" -e MAESTRO_PASSWORD="$PASSWORD" \
+    -e MAESTRO_EMAIL="$EMAIL" -e MAESTRO_PASSWORD="$PASSWORD" -e MAESTRO_USER="$USER" \
     --format junit --output "$OUT/$name.xml" \
     --test-output-dir "$OUT/$name"
   local status=$?

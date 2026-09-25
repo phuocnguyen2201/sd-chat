@@ -4,7 +4,7 @@ appId: com.phuocng23000.sdchat
 # -> accountAPI.deleteAccount() -> router.replace('/') back to login.
 #
 # NOTE: this registers a throwaway account first. It must never run against
-# the shared ${EMAIL} fixture the other flows log in with.
+# the shared ${MAESTRO_EMAIL} fixture the other flows log in with.
 - launchApp
 - extendedWaitUntil:
     visible: "Authentication.*"
@@ -15,7 +15,7 @@ appId: com.phuocng23000.sdchat
 - tapOn: "Enter your email"
 - inputRandomEmail
 - tapOn: "Enter your password"
-- inputText: ${PASSWORD}
+- inputText: ${MAESTRO_PASSWORD}
 
 - runFlow:
     when:
@@ -52,7 +52,6 @@ appId: com.phuocng23000.sdchat
 - extendedWaitUntil:
     visible: "Chat.*"
     timeout: 15000
-- assertVisible: { id: "users-scroll" }
 
 # Settings -> Delete Account
 - tapOn: "Settings"

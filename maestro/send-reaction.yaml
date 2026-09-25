@@ -1,8 +1,9 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 50000
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"

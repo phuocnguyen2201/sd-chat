@@ -6,29 +6,13 @@ appId: com.phuocng23000.sdchat
 - launchApp
 # Wait for whichever first screen appears before deciding whether to log in;
 # checking straight after launch races the cold start.
-- extendedWaitUntil:
-    visible: "(Authentication|Chat).*"
-    timeout: 50000
-- runFlow:
-    when:
-      visible: "Authentication.*"
-    commands:
-      - tapOn: "Enter your email"
-      - inputText: ${MAESTRO_EMAIL}
-      - tapOn: "Enter your password"
-      - inputText: ${MAESTRO_PASSWORD}
-      - hideKeyboard
-      - tapOn: "Login"
-- extendedWaitUntil:
-    visible: "Chat.*"
-    timeout: 20000
-
-- tapOn: "Settings"
+- assertVisible: "Settings"
 - scrollUntilVisible:
     element: { id: "delete-account-button" }
+- assertVisible: { id: "delete-account-button" }
 - tapOn: { id: "delete-account-button" }
 - assertVisible: "Notification"
 - tapOn: "Okay"
 - extendedWaitUntil:
-    visible: "Authentication.*"
+    visible: "Authentication"
     timeout: 20000

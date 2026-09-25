@@ -1,11 +1,11 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+
+- assertVisible: { id: "user-list" }
 - swipe:
     from:
-        id: "users-scroll"
+        id: "user-list"
     direction: LEFT 
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"

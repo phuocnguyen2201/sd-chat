@@ -1,8 +1,9 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- assertVisible: "Chat.*"
-- assertVisible: { id: "users-scroll" }
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 50000
 - assertVisible: ".*Android Simulator.*"
 - tapOn: ".*Android Simulator.*"
 - assertVisible: "Android Simulator"
@@ -17,13 +18,13 @@ appId: com.phuocng23000.sdchat
     point: 6%,79%
 - swipe:
     direction: LEFT
-- assertVisible: "Dfdf, @latricia.boyle"
-- tapOn: "Dfdf, @latricia.boyle"
+- assertVisible: "${MAESTRO_USER}"
+- tapOn: "${MAESTRO_USER}"
 - assertVisible: "Forward (1)"
 - tapOn: "Forward (1)"
 - tapOn: "Navigate up"
-- assertVisible: ".*Dfdf.*"
-- tapOn: ".*Dfdf.*"
+- assertVisible: ".*${MAESTRO_USER}.*"
+- tapOn: ".*${MAESTRO_USER}.*"
 - assertVisible: "￼"
 
 
