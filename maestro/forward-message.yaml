@@ -1,10 +1,20 @@
 appId: com.phuocng23000.sdchat
 ---
-- assertVisible: "Android Simulator"
-- tapOn: "Android Simulator"
-- waitForAnimationToEnd
-- assertVisible: "Android Simulator"
-- tapOn: "Navigate up"
+
+
+# Still inside a chat room from the previous flow? Go back to the Chat screen first.
+- runFlow:
+    when:
+      visible: "Navigate up"
+    commands:
+      - tapOn: "Navigate up"
+      - extendedWaitUntil:
+          visible: "Chat.*"
+          timeout: 15000
+      - assertVisible: "Android Simulator"
+      - tapOn: "Android Simulator"
+      - waitForAnimationToEnd
+      - tapOn: "Navigate up"
 
 - assertVisible: "Testing"
 - tapOn: "Testing"
@@ -23,8 +33,7 @@ appId: com.phuocng23000.sdchat
     point: 6%,79%
 - assertVisible: "Android Simulator"
 - waitForAnimationToEnd
-- doubleTapOn: "Android Simulator"
+- tapOn: "Android Simulator"
 
-- assertVisible: "Forward (1)"
 - assertVisible: { id: "confirm-forward-message-button" }
 - tapOn: { id: "confirm-forward-message-button" }

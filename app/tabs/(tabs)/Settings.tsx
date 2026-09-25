@@ -46,6 +46,8 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const [avatar, setAvatar] = useState('');
   const [displayName, setDisplayName] = useState('');
+  // What the Change Display Name dialog is editing; displayName stays the saved value.
+  const [draftDisplayName, setDraftDisplayName] = useState('');
   
 
   const [newPassword, setNewPassword] = useState('');
@@ -58,14 +60,17 @@ export default function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode } = useSession();
+  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile } = useSession();
 
 
+  /*
+    Keyed on the account, not on avatar/displayName: re-running whenever those
+    changed refetched the profile on every keystroke (or as soon as the field was
+    empty, or whenever there was no avatar) and put the old name back.
+  */
   useEffect(() => {
-    if(!avatar || !displayName) {
-      getProfile();
-    }
-  },[avatar, displayName])
+    getProfile();
+  }, [user?.id, profile])
 
   const getProfile = async () => {
     
@@ -91,25 +96,24 @@ export default function Settings() {
   async function updateProfile(): Promise<void> {
     setLoading(true);
     if (user?.id) {
-
-      profileAPI.updateProfile({
-        id: user?.id,
-        displayname: displayName,
-      })
-      .catch((error) => {
-            if (error) {
-                  Alert.alert('Error', 'Failed to fetch account information');
-                  throw new Error('Profile update failed');
-                }
-      })
-      .finally(() => {
-        setLoading(false);
-        setActiveDialog(null);
-
-        setSuccessMessage('Profile updated successfully');
-        setTimeout(() => setSuccessMessage(''), 3000);
-        setActiveDialog(null);
+      // updateProfile reports failure in its result rather than by rejecting.
+      const { error } = await profileAPI.updateProfile({
+        id: user.id,
+        displayname: draftDisplayName,
       });
+      setLoading(false);
+      setActiveDialog(null);
+
+      if (error) {
+        Alert.alert('Error', 'Failed to update display name');
+        return;
+      }
+
+      setDisplayName(draftDisplayName);
+      // Keep the session's profile (used by other screens) in step with the new name.
+      refreshProfile();
+      setSuccessMessage('Profile updated successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
   }}
 
   async function updatePassword(password: string, confirmPassword: string): Promise<void> {
@@ -340,7 +344,7 @@ export default function Settings() {
               size="lg"
               trackColor={{ false: '#d4d4d4', true: '#525252' }}
               thumbColor="#fafafa"
-              defaultValue={isDarkMode == 'light'}
+              value={isDarkMode === 'dark'}
               onValueChange={(data) => { toggleDarkMode(data) }}
             />
           </HStack>
@@ -358,7 +362,10 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => setActiveDialog('displayName')}
+              onPress={() => {
+                setDraftDisplayName(displayName);
+                setActiveDialog('displayName');
+              }}
             >
               <ButtonText>Edit</ButtonText>
             </Button>
@@ -429,8 +436,8 @@ export default function Settings() {
               <Input className="mt-4">
                 <InputField
                   placeholder="Enter new display name"
-                  value={displayName}
-                  onChangeText={setDisplayName}
+                  value={draftDisplayName}
+                  onChangeText={setDraftDisplayName}
                 />
               </Input>
             </AlertDialogBody>
