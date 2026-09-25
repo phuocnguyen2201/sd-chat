@@ -40,8 +40,10 @@ yarn-error.*
 android/
 ios/
 
-eas.json
+google-services.json
 *.apk
 
 /brag-output
 /.agents
+
+google-services.json

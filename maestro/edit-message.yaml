@@ -3,9 +3,6 @@ appId: com.phuocng23000.sdchat
 # Covers: long-press -> MessageAction edit-message-button -> input is pre-filled with the
 # decrypted text -> send re-encrypts and UPDATEs the row (handleSend's
 # activeMessage branch). Sends its own message first so it is self-contained.
-- assertVisible: "Testing"
-- tapOn: "Testing"
-- assertVisible: "Testing"
 
 - assertVisible: { id: "message-input" }
 - tapOn: { id: "message-input" }

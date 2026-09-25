@@ -11,6 +11,7 @@ appId: com.phuocng23000.sdchat
 - tapOn: { id: "delete-account-button" }
 - assertVisible: "Notification"
 - tapOn: "Okay"
-- extendedWaitUntil:
-    visible: "Authentication"
-    timeout: 20000
+
+- assertVisible: "Account deleted"
+- tapOn: "OK"
+- assertVisible: "Authentication"

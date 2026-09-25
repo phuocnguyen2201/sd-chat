@@ -360,3 +360,10 @@ now points at `http://traefik:8000` (path `backup/.*`).
 - Add repo secrets: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`, `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`, `EXPO_PUBLIC_PAIRING_KEY_URL`, `EXPO_PUBLIC_VAULT_URL`, `MAESTRO_PASSWORD`, `GOOGLE_SERVICES_JSON_BASE64` (`base64 -i google-services.json`).
 - Expect first-run failures: `maestro/ci/setup-account.yaml` reuses `delete-account.yaml`'s unproven "Skip" biometric path; Supabase may reject `@example.com` emails; the chat flows still need the seeded `"Android Simulator"` peer and `search-bar` needs a user matching "iphone" in the DB.
 - Not in CI yet: gallery-based flows (would need `addMedia` + selectors that don't match a specific photo date), and iOS.
+
+## EAS Workflows Maestro run — needs EAS env vars + a first run (added 2026-09-24)
+`.eas/workflows/e2e-test-android.yml` hasn't run yet. Before it can:
+- Commit `eas.json`, `app.config.js`, `.eas/` (all currently untracked).
+- In the EAS **preview** environment, create: `GOOGLE_SERVICES_JSON` (type file: `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment preview`), `MAESTRO_PASSWORD` (secret), and every `EXPO_PUBLIC_*` the GitHub workflow sets (SUPABASE_URL/KEY/SERVICE_KEY, PREPATH_STORAGE, SQLITE, NOTIFICATION_URL, PAIRING_KEY_URL, VAULT_URL).
+- Unverified: whether the EAS `maestro` job keeps going past a failed flow. If it stops, teardown won't run and the `sdchat-eas-*` account is left in Supabase.
+- Trigger is `pull_request` (every PR costs an EAS build). Run by hand with `eas workflow:run .eas/workflows/e2e-test-android.yml`.
