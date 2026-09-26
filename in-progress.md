@@ -374,3 +374,7 @@ See progress.md (2026-09-26). To verify on a new APK:
 - No stale bottom padding on the input bar after the Forward dialog closes (Android). If it is still there, the next suspect is `KeyboardAvoidingView behavior="padding"` + `keyboardVerticalOffset=80` on Android, where `behavior="height"` or `undefined` (with `softwareKeyboardLayoutMode: "resize"`) is usually the fix.
 - Edit still works, and the new "Editing message · Cancel" row cancels it.
 - Run `maestro/forward-cancel-then-send.yaml` (never run yet).
+
+## Open: `interactive-users.yaml` probably runs in the wrong room (found 2026-09-26)
+- After `forward-message.yaml` the open chat is the DM with "Testing", but `interactive-users.yaml` expects "Android Simulator" on Edit Chat Room. Decide whether the flow should go back to the "Android Simulator" DM first, or assert "Testing" instead. The suite also needs a second seeded user named exactly "Testing".
+- Update: the flow now switches to the "Android Simulator" DM itself, so this item is fixed in the YAML. Still to do: run it on a device, and confirm that `tapOn` with `childOf: { id: "user-list" }` finds the strip label.

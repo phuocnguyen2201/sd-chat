@@ -605,3 +605,15 @@ daemon on the Mac, so nothing has actually run.
 - New Maestro flow `maestro/forward-cancel-then-send.yaml` (Forward → pick → Cancel → send, and Delete → Cancel → send; checks both messages exist). Added after `forward-message.yaml` in `run-maestro.sh` and `.eas/workflows/e2e-test-android.yml`.
 
 `npx tsc --noEmit`: no errors in the touched files. Not run on a device; needs a new APK.
+
+## 2026-09-26 — Traced which chat each Maestro flow uses (no code changed)
+- Went through `run-maestro.sh` up to `interactive-users.yaml`. `send-messages`, `send-emojies`, `send-reaction` and `edit-message` use the DM with the seeded user **"Android Simulator"**. `forward-message` switches to a DM with a second seeded user, **"Testing"** (tapped in the Chat screen's user strip), and forwards to "Android Simulator" from there. The forward does not change screens, so `forward-cancel-then-send`, `delete-message` and `interactive-users` all run in the "Testing" DM.
+- Suspected problem: `interactive-users.yaml` checks `"Android Simulator"` on Edit Chat Room. That screen's heading is the room's `displayName`, which would be "Testing" at that point. Not verified on a device.
+- `interactive-users.yaml`: fixed `waitforAnimation` → `waitForAnimationToEnd`. The failure at the Edit Chat Room "Android Simulator" check means the flow could open the wrong room without failing earlier: the check after the tap also matched the Chat screen, and the regex tap could hit a neighbouring user-strip item after the swipes. The flow now taps exact text inside `user-list` (`childOf`), waits for `message-input` (20 s), then for "Edit Chat Room" (15 s), and ends by waiting for "Search Messenger". The user removed both "Android Simulator" checks. Not run on a device.
+
+## 2026-09-26 — Fixed: forwarded text messages arrived as ciphertext
+- **Root cause:** `forwardTextMessage` in `app/tabs/msg/[room_id].tsx` re-encrypted `messageToForward.content`, which is the source room's ciphertext (the screen only decrypts at render). The recipient decrypted once and saw the old ciphertext.
+- **Fix:** decrypt with the current room's key first (`MessageEncryption.decryptMessage`, throwing on failure so an error text is never forwarded). Then get the target key through `getConversationKey`, falling back to `resolveConversationKey` when this device never opened the target chat (this used to crash on `forwardPartyKey!`). The fix never mints a key. Errors go to `handleForwardMessage`'s existing alert.
+- Messages forwarded before this fix stay unreadable; they are stored double-encrypted.
+- `maestro/forward-message.yaml` now opens the Android Simulator DM after forwarding, checks that "Testing forward message" is readable, then returns to the "Testing" DM for `forward-cancel-then-send.yaml`.
+- `npx tsc --noEmit`: no errors in `[room_id].tsx`. Not run on a device; needs a new APK.

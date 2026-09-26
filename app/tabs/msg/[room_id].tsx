@@ -357,11 +357,33 @@ export default function ChatScreen() {
 
   //Forward text message with encryption
   const forwardTextMessage = async (messageToForward: Message, forwardConversationId: string) => {
-    // Find the right conversation key
-    const forwardPartyKey = await getConversationKey(forwardConversationId);
+    /*
+      `content` is this room's ciphertext, so open it with this room's key before
+      re-encrypting for the target. Not safeDecrypt: its fallback text would be
+      forwarded as if it were the message.
+    */
+    if (!conversationKey) throw new Error('No conversation key for this room');
+    const plainText = MessageEncryption.decryptMessage(
+      {
+        ciphertext: messageToForward.content ?? '',
+        nonce: messageToForward.nonce ?? '',
+        wrappedKey: messageToForward.wrapped_key ?? '',
+        keyNonce: messageToForward.key_nonce ?? '',
+      },
+      conversationKey
+    );
+
+    // The target chat may never have been opened on this device, so fall back
+    // to unwrapping its key from this user's participant row. Never mint one here.
+    let forwardPartyKey = await getConversationKey(forwardConversationId);
+    if (!forwardPartyKey && userId) {
+      const lookup = await resolveConversationKey(forwardConversationId, userId);
+      if (lookup.status === 'found') forwardPartyKey = lookup.key;
+    }
+    if (!forwardPartyKey) throw new Error('No conversation key for forward target');
 
     // Encrypt and send the forwarded message
-    const encryptedMessage = MessageEncryption.encryptMessage(messageToForward?.content ?? '', forwardPartyKey!);
+    const encryptedMessage = MessageEncryption.encryptMessage(plainText, forwardPartyKey);
     const msg: Message = {
       conversation_id: forwardConversationId as string || '',
       sender_id: userId,

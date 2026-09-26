@@ -18,10 +18,7 @@ appId: com.phuocng23000.sdchat
 
 # Exact text inside the user strip: a regex also matches the chat row, and a
 # half-hidden strip item can hand the tap to its neighbour.
-- tapOn:
-    text: "Android Simulator"
-    childOf:
-      id: "user-list"
+- tapOn: "Android Simulator"
 # Opening a DM from the strip is slow (key lookup before navigating).
 - extendedWaitUntil:
     visible: { id: "message-input" }

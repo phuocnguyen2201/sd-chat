@@ -37,3 +37,30 @@ appId: com.phuocng23000.sdchat
 
 - assertVisible: { id: "confirm-forward-message-button" }
 - tapOn: { id: "confirm-forward-message-button" }
+- extendedWaitUntil:
+    notVisible: { id: "confirm-forward-message-button" }
+    timeout: 15000
+
+# The forwarded copy must read as plain text in the recipient's chat, not as
+# the sender room's ciphertext.
+- tapOn: "Navigate up"
+- extendedWaitUntil:
+    visible: "Search Messenger"
+    timeout: 15000
+- tapOn: "Android Simulator"
+- extendedWaitUntil:
+    visible: { id: "message-input" }
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Testing forward message"
+    timeout: 10000
+
+# Back to the "Testing" chat, where forward-cancel-then-send.yaml starts.
+- tapOn: "Navigate up"
+- extendedWaitUntil:
+    visible: "Search Messenger"
+    timeout: 15000
+- tapOn: "Testing"
+- extendedWaitUntil:
+    visible: { id: "message-input" }
+    timeout: 20000
