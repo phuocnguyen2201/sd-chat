@@ -15,8 +15,4 @@ export const supabase = createClient(
       lock: processLock,
     },
   })
-export const supabaseAdmin = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY! // NOT the anon key
-)
   

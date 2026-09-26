@@ -40,7 +40,6 @@ yarn-error.*
 android/
 ios/
 
-google-services.json
 *.apk
 
 /brag-output

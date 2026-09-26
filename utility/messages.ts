@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from './connection';
+import { supabase } from './connection';
 import { ApiResponse, Conversation, Files, Message, Reaction, UserProfile } from './types/supabse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Constants } from '../constants/Constants';
@@ -123,64 +123,18 @@ export const authAPI = {
      * every conversation this account took part in, the participant rows that
      * tie people to those conversations, the avatar record, the profile and
      * the auth user.
+     *
+     * That part needs the service role, so it runs in the `delete-account`
+     * Edge Function, which deletes whichever account the session belongs to.
      */
     async deleteAccount(): Promise<boolean> {
     try {
-        const user = await AsyncStorage.getItem('user').then(data => data ? JSON.parse(data) : null);
-        if (!user) {
-            throw new Error('User not authenticated')
-        }
+      const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' })
+      if (error) throw error
 
-      const userId: string = user.id;
-
-      const { data: participantRows, error: participantError } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', userId)
-
-      if (participantError) throw participantError;
-      const conversationIds: string[] = participantRows?.map(row => row.conversation_id) ?? [];
-
-      if (conversationIds.length > 0) {
-        /*
-          Every participant row for these conversations, not only this
-          account's. They are the children of the rows deleted immediately
-          after, so leaving the other members behind would just block that.
-        */
-        const { error: participantsError } = await supabaseAdmin
-          .from('conversation_participants')
-          .delete()
-          .in('conversation_id', conversationIds)
-
-        if (participantsError) throw participantsError;
-
-        const { error: conversationsError } = await supabaseAdmin
-          .from('conversations')
-          .delete()
-          .in('id', conversationIds)
-
-        if (conversationsError) throw conversationsError;
-      }
-
-      // The avatar's row. The file itself goes earlier, while the session still works.
-      const { error: profileFiles } = await supabaseAdmin
-        .from('files_profiles')
-        .delete()
-        .eq('profile_id', userId)
-
-      if (profileFiles) throw profileFiles;
-
-      await supabase.auth.signOut()
-
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
-      if (deleteError) throw deleteError
-
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .delete()
-        .eq('id', userId)
-
-      if (profileError) throw profileError
+      // Only after the call: the function authenticates with this session.
+      // Local scope, since the server-side session went with the user.
+      await supabase.auth.signOut({ scope: 'local' })
 
       return true
     } catch (error) {
@@ -676,12 +630,16 @@ export const messageAPI = {
   },
   async deleteMessage(messageId: string): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabaseAdmin
+      // RLS only lets a sender delete their own messages. Anything else
+      // deletes nothing rather than failing, hence the row check.
+      const { data, error } = await supabase
         .from('messages')
         .delete()
         .eq('id', messageId)
-      
+        .select('id')
+
       if (error) throw error
+      if (!data?.length) throw new Error('Message not found or not yours to delete')
       return { data: null, error: null }
     } catch (error) {
       return { data: null, error: error as Error }

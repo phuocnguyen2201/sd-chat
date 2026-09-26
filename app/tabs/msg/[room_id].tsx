@@ -337,17 +337,18 @@ export default function ChatScreen() {
 
     try {
       const result = await messageAPI.deleteMessage(messageId);
-      if (!result) {
+      if (result.error) {
         Alert.alert('Error', 'Failed to delete message');
         return;
       }
 
+      // Only once the server has actually removed it.
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     } catch (error) {
       console.error('Error in handleDeleteMessage:', error);
       Alert.alert('Error', 'Failed to delete message');
     }
     finally {
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       setMessageToDelete(null);
       setActiveMessage('');
       setShowReaction(false);

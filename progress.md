@@ -1,5 +1,28 @@
 # Progress Log
 
+## 2026-09-26 — Removed the service-role key from the app (security findings #1 and #2)
+
+- New Edge Function `supabase/functions/delete-account/` (registered in `supabase/config.toml`, `verify_jwt = true`). It takes the user id from the caller's JWT, never from the body, and does the service-role part of account deletion that used to run in the app: conversations and their participant rows, `files_profiles`, the auth user, the profile.
+- `authAPI.deleteAccount()` now calls that function, then signs out locally. `deleteAccountAndLocalData` is unchanged.
+- `messageAPI.deleteMessage()` now uses the user's session with `.select('id')` and returns an error when nothing was deleted. Ownership is enforced by the new RLS policy in `supabase/migrations/20260926000000_messages_delete_own.sql` (not applied yet). `app/tabs/msg/[room_id].tsx` used to check `!result`, which was never true, and removed the message from the list even on failure; it now checks `result.error` and only removes it on success.
+- Removed `supabaseAdmin` from `utility/connection.ts`, and `EXPO_PUBLIC_SUPABASE_SERVICE_KEY` from `.env`, both `eas.json` profiles and `.github/workflows/maestro-e2e.yml`. `eas.json` stays un-ignored: EAS needs it, and it now only holds values that are in the bundle anyway.
+- Found that the key's only git commit (`ee561d1`) was never pushed; it is held by the local tag `stale-dark-mode-ee561d1`.
+- Not done (needs the user): deploy the function, apply the migration, rotate the key, delete the GitHub/EAS secrets. Tracked in in-progress.md.
+- `tsc`: no new errors. The 8 remaining app errors are pre-existing in `components/`; the Edge Functions show the usual Deno-types noise under the app's tsconfig. The new function wasn't type-checked with Deno (not installed); `supabase functions deploy` will check it.
+
+## 2026-09-26 — Manual white-box security review (following `find-security-vulnerabilities-in-code`), no code changed
+
+- Read the Strix skills in `.agents/skills/` (`application-security-testing`, `find-security-vulnerabilities-in-code`) and did the review by hand along the same method: map trust boundaries, trace data flow, rank by what is actually reachable. Nothing was exploited live, and no code or config was changed.
+- Reviewed: `sd-chat-vault/` (vault service + `key_backups` migration), both edge functions, `supabase/config.toml`, `utility/connection.ts`, `utility/messages.ts`, `utility/handleStorage.ts`, `utility/securedMessage/*`, `ManageKeys` / `ScanningKeys`, `eas.json`, the CI workflow.
+- Findings (ranked) are in `security-scan.md`; the open items are also tracked in in-progress.md under "Security review findings (2026-09-26)".
+- Not covered: RLS policies and RPCs for `profiles`, `conversations`, `conversation_participants`, `messages`, `files*`, `reactions` and the storage buckets, because they aren't in the repo. Also not covered: the gluestack UI components and the dependency tree (no SCA run).
+
+## 2026-09-26 — EAS build: missing `google-services.json`
+
+- Cause: `google-services.json` is in `.gitignore`, so EAS doesn't upload it with the project and the Android build can't find `android.googleServicesFile`.
+- Added `app.config.js` (extends `app.json`): `android.googleServicesFile` = `process.env.GOOGLE_SERVICES_JSON ?? './google-services.json'`. Locally it still uses the repo-root file; on EAS it uses the file env var. Checked with `npx expo config`.
+- A project-scoped EAS env var `GOOGLE_SERVICES_JSON` already exists (`eas env:create` said it's already there). Still need to confirm it's a **file**-type var and that it's assigned to the environment the build profile uses (see in-progress.md).
+
 ## 2026-09-17 — Launch video (`/brag`), no app code touched
 
 - Built a 23.8s vertical (1080x1920) launch video for SD Chat with the `brag` plugin + Hyperframes. Output lives in `brag-output/` (untracked; `composition/node_modules` is covered by the existing `node_modules/` ignore).

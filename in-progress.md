@@ -1,13 +1,32 @@
 # In Progress / Open Items
 
+## Security review findings (2026-09-26) — #1 and #2 fixed in code, deploy/rotation pending
+Manual review, not live-exploited. Ranked by reachability:
+1. **Critical: service-role key — code fixed 2026-09-26, rest is manual.** Nothing in the app, `.env`, `eas.json` or CI references it any more. Still to do, in order:
+   - Deploy: `supabase functions deploy delete-account` (new function, `verify_jwt = true`).
+   - Check the live `messages` DELETE policies, then apply `supabase/migrations/20260926000000_messages_delete_own.sql` (instructions in the file).
+   - Build and test: delete own message, try deleting someone else's (should fail), delete account end to end. Check `unzip -p <apk> assets/index.android.bundle | grep -c sb_secret` is 0.
+   - **Rotate:** Supabase Dashboard → Project Settings → API Keys → create a new secret key, delete the leaked `sb_secret_…` one. Check `delete-account` still works afterwards.
+   - Delete the GitHub secret `EXPO_PUBLIC_SUPABASE_SERVICE_KEY` and any copy in EAS env vars (`eas env:list`).
+   - `git tag -d stale-dark-mode-ee561d1` (the only ref holding the commit with the key, never pushed) and delete the old `build-*.apk` files in the repo root.
+   - Old installed builds lose account and message deletion once the key is revoked. Expected.
+2. **High: any user could delete any message — code fixed 2026-09-26.** Depends on the RLS migration above being applied.
+3. **High: the push edge function can be called by any JWT holder, including the public anon/publishable key** (`supabase/functions/push/index.ts`). It trusts `record.sender_id`, `conversation_id` and `content` from the body and uses service role. That allows spoofed push notifications (any sender name, any text) to members of any conversation. It also echoes the payload back and leaks `profiles.public_key`. Fix: check a shared webhook secret, or look up the real message row by id.
+4. **High: the local key-sharing QR carries the identity private key and every conversation key in plaintext** (`ManageKeys.tsx:37`, `KeySyncPayload.ts`). Anyone who photographs the screen within the 5-minute window can read all past and future messages. The ECDH seal helpers still exist in `secured.ts`.
+5. **Medium: attachments aren't end-to-end encrypted.** Images and files are uploaded raw (`handleStorage.ts:19-28`), and the file name goes into `messages.content` in plaintext. Signed URLs last 365 days, and their tokens are stored in the `files` table.
+6. **Medium: the local pairing-code gate is enforced only in the client.** `device-pairing` `actionCreate` never checks for a `verified` `local_pairing_codes` row. The 6-char approve/confirm code is still the real gate.
+7. **Medium: no identity-key verification.** Peer public keys are taken from `profiles.public_key` without a fingerprint or safety-number check, so whoever controls the DB (or the leaked service key) can swap keys and MITM new conversations.
+8. **Low/info:** `ScanningKeys` overwrites the local identity key without checking it against the profile public key. Messages aren't sender-authenticated within a conversation (shared symmetric key). The HKDF is hand-rolled. `minimum_password_length = 6` and `enable_confirmations = false` in `config.toml`. The vault holds the HS256 JWT secret, which is already documented.
+Coverage gap: the RLS and RPC SQL for the core tables isn't in the repo, so it couldn't be reviewed. It needs exporting (`supabase db dump --schema public`) and a review of its own.
+
+## EAS `GOOGLE_SERVICES_JSON` env var — confirm setup (2026-09-26)
+`app.config.js` reads `process.env.GOOGLE_SERVICES_JSON`. Check with `eas env:list --environment <env>` that it's a **file**-type var in development/preview/production. If not, run `eas env:create --scope project --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment development --environment preview --environment production --visibility secret --force`, then rebuild.
+
 ## Remote (server-relayed) device pairing — built but not wired to UI
 `supabase/functions/device-pairing`, `RemoteDevicePairing.ts`, and `DeviceIdentity.ts` are fully implemented and callable, but no screen calls them yet. Still needed:
 - Login/Bootstrap flow: detect "no local private key" and offer this as an option (currently only the local QR flow in `ManageKeys`/`ScanningKeys` is reachable from the UI).
 - An "old device" approval screen: list incoming pairing requests, show the one-time code, call `RemoteDevicePairing.approve()`.
 - A "new device" screen: call `createRequest()`, poll `status()`, enter the code via `confirm()`, then `fetchAndUnwrap()`.
-
-## Known critical issue — deferred by user request
-`utility/connection.ts` exports `supabaseAdmin` from `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`. Because Expo inlines `EXPO_PUBLIC_*` vars into the client bundle, the Supabase service-role key (bypasses RLS) ships inside the compiled app and is extractable from it. Actively used client-side in `utility/messages.ts` for account deletion (`supabaseAdmin.auth.admin.deleteUser`) and message/conversation deletion. Needs to move into server-side Edge Functions (same pattern as `push` / `device-pairing`), then the key should be rotated. User explicitly asked to leave this alone for now ("we'll handle later") — do not touch without being asked again.
 
 ## Schema not tracked in-repo
 The `devices`, `device_pairing_requests`, and now `local_pairing_codes` tables (and their RLS) were applied by hand-running SQL directly against the Supabase project. There's no `supabase/migrations/` entry for any of them, so a fresh environment/CI wouldn't get this schema automatically. Worth adding migration files for traceability if/when convenient.

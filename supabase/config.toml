@@ -364,3 +364,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/device-pairing/deno.json"
 entrypoint = "./functions/device-pairing/index.ts"
+
+[functions.delete-account]
+enabled = true
+verify_jwt = true
+import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
