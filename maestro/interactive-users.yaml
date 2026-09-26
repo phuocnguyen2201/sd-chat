@@ -1,6 +1,21 @@
 appId: com.phuocng23000.sdchat
 ---
 
+- tapOn: "Navigate up"
+- assertVisible: { id: "user-list" }
+- swipe:
+    from:
+        id: "user-list"
+    direction: LEFT
+- waitForAnimationToEnd
+- swipe:
+    from:
+        id: "user-list"
+    direction: RIGHT
+- waitForAnimationToEnd
+- assertVisible: ".*Android Simulator.*"
+- tapOn: ".*Android Simulator.*"
+- assertVisible: "Android Simulator"
 - assertVisible: { id: "message-input" }
 - assertVisible: { id: "picture-picker-button" }
 - assertVisible: { id: "files-picker-button" }
@@ -12,7 +27,6 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "Android Simulator"
 - assertVisible:
     point: 39%,13%
-
 # First tap is for Edit Screen, second tap to get back to Chat Screen
 - tapOn: "Navigate up"
 - tapOn: "Navigate up"
