@@ -1,9 +1,6 @@
 appId: com.phuocng23000.sdchat
 ---
 
-- extendedWaitUntil:
-    visible: "Chat.*"
-    timeout: 50000
 - assertVisible: "Search Messenger"
 - tapOn: "Search Messenger"
 - inputText: "iphone"
