@@ -1,26 +1,36 @@
 # In Progress / Open Items
 
+## Security re-scan pass 2 (2026-09-26): new live-DB findings, full detail in security-scan.md
+Fix in this order. Nothing has been changed yet:
+1. **#9 Critical**: lock down `conversation_participants` RLS (currently `true` for SELECT/INSERT/UPDATE/DELETE). Any user can insert themselves into any chat, and a member's device then backfills the conversation key to them. Write it as a migration file.
+2. **#10 High**: scope storage policies (`storage-msg`, `chat-files`, `avatars`) and the `files`, `files_group` and `files_profiles` RLS to conversation membership or the owner.
+3. **#11 High**: `create_conversation_with_participants` should use `auth.uid()` instead of `p_user_id`, `REVOKE EXECUTE FROM anon`, and set `search_path`.
+4. **#12**: change `delete-account` to remove only the caller's participant rows (it currently cascades whole conversations' messages for everyone), **then** deploy it. It isn't deployed yet, so account deletion in the app is currently broken.
+5. Then the existing items below: rotate the key, #4 QR (#3 is fixed in code, deploy steps under item 3 below).
+6. #13/#14: move `fcm_token` off the world-readable `profiles`, scope `reactions` SELECT, fix function `search_path`, turn on leaked-password protection.
+
 ## Security review findings (2026-09-26) — #1 and #2 fixed in code, deploy/rotation pending
 Manual review, not live-exploited. Ranked by reachability:
 1. **Critical: service-role key — code fixed 2026-09-26, rest is manual.** Nothing in the app, `.env`, `eas.json` or CI references it any more. Still to do, in order:
-   - Deploy: `supabase functions deploy delete-account` (new function, `verify_jwt = true`).
-   - Check the live `messages` DELETE policies, then apply `supabase/migrations/20260926000000_messages_delete_own.sql` (instructions in the file).
+   - Deploy: `supabase functions deploy delete-account` (new function, `verify_jwt = true`). **Fix security-scan #12 first.**
+   - ~~Apply `20260926000000_messages_delete_own.sql`~~: confirmed applied (pass 2).
    - Build and test: delete own message, try deleting someone else's (should fail), delete account end to end. Check `unzip -p <apk> assets/index.android.bundle | grep -c sb_secret` is 0.
    - **Rotate:** Supabase Dashboard → Project Settings → API Keys → create a new secret key, delete the leaked `sb_secret_…` one. Check `delete-account` still works afterwards.
    - Delete the GitHub secret `EXPO_PUBLIC_SUPABASE_SERVICE_KEY` and any copy in EAS env vars (`eas env:list`).
    - `git tag -d stale-dark-mode-ee561d1` (the only ref holding the commit with the key, never pushed) and delete the old `build-*.apk` files in the repo root.
    - Old installed builds lose account and message deletion once the key is revoked. Expected.
-2. **High: any user could delete any message — code fixed 2026-09-26.** Depends on the RLS migration above being applied.
-3. **High: the push edge function can be called by any JWT holder, including the public anon/publishable key** (`supabase/functions/push/index.ts`). It trusts `record.sender_id`, `conversation_id` and `content` from the body and uses service role. That allows spoofed push notifications (any sender name, any text) to members of any conversation. It also echoes the payload back and leaks `profiles.public_key`. Fix: check a shared webhook secret, or look up the real message row by id.
+2. **High: any user could delete any message — RESOLVED.** `messages_delete_own` confirmed live on 2026-09-26 (pass 2). Only an on-device test is left.
+3. **High: push function spoofing — FIXED IN CODE 2026-09-27, not deployed.** Order matters:
+   - `openssl rand -base64 32`, then `supabase secrets set PUSH_WEBHOOK_SECRET='<secret>'` and `select vault.create_secret('<secret>', 'push_webhook_secret');`
+   - Apply `20260927000100_push_tokens_preview_capable.sql` (the new function selects `preview_capable`, and the new app writes it).
+   - `supabase functions deploy push`, then **immediately** apply `20260927000000_push_webhook_secret.sql` (replaces the dashboard webhook; pushes 401 in between).
+   - Test: curl with the anon key → 401; `select tgname, tgfoid::regproc from pg_trigger where tgrelid='public.messages'::regclass and not tgisinternal;` → only `push_notification → private.notify_push`.
 4. **High: the local key-sharing QR carries the identity private key and every conversation key in plaintext** (`ManageKeys.tsx:37`, `KeySyncPayload.ts`). Anyone who photographs the screen within the 5-minute window can read all past and future messages. The ECDH seal helpers still exist in `secured.ts`.
 5. **Medium: attachments aren't end-to-end encrypted.** Images and files are uploaded raw (`handleStorage.ts:19-28`), and the file name goes into `messages.content` in plaintext. Signed URLs last 365 days, and their tokens are stored in the `files` table.
-6. **Medium: the local pairing-code gate is enforced only in the client.** `device-pairing` `actionCreate` never checks for a `verified` `local_pairing_codes` row. The 6-char approve/confirm code is still the real gate.
+6. **Medium: local pairing-code gate — FIXED IN CODE 2026-09-27, not deployed.** `create` now claims (deletes) a verified local code bound to the requesting device, else 403. Deploy `device-pairing`. When the remote flow gets its UI: the new device must call `createRequest` right after `LocalPairingCode.verify` succeeds, and the old device should move on by watching `RemoteDevicePairing.status` (the verified code row is gone once `create` runs, so `LocalPairingCode.status` goes inactive). The local QR flow is still gated only in the client until #4.
 7. **Medium: no identity-key verification.** Peer public keys are taken from `profiles.public_key` without a fingerprint or safety-number check, so whoever controls the DB (or the leaked service key) can swap keys and MITM new conversations.
 8. **Low/info:** `ScanningKeys` overwrites the local identity key without checking it against the profile public key. Messages aren't sender-authenticated within a conversation (shared symmetric key). The HKDF is hand-rolled. `minimum_password_length = 6` and `enable_confirmations = false` in `config.toml`. The vault holds the HS256 JWT secret, which is already documented.
 Coverage gap: the RLS and RPC SQL for the core tables isn't in the repo, so it couldn't be reviewed. It needs exporting (`supabase db dump --schema public`) and a review of its own.
-
-## EAS `GOOGLE_SERVICES_JSON` env var — confirm setup (2026-09-26)
-`app.config.js` reads `process.env.GOOGLE_SERVICES_JSON`. Check with `eas env:list --environment <env>` that it's a **file**-type var in development/preview/production. If not, run `eas env:create --scope project --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment development --environment preview --environment production --visibility secret --force`, then rebuild.
 
 ## Remote (server-relayed) device pairing — built but not wired to UI
 `supabase/functions/device-pairing`, `RemoteDevicePairing.ts`, and `DeviceIdentity.ts` are fully implemented and callable, but no screen calls them yet. Still needed:
@@ -397,3 +407,13 @@ See progress.md (2026-09-26). To verify on a new APK:
 ## Open: `interactive-users.yaml` probably runs in the wrong room (found 2026-09-26)
 - After `forward-message.yaml` the open chat is the DM with "Testing", but `interactive-users.yaml` expects "Android Simulator" on Edit Chat Room. Decide whether the flow should go back to the "Android Simulator" DM first, or assert "Testing" instead. The suite also needs a second seeded user named exactly "Testing".
 - Update: the flow now switches to the "Android Simulator" DM itself, so this item is fixed in the YAML. Still to do: run it on a device, and confirm that `tapOn` with `childOf: { id: "user-list" }` finds the strip label.
+
+## Decrypted message text in notifications (2026-09-27) — Android built, not tested on a device
+- `npm install` (adds `expo-task-manager` ~56.0.24; `package-lock.json` not updated because Node wasn't on PATH in that session), then a new dev/EAS build — it's a native module.
+- Deploy steps are the same as security item 3 above (migration `…000100` must be live before the new build ships, or saving the push token fails on the unknown column).
+- On-device checks (Android, Play-services): app killed / backgrounded / foreground → decrypted text, one notification, tap opens the room; conversation with no local key, >3 KB message, image/file → "New message"; iOS and old Android builds → visible "New message", never ciphertext.
+- Unverified assumption: the task payload arrives as `data.dataString` (JSON) per the expo-notifications 56 types; `readPushData` also accepts plain `data`. Check on a device.
+- Later: iOS Notification Service Extension (Swift CryptoKit ChaCha20-Poly1305 + shared keychain group; conversation keys are `WHEN_UNLOCKED` so a keychain migration too).
+- Consider `lockscreenVisibility: PRIVATE` on the Android `default` channel so the decrypted text only shows once unlocked.
+- Group chats get no push at all: `push` uses `.single()` on the other participants (now logs a warning and returns).
+- Pre-existing bug spotted: `updateTokenStatus` deactivates "other" tokens with `.neq('profile_id', user.id)`, which RLS turns into a no-op; it was probably meant to deactivate this user's other tokens.

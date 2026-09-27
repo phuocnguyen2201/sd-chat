@@ -123,7 +123,7 @@ async function cleanupExpiredLocalCodes(userId: string): Promise<void> {
     .from("local_pairing_codes")
     .delete()
     .eq("user_id", userId)
-    .eq("status", "pending")
+    .in("status", ["pending", "verified"])
     .lt("expires_at", new Date().toISOString());
 }
 
@@ -138,6 +138,27 @@ async function actionCreate(userId: string, body: any) {
   }
   if (!(await assertOwnDevice(userId, deviceId))) {
     return json({ error: "Unknown device" }, 403);
+  }
+
+  // Local code gate: this device must have just entered the 4-digit code shown
+  // on one of the account's other devices (local-code-verify). The code is
+  // claimed and deleted in one statement, so it opens exactly one request; a
+  // concurrent create finds nothing left to claim.
+  const { data: localCodes, error: localCodeError } = await db
+    .from("local_pairing_codes")
+    .delete()
+    .eq("user_id", userId)
+    .eq("status", "verified")
+    .eq("verified_by_device_id", deviceId)
+    .gt("expires_at", new Date().toISOString())
+    .select("id");
+
+  if (localCodeError) {
+    console.error("create local code check failed:", localCodeError);
+    return json({ error: "Failed to create pairing request" }, 500);
+  }
+  if (!localCodes || localCodes.length === 0) {
+    return json({ error: "Enter the pairing code from your other device first" }, 403);
   }
 
   await cleanupExpired(userId);

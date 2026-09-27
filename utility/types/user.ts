@@ -36,6 +36,7 @@ export type Push_Tokens = {
   platform?: string;
   provider?: string;
   is_active?: boolean;
+  preview_capable?: boolean;
   created_at?: string;
   updated_at?: string;
 }

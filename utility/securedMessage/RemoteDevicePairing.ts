@@ -38,6 +38,10 @@ export const RemoteDevicePairing = {
     /**
      * NEW DEVICE: register a pairing request. Generates and holds an
      * ephemeral key pair in memory for the lifetime of this attempt.
+     *
+     * The server only accepts this right after THIS device passed
+     * LocalPairingCode.verify (within the code's 3-minute life), and uses
+     * that code up - otherwise it answers 403.
      */
     async createRequest(deviceRowId: string): Promise<{ requestId: string; expiresAt: string }> {
         resetPairingState();

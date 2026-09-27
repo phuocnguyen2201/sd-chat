@@ -1,5 +1,35 @@
 # Progress Log
 
+## 2026-09-27 — Local pairing code enforced on the server (security #6)
+
+- `device-pairing` `actionCreate` now requires a `verified`, unexpired `local_pairing_codes` row with `verified_by_device_id` = the requesting device, and deletes it in the same statement (one code opens one request; a concurrent create finds nothing). Otherwise 403 "Enter the pairing code from your other device first". No schema change (the status check has no "consumed" value, hence delete).
+- `cleanupExpiredLocalCodes` now also sweeps expired `verified` rows.
+- No app behaviour change today: nothing in the UI calls `create` yet (remote pairing isn't wired), and the local QR flow doesn't go through the server, so its gate stays client-side until #4.
+- Added `need-action.md`: the manual steps (install, secrets, deploys, device tests) in order.
+- Not deployed.
+
+## 2026-09-27 — Push function locked down (security #3) and decrypted notification text on Android
+
+- `supabase/functions/push/index.ts` rewritten: requires `x-webhook-secret` (constant-time compare, fails closed when `PUSH_WEBHOOK_SECRET` is unset); only `record.id` is taken from the body, and sender, conversation and content are re-read from `messages`; returns `{ ok: true }` only, generic errors. `config.toml`: `verify_jwt = false` for `push` (the secret is the gate; the anon JWT would pass `verify_jwt`).
+- Migration `20260927000000_push_webhook_secret.sql`: new `private` schema, `private.notify_push()` (security definer, secret from Vault, `net.http_post` with just the message id), replaces the dashboard `push_notification` webhook.
+- Notifications used to show the ciphertext. Now: tokens with the new `preview_capable` flag (migration `20260927000100_push_tokens_preview_capable.sql`) get a data-only push carrying the ciphertext; new `utility/push-notification/MessageNotification.ts` defines a background task (imported in `app/_layout.tsx`) that decrypts with the local conversation key and posts a local notification, falling back to "New message". Everyone else (iOS, older Android builds) gets a visible "<sender>: New message".
+- `setNotificationHandler` (Bootstrap + push-Notification.ts) hides the data-only push itself. Token rows now store the real `platform` and `preview_capable`, also on the existing-token path.
+- Added `expo-task-manager` to `package.json` by hand (no Node on PATH, so no `npm install` / lockfile update). `tsc` (via bun): no new errors except the missing `expo-task-manager` module; edge function shows the usual Deno-types noise.
+- Nothing deployed or applied; no device test. Steps in in-progress.md.
+
+## 2026-09-26 — Security re-scan (pass 2) with live Supabase checks, no code or DB changes
+
+- Re-ran the Strix `find-security-vulnerabilities-in-code` method by hand. Strix itself couldn't run: Docker was down and no LLM key was set. With the Supabase MCP connected, inspected the live project `kblseanmnntpxqzgmsho` read-only: RLS, RPCs and grants, storage policies, FKs, Edge Functions, advisors.
+- `security-scan.md`: added a **Status** column to every finding, and a pass 2 section with new findings #9–#14.
+- Result: #2 **resolved** (the `messages_delete_own` policy is live). #1 partly fixed (key not rotated, `delete-account` not deployed, so account deletion is currently broken in the app). #3–#8 still open.
+- New: **#9 Critical**: `conversation_participants` is fully open (`true` for all verbs), and `backfillMissingWrappedKeys` wraps the conversation key for anyone who inserts themselves, so any user can read any chat. #10 High: storage and `files*` are open to all users. #11 High: `create_conversation_with_participants` trusts `p_user_id` and anon can call it. #12 Medium: `delete-account` wipes whole conversations for every member. #13 metadata exposure (`fcm_token`, reactions). #14 advisor items.
+
+## 2026-09-26 — `google-services.json` back in `.gitignore`; EAS variable confirmed
+
+- `google-services.json` had been dropped from `.gitignore` (before this session), leaving it untracked and one `git add .` away from being committed. Put it back.
+- Confirmed with `eas env:list --format long`: `GOOGLE_SERVICES_JSON` is a project-scoped, secret, **file**-type variable in development, preview and production, so EAS builds get it through `app.config.js` without the file being uploaded. CI writes it from `GOOGLE_SERVICES_JSON_BASE64`.
+- If the file ever changes, the EAS variable (and the GitHub secret) have to be updated by hand: `eas env:update --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment production --environment preview --environment development`.
+
 ## 2026-09-26 — Removed the service-role key from the app (security findings #1 and #2)
 
 - New Edge Function `supabase/functions/delete-account/` (registered in `supabase/config.toml`, `verify_jwt = true`). It takes the user id from the caller's JWT, never from the body, and does the service-role part of account deletion that used to run in the app: conversations and their participant rows, `files_profiles`, the auth user, the profile.

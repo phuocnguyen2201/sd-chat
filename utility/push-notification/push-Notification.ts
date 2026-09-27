@@ -5,14 +5,19 @@ import { supabase } from '@/utility/connection';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Push_Tokens } from '../types/user';
+import { isDataOnlyMessagePush } from './MessageNotification';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // Data-only message pushes are shown by the background task, decrypted.
+    const show = !isDataOnlyMessagePush(notification);
+    return {
+      shouldPlaySound: show,
+      shouldSetBadge: show,
+      shouldShowBanner: show,
+      shouldShowList: show,
+    };
+  },
 });
 
 export const usePushNotifications = {
@@ -72,7 +77,9 @@ export const usePushNotifications = {
         profile_id: user?.id,
         created_at: new Date().toISOString(),
         provider: 'fcm',
-        platform: 'android',
+        platform: Platform.OS,
+        // Only the Android build decrypts data-only pushes (MessageNotification.ts).
+        preview_capable: Platform.OS === 'android',
         is_active: true
     }
 
@@ -94,6 +101,8 @@ export const usePushNotifications = {
             .from('push_notification_tokens')
             .update({ 
                 is_active: true , 
+                platform: Platform.OS,
+                preview_capable: Platform.OS === 'android',
                 updated_at: new Date().toISOString()
             })
             .eq('token', token)

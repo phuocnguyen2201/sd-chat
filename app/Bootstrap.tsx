@@ -7,6 +7,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
+import { isDataOnlyMessagePush } from '@/utility/push-notification/MessageNotification';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Constants } from '@/constants/Constants';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
@@ -32,12 +33,16 @@ export default function Bootstrap() {
   // Configure notification handler
   useEffect(() => {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+      handleNotification: async (notification) => {
+        // Data-only message pushes are shown by the background task, decrypted.
+        const show = !isDataOnlyMessagePush(notification);
+        return {
+          shouldPlaySound: show,
+          shouldSetBadge: show,
+          shouldShowBanner: show,
+          shouldShowList: show,
+        };
+      },
     });
   }, []);
 
