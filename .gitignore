@@ -45,3 +45,4 @@ ios/
 /brag-output
 /.agents
 /supabase/migrations
+/supabase/templates

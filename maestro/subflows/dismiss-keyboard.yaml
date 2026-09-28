@@ -1,0 +1,16 @@
+appId: com.phuocng23000.sdchat
+---
+# hideKeyboard fails on iOS here ("no standard dismiss action"), so iOS taps
+# the keyboard's Return key instead.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "Return"
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard

@@ -2,7 +2,7 @@
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonText } from '@/components/ui/button';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
@@ -24,6 +24,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { VStack } from '@/components/ui/vstack';
 import { AlertDialogBody } from '@/components/ui/alert-dialog';
 import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
+import { DevicePairing, isPairDataPayload } from '@/utility/securedMessage/DevicePairing';
+import { LocalKeyTransfer, isLegacyPlaintextPayload } from '@/utility/securedMessage/LocalKeyTransfer';
 
 type Phase = 'scan' | 'done';
 
@@ -41,6 +43,18 @@ export default function ScanningKeys() {
     */
     const { recovery } = useLocalSearchParams<{ recovery?: string }>();
     const isRecovery = recovery === '1';
+
+    /*
+      The QR from the other device is sealed to the one-time key made in
+      EnterPairingCode. Without it (app restarted, or arrived here some other
+      way) nothing could be opened, so ask for the pairing code first.
+    */
+    const [pairingKey] = useState(() => DevicePairing.publicKey());
+    const pairingCheck = pairingKey ? LocalKeyTransfer.pairingCheck(pairingKey) : null;
+
+    useEffect(() => {
+        return () => DevicePairing.reset();
+    }, []);
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deletingAccount, setDeletingAccount] = useState(false);
@@ -119,14 +133,40 @@ export default function ScanningKeys() {
             return;
         }
 
-        if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as KeyObject).list)) {
+        if (isLegacyPlaintextPayload(parsed)) {
+            Alert.alert(
+                'Update needed',
+                'This code is from an older version of SD Chat. Update the app on your other device, then share again.'
+            );
+            return;
+        }
+
+        if (!isPairDataPayload(parsed)) {
             Alert.alert('Error', 'That QR code is not a valid key payload');
             return;
         }
 
         importingRef.current = true;
+        let payload: KeyObject;
         try {
-            importKeysToNewDevice(parsed as KeyObject);
+            payload = await DevicePairing.openFromPeer(parsed);
+        } catch (error) {
+            importingRef.current = false;
+            const expired = error instanceof Error && /expired/i.test(error.message);
+            Alert.alert(
+                'Error',
+                expired
+                    ? 'That QR code expired. Enter a new pairing code to try again.'
+                    : 'That QR code was made for a different device. Make sure you entered the code on this device.'
+            );
+            if (expired) {
+                router.replace({ pathname: '/tabs/managekeys/EnterPairingCode', params: isRecovery ? { recovery: '1' } : {} });
+            }
+            return;
+        }
+
+        try {
+            importKeysToNewDevice(payload);
         } finally {
             importingRef.current = false;
         }
@@ -146,10 +186,39 @@ export default function ScanningKeys() {
 
                 {phase === 'scan' && (
                     <>
-                        <Text className="mb-4 text-center">
-                            On your other device, tap &quot;Share Keys&quot; and scan the code it shows.
-                        </Text>
-                        <QrScannerView active={phase === 'scan'} onScanned={onScannedCode} />
+                        {pairingKey ? (
+                            <>
+                                <Text className="mb-4 text-center">
+                                    On your other device, tap &quot;Share Keys&quot; and scan the code it shows.
+                                </Text>
+                                <QrScannerView active={phase === 'scan'} onScanned={onScannedCode} />
+                                <Text className="mt-4 text-center text-sm">
+                                    Pairing check: <Text className="font-bold">{pairingCheck}</Text>
+                                </Text>
+                                <Text className="mt-1 text-center text-xs text-gray-500">
+                                    The other device shows the same check under its code.
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text className="mb-4 text-center">
+                                    Enter the pairing code from your other device first. The key code it shows can only be opened by the device that entered it.
+                                </Text>
+                                <Button
+                                    action="primary"
+                                    size="md"
+                                    className="bg-blue-500"
+                                    onPress={() =>
+                                        router.replace({
+                                            pathname: '/tabs/managekeys/EnterPairingCode',
+                                            params: isRecovery ? { recovery: '1' } : {},
+                                        })
+                                    }
+                                >
+                                    <ButtonText className="text-white">Enter pairing code</ButtonText>
+                                </Button>
+                            </>
+                        )}
 
                         <Box className="mt-8 w-full items-center">
                             <Text className="mb-3 text-center text-xs text-gray-500">

@@ -1,5 +1,30 @@
 # Progress Log
 
+## 2026-09-28 (session 2) — Sealed key-sharing QR (security #4)
+
+- **Status update first:** the user did every manual step. Checked live and updated security-scan.md: #1, #3, #6, #15, #16, #17 resolved. **#12 is now live in production** (`delete-account` was deployed without the fix). #9, #10, #11, #13, #14 are still open.
+- **#4 fixed in code** while keeping the single-QR steps the user sees (old: code → new: enter code → old: QR → new: scan):
+  - New device (`EnterPairingCode`): creates a one-time X25519 key (`DevicePairing.startPairing`, memory only) and sends its public half + `keyProof` = HMAC-SHA256("sd-chat-pairing-proof-v1|userId|code", pub) with the code.
+  - Server (`device-pairing`): `local-code-verify` requires both (400 "Update SD Chat" otherwise) and stores them on a match; `local-code-status` returns them once verified. New columns in migration `20260928000100_local_pairing_ephemeral_key.sql`. **Not applied or deployed.**
+  - Old device: `PairingCode` keeps the code in memory (`LocalKeyTransfer.setIssuedCode`). `ManageKeys` checks the proof, seals with `DevicePairing.sealForPeer`, and shows the `pair_data` QR (ECL L, 2,900-character cap, so roughly 20 conversations, else it points to the vault backup) plus a 4-hex **pairing check**.
+  - `ScanningKeys` accepts only sealed QRs, refuses legacy plaintext ("update the other device"), asks for the code first if there's no one-time key, shows the pairing check, and wipes the key on unmount.
+  - Recovery guard (`IdentityKeyGuard`) now lands on `EnterPairingCode?recovery=1`; before this it skipped code entry, so the old device waited forever. Its "No other device?" button leads to the backup and delete exits.
+  - `EnterPairingCode`: `keyboardShouldPersistTaps="handled"`, so the first Verify tap submits instead of only closing the number pad.
+- New `utility/securedMessage/LocalKeyTransfer.ts` (proof, pairing check, issued code, legacy detector) and `DevicePairing.publicKey()`.
+- **Tests:** 10 jest tests in `utility/securedMessage/__tests__/LocalKeyTransfer.test.ts`, all passing. The project's `jest-expo` preset is broken (missing `@react-native/jest-preset`), so run: `npx jest utility/securedMessage/__tests__ --watchAll=false --config '{"rootDir":".","testEnvironment":"node","transform":{"\\.[jt]sx?$":"babel-jest"},"transformIgnorePatterns":["node_modules/(?!(@noble|@stablelib)/)"],"moduleNameMapper":{"^@/(.*)$":"<rootDir>/$1"}}'`. `tsc`: no new errors.
+- **iOS simulator (Maestro MCP, iPhone 16 Pro Max, Metro):**
+  - Registered a fresh account through the email-confirmation subflow. That's the first end-to-end run of that path with the new template: register, confirm, profile made by the trigger, Chat.
+  - Share Keys → code → Receive Keys → Verify → scanner showing "Pairing check: 99A6".
+  - The old device's sealing needs the new server, so it isn't device-tested yet.
+- **Maestro fixes found on iOS:**
+  - The gluestack `Input` hides the TextInput's testID and placeholder, so auth-form flows now tap `"Input Field|Enter your …"` below the field label.
+  - `hideKeyboard` fails on iOS, so there's a new `subflows/dismiss-keyboard.yaml` (Return on iOS).
+  - `login-errors` relaunches between cases.
+  - `pairing-code-verify` asserts the pairing check. `recover-key-from-backup` follows the new recovery path.
+  - Still Android-only: `open-manage-keys` / `show-pairing-code` (the "Settings" tab text and `back`).
+- Docs: ManageKeys/ScanningKeys/EnterPairingCode/PairingCode .md, app, utility and supabase READMEs, security-scan.md (#4 → fixed in code), need-action.md.
+- Test account left in the DB: one `sdchat-e2e-*@uberip.com` user registered by the simulator run.
+
 ## 2026-09-28 — Email confirmation through a browser page (no deep link)
 
 - Plan: `~/.claude/plans/i-enable-email-authentication-quiet-quokka.md`. The confirmation link opens a static page (`confirm-page/`) instead of deep-linking into the app. The user then logs in.

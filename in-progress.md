@@ -1,13 +1,17 @@
 # In Progress / Open Items
 
-## Email confirmation (2026-09-28): code done, deploy and config pending (steps in need-action.md)
-1. **#15 Critical:** swap `.env` `EXPO_PUBLIC_SUPABASE_KEY` to the publishable key, then rotate the secret key.
-2. Apply `20260928000000_profiles_on_signup.sql`. Sign-up is broken in production until this is done.
-3. Host `confirm-page/`, set Site URL and the exact redirect URL, paste the email template, set the resend interval and min length in the dashboard, and replace `CONFIRM_PAGE_HOST` in config.toml.
-4. Run the Maestro auth flows on an emulator (`signup-unconfirmed`, `login-errors`, `delete-account`, `ci/setup-account`). The scripts are verified, the app flows aren't.
-5. mail.tm rate-limits inbox creation (a 429 was seen after 2 inboxes in about a minute). If CI flakes on it, add a retry in `run-maestro.sh`, or switch CI to a pre-confirmed fixed account.
-6. Delete the two `sdchat-e2e-probe-*@uberip.com` users.
-7. Later: if the app is reinstalled between sign-up and first login, the private key is lost (nothing to recover yet). Consider "regenerate identity key on first login if no conversations". Also #18 (email local part as the public username).
+## Sealed key QR (security #4, 2026-09-28): code done, deploy pending (need-action.md)
+1. Apply `20260928000100_local_pairing_ephemeral_key.sql`, then deploy `device-pairing`, then test on two devices (the old device's sealing path is untested on a device).
+2. Ship iOS and Android together: pairing needs both devices on the new build.
+3. QR capacity is about 20 conversations. If users hit it, switch the inner payload to a compact binary encoding (16-byte uuid + 32-byte key per conversation, about 2× more).
+4. Maestro: make `open-manage-keys` / `show-pairing-code` work on iOS too (tab text "Settings, tab, …", no `back`). Fix the `jest-expo` preset (`npm i -D @react-native/jest-preset`) so `npm test` works.
+5. Delete the `sdchat-e2e-*@uberip.com` user left by the simulator run.
+
+## NEXT: #12 is live — `delete-account` wipes shared conversations for every member
+Change it to delete only the caller's participant rows (and a conversation only when it has no members left), redeploy, and fix #9 alongside.
+
+## Email confirmation (2026-09-28): DONE (user did all manual steps; checked live where possible)
+- Leftovers: the mail.tm rate limit in CI (add a retry if it flakes); reinstall-before-first-login key loss; #18.
 
 ## Security re-scan pass 2 (2026-09-26): new live-DB findings, full detail in security-scan.md
 Fix in this order. Nothing has been changed yet:

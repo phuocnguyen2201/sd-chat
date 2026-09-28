@@ -4,21 +4,30 @@ import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '@/utility/session/SessionProvider';
 import { DeviceIdentity } from '@/utility/securedMessage/DeviceIdentity';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
+import { DevicePairing } from '@/utility/securedMessage/DevicePairing';
+import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
 
 /**
- * New-device counterpart to PairingCode.tsx. On a correct code, hands off
- * to the existing (unchanged) QR-receiving flow (ScanningKeys).
+ * New-device counterpart to PairingCode.tsx. Sends the code together with the
+ * public half of a one-time key pair (the secret stays in DevicePairing's
+ * memory); the other device seals its key QR to it. On a correct code, hands
+ * off to ScanningKeys, which opens that QR with the secret.
  */
 export default function EnterPairingCode() {
     const insets = useSafeAreaInsets();
     const { user } = useSession();
+    // Set by the key guard: this device has no usable key and sits outside the tabs.
+    const { recovery } = useLocalSearchParams<{ recovery?: string }>();
+    const isRecovery = recovery === '1';
 
     const deviceRowIdRef = useRef<string | null>(null);
+    // Once verified, ScanningKeys needs the one-time key: don't wipe it on unmount.
+    const verifiedRef = useRef(false);
     const [digits, setDigits] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
@@ -50,6 +59,14 @@ export default function EnterPairingCode() {
     }, [user?.id]);
 
     useEffect(() => {
+        return () => {
+            if (!verifiedRef.current) {
+                DevicePairing.reset();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
         if (!lockedUntil) {
             return;
         }
@@ -79,10 +96,24 @@ export default function EnterPairingCode() {
         setSubmitting(true);
         setStatusMessage('');
         try {
-            const result = await LocalPairingCode.verify(deviceRowId, digits);
+            if (!user?.id) {
+                return;
+            }
+            // One key pair per visit, kept across wrong attempts.
+            if (!DevicePairing.isPairing()) {
+                DevicePairing.startPairing(user.id);
+            }
+            const ephemeralPublicKey = DevicePairing.publicKey()!;
+            const keyProof = LocalKeyTransfer.computeKeyProof(user.id, digits, ephemeralPublicKey);
+
+            const result = await LocalPairingCode.verify(deviceRowId, digits, ephemeralPublicKey, keyProof);
 
             if (result.verified) {
-                router.replace('/tabs/managekeys/ScanningKeys');
+                verifiedRef.current = true;
+                router.replace({
+                    pathname: '/tabs/managekeys/ScanningKeys',
+                    params: isRecovery ? { recovery: '1' } : {},
+                });
                 return;
             }
 
@@ -104,6 +135,8 @@ export default function EnterPairingCode() {
 
     return (
         <ScrollView
+            // Otherwise the first tap on Verify only closes the number pad.
+            keyboardShouldPersistTaps="handled"
             className="flex-1 px-4 bg-white dark:bg-black"
             contentContainerStyle={{
                 flexGrow: 1,
@@ -147,9 +180,25 @@ export default function EnterPairingCode() {
                 </Button>
             </Box>
 
-            <Button onPress={() => router.replace('/tabs/(tabs)/Settings')} size="md" action="secondary" style={{ width: '100%', maxWidth: 360 }}>
-                <ButtonText>Cancel</ButtonText>
-            </Button>
+            {isRecovery ? (
+                /*
+                  Recovery users can't reach Settings. ScanningKeys (with no
+                  pairing in progress) holds the other ways out: restore from
+                  backup, or delete the account.
+                */
+                <Button
+                    onPress={() => router.replace({ pathname: '/tabs/managekeys/ScanningKeys', params: { recovery: '1' } })}
+                    size="md"
+                    action="secondary"
+                    style={{ width: '100%', maxWidth: 360 }}
+                >
+                    <ButtonText>No other device?</ButtonText>
+                </Button>
+            ) : (
+                <Button onPress={() => router.replace('/tabs/(tabs)/Settings')} size="md" action="secondary" style={{ width: '100%', maxWidth: 360 }}>
+                    <ButtonText>Cancel</ButtonText>
+                </Button>
+            )}
         </ScrollView>
     );
 }

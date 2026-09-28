@@ -1,5 +1,7 @@
 appId: com.phuocng23000.sdchat
 ---
+# Inputs: the gluestack Input wrapper hides the TextInput's testID and (on iOS)
+# its placeholder, so tap the field below its label instead.
 # From the login screen: register ${EMAIL}, confirm it through its mail.tm inbox
 # (scripts/confirm-email.js does what confirm-page/ does), then log in.
 # Stops right after tapping Login - Bootstrap then opens "Complete the profile".
@@ -10,11 +12,15 @@ appId: com.phuocng23000.sdchat
 - extendedWaitUntil:
     visible: "Authentication.*"
     timeout: 50000
-- tapOn: { id: "email-input" }
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
 - inputText: ${EMAIL}
-- tapOn: { id: "password-input" }
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
 - inputText: ${MAESTRO_PASSWORD}
-- hideKeyboard
+- runFlow: dismiss-keyboard.yaml
 
 - tapOn: { id: "register-button" }
 - extendedWaitUntil:

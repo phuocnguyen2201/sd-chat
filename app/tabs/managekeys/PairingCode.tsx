@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '@/utility/session/SessionProvider';
 import { DeviceIdentity } from '@/utility/securedMessage/DeviceIdentity';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
+import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
 
 type Phase = 'loading' | 'showing' | 'expired';
 
@@ -47,6 +48,8 @@ export default function PairingCode() {
         setPhase('loading');
         try {
             const result = await LocalPairingCode.create(deviceRowId);
+            // ManageKeys checks the other device's key proof against this code.
+            LocalKeyTransfer.setIssuedCode(result.code);
             setCode(result.code);
             setExpiresAt(new Date(result.expiresAt).getTime());
             setPhase('showing');
@@ -94,6 +97,7 @@ export default function PairingCode() {
             setTimeLeft(remaining);
             if (remaining === 0) {
                 stopPolling();
+                LocalKeyTransfer.clearIssuedCode();
                 setPhase('expired');
             }
         };
@@ -128,6 +132,7 @@ export default function PairingCode() {
 
     const cancel = async () => {
         stopPolling();
+        LocalKeyTransfer.clearIssuedCode();
         const deviceRowId = deviceRowIdRef.current;
         if (deviceRowId) {
             try {

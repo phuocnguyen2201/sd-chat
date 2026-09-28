@@ -3,9 +3,9 @@ import { invokeDevicePairing } from '@/utility/securedMessage/DevicePairingFunct
 /**
  * Client for the local (same-room) pairing code gate: a short 4-digit
  * code, shown on the old device after biometric auth and entered on the
- * new device, that must be confirmed before the existing QR handshake
- * (DevicePairing.ts / ManageKeys / ScanningKeys) is allowed to start.
- * Carries no key material itself - see local_pairing_codes_schema.sql and
+ * new device, that must be confirmed before the key QR (ManageKeys /
+ * ScanningKeys) is shown. It also carries the new device's one-time public
+ * key, which that QR is sealed to (LocalKeyTransfer.ts) - never a secret. See
  * the `local-code-*` actions in supabase/functions/device-pairing.
  */
 
@@ -19,6 +19,9 @@ export type LocalCodeStatus =
           lockedUntil: string | null;
           attempts: number;
           verifiedByDeviceName: string | null;
+          /** Set once verified: the new device's one-time public key and its code-bound HMAC (base64). */
+          requesterEphemeralPublicKey: string | null;
+          requesterKeyProof: string | null;
       };
 
 export type LocalCodeVerifyResult =
@@ -37,9 +40,19 @@ export const LocalPairingCode = {
         return invokeDevicePairing('local-code-status', {});
     },
 
-    /** NEW DEVICE: submit the digits read off the old device's screen. */
-    async verify(deviceRowId: string, code: string): Promise<LocalCodeVerifyResult> {
-        return invokeDevicePairing('local-code-verify', { deviceId: deviceRowId, code });
+    /**
+     * NEW DEVICE: submit the digits read off the old device's screen, with the
+     * public half of this device's one-time pairing key and the proof binding
+     * it to those digits (LocalKeyTransfer.computeKeyProof). The old device
+     * seals the key QR to that key.
+     */
+    async verify(
+        deviceRowId: string,
+        code: string,
+        ephemeralPublicKey: string,
+        keyProof: string
+    ): Promise<LocalCodeVerifyResult> {
+        return invokeDevicePairing('local-code-verify', { deviceId: deviceRowId, code, ephemeralPublicKey, keyProof });
     },
 
     /** OLD DEVICE: Cancel button - invalidate the code immediately. */

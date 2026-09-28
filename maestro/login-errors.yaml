@@ -1,5 +1,7 @@
 appId: com.phuocng23000.sdchat
 ---
+# Inputs: the gluestack Input wrapper hides the TextInput's testID and (on iOS)
+# its placeholder, so tap the field below its label instead.
 # Covers: login and sign-up form validation and a rejected sign-in.
 # The unconfirmed-email case lives in signup-unconfirmed.yaml.
 #
@@ -20,54 +22,78 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "Please enter both email and password"
 - tapOn: { id: "accept-button" }
 
-# Sign-up validation (runs before anything is sent)
-- tapOn: { id: "email-input" }
+# Sign-up validation (runs before anything is sent). Filled inputs lose the
+# placeholder text the flow taps on, so each case starts from a fresh screen.
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
 - inputText: "not-an-email"
-- tapOn: { id: "password-input" }
-- inputText: "long-enough-123"
-- hideKeyboard
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
+- inputText: "Long-enough-123!"
+- runFlow: subflows/dismiss-keyboard.yaml
 - tapOn: { id: "register-button" }
 - assertVisible: "Please enter a valid email address"
 - tapOn: { id: "accept-button" }
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
 
-- tapOn: { id: "email-input" }
-- eraseText
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
 - inputText: "someone@example.com"
-- tapOn: { id: "password-input" }
-- eraseText
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
 - inputText: "short"
-- hideKeyboard
+- runFlow: subflows/dismiss-keyboard.yaml
 - tapOn: { id: "register-button" }
 - assertVisible: "Password must be at least 8 characters"
 - tapOn: { id: "accept-button" }
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
 
-- tapOn: { id: "password-input" }
-- eraseText
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
+- inputText: "someone@example.com"
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
 - inputText: "alllowercase1"
-- hideKeyboard
+- runFlow: subflows/dismiss-keyboard.yaml
 - tapOn: { id: "register-button" }
 - assertVisible: "Password must include an uppercase letter, a symbol"
 - tapOn: { id: "accept-button" }
-
-# Clear both fields for the login checks below
-- tapOn: { id: "email-input" }
-- eraseText
-- tapOn: { id: "password-input" }
-- eraseText
-- hideKeyboard
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
 
 # Email only
-- tapOn: "Enter your email"
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
 - inputText: ${EMAIL}
-- hideKeyboard
+- runFlow: subflows/dismiss-keyboard.yaml
 - tapOn: "Login"
 - assertVisible: "Please enter both email and password"
 - tapOn: { id: "accept-button" }
 
 # Wrong password
-- tapOn: "Enter your password"
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
 - inputText: "wrong-password-123"
-- hideKeyboard
+- runFlow: subflows/dismiss-keyboard.yaml
 - tapOn: "Login"
 - extendedWaitUntil:
     visible: "Invalid login credentials"

@@ -8,10 +8,15 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSession } from '@/utility/session/SessionProvider';
 import { buildKeySyncPayload } from '@/utility/securedMessage/KeySyncPayload';
+import { DevicePairing } from '@/utility/securedMessage/DevicePairing';
+import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
+import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
 
 type Phase = 'idle' | 'show_sealed';
 
 const QR_TTL_SECONDS = 30;
+// Byte-mode capacity of the largest QR at error-correction level L is 2953.
+const MAX_QR_CHARS = 2900;
 
 export default function ManageKeys() {
 
@@ -21,20 +26,60 @@ export default function ManageKeys() {
 
     const [phase, setPhase] = useState<Phase>('idle');
     const [sealedQr, setSealedQr] = useState('');
+    const [pairingCheck, setPairingCheck] = useState('');
     const [timeLeft, setTimeLeft] = useState(QR_TTL_SECONDS);
     const autoStartedRef = useRef(false);
 
+    /*
+      Seals the key payload to the one-time key the other device sent with the
+      pairing code, so the QR only holds ciphertext (security #4). The key is
+      used only if its proof matches the code this device displayed.
+    */
     const shareKeys = async () => {
         setSealedQr('');
+        setPairingCheck('');
+        const code = LocalKeyTransfer.takeIssuedCode();
         try {
-            const keyPayload = await buildKeySyncPayload(user?.id);
+            if (!user?.id || !code) {
+                Alert.alert('Start again', 'Tap "Share Keys" to show a new pairing code.');
+                setPhase('idle');
+                return;
+            }
+
+            const status = await LocalPairingCode.status();
+            const peerKey = status.active ? status.requesterEphemeralPublicKey : null;
+            const peerProof = status.active ? status.requesterKeyProof : null;
+            if (!status.active || status.status !== 'verified' || !peerKey || !peerProof) {
+                Alert.alert('Start again', 'The other device has not entered the pairing code, or it has expired.');
+                setPhase('idle');
+                return;
+            }
+
+            if (!LocalKeyTransfer.verifyKeyProof(user.id, code, peerKey, peerProof)) {
+                Alert.alert('Pairing failed', 'The other device could not be verified with this code. Nothing was shared. Start again.');
+                setPhase('idle');
+                return;
+            }
+
+            const keyPayload = await buildKeySyncPayload(user.id);
             if (!keyPayload) {
                 Alert.alert('Error', 'No keys available to share yet');
                 setPhase('idle');
                 return;
             }
 
-            setSealedQr(JSON.stringify(keyPayload));
+            const qr = JSON.stringify(await DevicePairing.sealForPeer(peerKey, keyPayload));
+            if (qr.length > MAX_QR_CHARS) {
+                Alert.alert(
+                    'Too many keys for one code',
+                    'This device has too many conversations to fit in one QR code. Use "Back up my key" on this device and "Recover from backup" on the other one instead.'
+                );
+                setPhase('idle');
+                return;
+            }
+
+            setSealedQr(qr);
+            setPairingCheck(LocalKeyTransfer.pairingCheck(peerKey));
             setTimeLeft(QR_TTL_SECONDS);
             setPhase('show_sealed');
         } catch {
@@ -45,6 +90,7 @@ export default function ManageKeys() {
 
     const cancel = () => {
         setSealedQr('');
+        setPairingCheck('');
         setPhase('idle');
     };
 
@@ -65,6 +111,7 @@ export default function ManageKeys() {
         }
         if (timeLeft === 0) {
             setSealedQr('');
+            setPairingCheck('');
             setPhase('idle');
             return;
         }
@@ -101,8 +148,14 @@ export default function ManageKeys() {
             {phase === 'show_sealed' && (
                 <>
                     <Box className="items-center mb-6 rounded-2xl border border-gray-200 bg-white p-4">
-                        {sealedQr !== '' ? <QRCode value={sealedQr} size={260} quietZone={16} /> : <Text>No keys available to generate QR code.</Text>}
+                        {sealedQr !== '' ? <QRCode value={sealedQr} size={260} quietZone={16} ecl="L" /> : <Text>No keys available to generate QR code.</Text>}
                     </Box>
+                    <Text className="self-center text-center text-sm">
+                        Pairing check: <Text className="font-bold">{pairingCheck}</Text>
+                    </Text>
+                    <Text className="mt-1 self-center text-center text-xs text-gray-500">
+                        The other device should show the same check. If it doesn&apos;t, tap Done and start again.
+                    </Text>
                     <Text className="mt-4 self-center text-center text-xl font-bold">
                         {timeLeft > 0 ? `${timeLeft}s` : 'QR expired'}
                     </Text>
@@ -114,7 +167,7 @@ export default function ManageKeys() {
             )}
 
             <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
-                <Text>Note: Only pair with devices that are physically in your possession. This QR code contains your private key in the clear - anyone who scans or photographs it can read your messages. Do not share it or leave it on screen.</Text>
+                <Text>Note: The key code is encrypted for the device that entered your pairing code, so a photo of it is useless to anyone else. Still, only pair with devices that are physically in your possession.</Text>
             </Box>
             <Button onPress={() => { router.push('/tabs/managekeys/EnterPairingCode'); }}
                 size="md"

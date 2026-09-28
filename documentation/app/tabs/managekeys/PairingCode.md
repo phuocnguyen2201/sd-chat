@@ -6,7 +6,7 @@
 
 ## Flow
 
-1. On mount, registers this install as a `devices` row (`DeviceIdentity.registerCurrentDevice(user.id)`) if it isn't already, then requests a fresh 4-digit code (`LocalPairingCode.create()`).
+1. On mount, registers this install as a `devices` row (`DeviceIdentity.registerCurrentDevice(user.id)`) if it isn't already, then requests a fresh 4-digit code (`LocalPairingCode.create()`). The code is also kept in memory (`LocalKeyTransfer.setIssuedCode`) so `ManageKeys` can check the other device's key proof against it. It's cleared on expiry or cancel.
 2. **Showing** – displays the code and a countdown driven off the server's `expiresAt` (not a local guess), so client clock drift can't extend it.
 3. Polls `LocalPairingCode.status()` every 2s while showing. Once the other device verifies the code (`status === 'verified'`), navigates to `/tabs/managekeys/ManageKeys?autoShare=1`, which skips straight into QR generation (see `ManageKeys.md`).
 4. **Expired** – once the countdown hits 0, offers `Generate a new code` (calls `generateCode()` again).

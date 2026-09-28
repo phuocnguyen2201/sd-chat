@@ -6,22 +6,25 @@
 
 ## Flow (single phase)
 
-1. **Scan** (`scan`) – opens the camera (`components/QrScannerView`) and waits for the plaintext `KeyObject` QR shown by `ManageKeys`.
-2. On a scan, parses the QR as JSON and checks it has a `list` array (`isArray`) before trusting it — not a full shape/signature check.
-3. `importKeysToNewDevice()` validates: a session exists, the payload's `userId` matches the signed-in user, and `validTime` hasn't passed (`Date.now() > payload.validTime` → "QR code expired" alert).
+1. **Scan** (`scan`):
+   - If `EnterPairingCode` left a one-time key in memory (`DevicePairing.publicKey()`), the screen opens the camera (`components/QrScannerView`) and shows the **pairing check** for that key.
+   - Without one (app restarted, or arrived another way), it shows "Enter the pairing code from your other device first" with a button back to `EnterPairingCode`. There's no point scanning, since nothing could be opened.
+2. On a scan, the QR is parsed as JSON:
+   - A legacy plaintext `KeyObject` is refused: "Update the app on your other device".
+   - Anything that isn't `pair_data` is refused.
+   - `DevicePairing.openFromPeer()` decrypts it with the one-time secret. A QR sealed for another device fails with "made for a different device". An expired one sends the user back to enter a new code.
+3. `importKeysToNewDevice()` validates: a session exists, the payload's `userId` matches the signed-in user, and `validTime` hasn't passed.
 4. On success, restores the private key via `MessageEncryption.setPrivateKey()` and stores any conversation keys not already present via `ConversationKeyManager`, then shows the `done` completion dialog (`Ok` returns to Settings).
 
 ## The way out when there is nothing to scan
 
-Below the camera, this screen offers `Recover from backup`, which pushes `/tabs/managekeys/RecoverKey`. That matters most when `Bootstrap` has sent someone here with `?recovery=1` — a device holding no usable key, whose owner may have no second device to scan from. The `recovery=1` branch additionally offers account deletion, as the last resort when neither a QR nor a backup exists.
+Below the camera, this screen offers `Recover from backup`, which pushes `/tabs/managekeys/RecoverKey`. That matters most when the key guard has sent someone to `EnterPairingCode` with `?recovery=1` — a device holding no usable key, whose owner may have no second device to scan from. `EnterPairingCode` in recovery mode links here ("No other device?") without a pairing in progress. The `recovery=1` branch additionally offers account deletion, as the last resort when neither a QR nor a backup exists.
 
 See `RecoverKey.md` for what recovery restores (the identity key) and what it does not (conversation keys, which come back lazily through `ConversationKeyResolver`).
 
-## Security model (changed 2026-09-16, commit `4e02cce`)
+## Security model (sealed again 2026-09-28, security #4)
 
-This screen previously generated its own ephemeral key pair and scanned a *second*, AEAD-sealed QR from `ManageKeys` (`DevicePairing.openFromPeer()`), so an intercepted QR never contained a usable secret. **That handshake was removed** — this screen now scans and directly trusts the single plaintext QR `ManageKeys` renders. The account/session ownership (`userId` match) and expiry (`validTime`) checks are unchanged in spirit, but there is no cryptographic binding between this device and the QR anymore; anyone who captures the QR image within its 30s window can decrypt the account's messages. See `ManageKeys.md` for the full picture and what's still gating access (`EnterPairingCode`'s 4-digit code).
-
-`utility/securedMessage/DevicePairing.ts` is no longer imported here — see `ManageKeys.md`'s note on it being dead code.
+The QR is only useful to the device holding the one-time secret made in `EnterPairingCode`. That secret lives in `DevicePairing`'s module memory only (never persisted or passed through navigation) and is wiped after one use and when this screen unmounts. See `ManageKeys.md` for the full design and the residual risk the pairing check covers.
 
 ## Camera component notes (`components/QrScannerView.tsx`)
 
@@ -34,5 +37,5 @@ This screen previously generated its own ephemeral key pair and scanned a *secon
 
 - `app/tabs/managekeys/EnterPairingCode.tsx` — the 4-digit code gate that must pass before this screen is reachable.
 - `components/QrScannerView.tsx` — shared camera/permission component.
-- `utility/types/user.ts` — `KeyObject` is the shape scanned here.
+- `utility/types/user.ts` — `PairDataPayload` is the shape scanned here; `KeyObject` is what it decrypts to.
 - `app/tabs/managekeys/RecoverKey.tsx` — the vault recovery flow this screen links to.

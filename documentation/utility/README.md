@@ -16,7 +16,8 @@ utility/
 │   ├── secured.ts                   # Message encryption/decryption, ephemeral ECDH sealing
 │   ├── ConversationKeyManagement.ts # Conversation key caching and storage
 │   ├── KeySyncPayload.ts            # Shared "gather this device's keys" payload builder
-│   ├── DevicePairing.ts             # UNUSED — local (QR) ephemeral-ECDH crypto, no longer called by any screen
+│   ├── DevicePairing.ts             # Sealed local key QR: one-time key pair, seal / open
+│   ├── LocalKeyTransfer.ts          # Key proof (HMAC over the pairing code), pairing check, issued-code holder
 │   ├── DevicePairingFunctionClient.ts # Shared caller for the device-pairing Edge Function
 │   ├── LocalPairingCode.ts          # Client for the same-room 4-digit pairing-code gate
 │   ├── RemoteDevicePairing.ts       # Server-relayed device-pairing client (device-pairing Edge Function)
@@ -236,16 +237,28 @@ Added for the QR and server-relayed device-pairing flows — a lower-level, tran
 - Reads conversation keys via `ConversationKeyManager`, private key via `MessageEncryption.getPrivateKey()`.
 - Shared by both `ManageKeys.tsx` (local QR flow) and `RemoteDevicePairing.approve()` (server-relayed flow) so the payload is built the same way regardless of transport.
 
-### `securedMessage/DevicePairing.ts` — currently unused
-**Purpose (historical)**: Crypto + in-memory state for a two-QR, ephemeral-ECDH device-pairing handshake that `ManageKeys`/`ScanningKeys` used to run. **As of commit `4e02cce` (2026-09-16) neither screen imports this module anymore** — they exchange a single plaintext QR instead, gated by the pairing-code screens below. The module still exists in the tree (not deleted) but nothing calls it; see `documentation/app/tabs/managekeys/ManageKeys.md`'s security-model note.
+### `securedMessage/DevicePairing.ts`
+**Purpose**: Crypto and in-memory state for the sealed local key-sync QR (used again since 2026-09-28, security #4). The new device's one-time key pair lives only in module memory. It's never persisted or passed through navigation, and it's wiped after one use, on cancel, and when `ScanningKeys` unmounts.
 
 **Export**: `DevicePairing` object
-- `startPairing(userId)`: generates a one-time ephemeral key pair (held in module memory only) and returns the `pair_init` QR payload
-- `sealForPeer(peerPublicKeyBase64, payload)`: seals a `KeyObject` to a scanned peer public key with a fresh sender ephemeral key pair; returns the `pair_data` QR payload
-- `openFromPeer(data)`: unwraps a `pair_data` payload using this device's held ephemeral secret key; rejects expired or undecryptable payloads
-- `reset()` / `isPairing()`: wipe or query the in-memory ephemeral key pair
+- `startPairing(userId)`: generates the one-time X25519 key pair (called by `EnterPairingCode`). The returned `pair_init` payload is no longer shown as a QR; only its public key is used.
+- `publicKey()`: base64 public half of the pending key pair, or null.
+- `sealForPeer(peerPublicKeyBase64, payload)`: the old device (`ManageKeys`) seals a `KeyObject` to that key with a fresh sender key pair and returns the `pair_data` QR payload.
+- `openFromPeer(data)`: the new device (`ScanningKeys`) opens `pair_data` with the held secret. It rejects expired or undecryptable payloads, and resets after success.
+- `reset()` / `isPairing()`: wipe or query the in-memory key pair.
 
-Also exports `isPairInitPayload()` / `isPairDataPayload()` type guards, likewise unused elsewhere now.
+Also exports the `isPairInitPayload()` / `isPairDataPayload()` type guards.
+
+### `securedMessage/LocalKeyTransfer.ts`
+**Purpose**: Glue for the sealed local QR (added 2026-09-28). Binds the new device's one-time public key to the pairing code, so the server can't hand the old device a different key without knowing the code.
+
+**Export**: `LocalKeyTransfer` object, and `isLegacyPlaintextPayload()`
+- `computeKeyProof(userId, code, ephemeralPublicKey)` (new device) / `verifyKeyProof(...)` (old device, constant-time): `HMAC-SHA256(key = "sd-chat-pairing-proof-v1|userId|code", msg = publicKey)` via `@noble/hashes`.
+- `pairingCheck(ephemeralPublicKey)`: 4 uppercase hex characters of SHA-256 of the key, shown on both screens.
+- `setIssuedCode` / `takeIssuedCode` (read once) / `clearIssuedCode`: the code the old device is displaying, kept in memory for `ManageKeys`.
+- `isLegacyPlaintextPayload(value)`: recognizes a pre-2026-09-28 plaintext `KeyObject` QR so `ScanningKeys` can refuse it with an "update the other device" message.
+
+Unit tests: `utility/securedMessage/__tests__/LocalKeyTransfer.test.ts`. The project's `jest-expo` preset currently fails to load (missing `@react-native/jest-preset`), so run it with the inline config in `progress.md` (2026-09-28, session 2).
 
 ### `securedMessage/DevicePairingFunctionClient.ts`
 **Purpose**: Shared low-level caller for the `device-pairing` Supabase Edge Function, used by both `RemoteDevicePairing.ts` and `LocalPairingCode.ts`.
@@ -253,12 +266,13 @@ Also exports `isPairInitPayload()` / `isPairDataPayload()` type guards, likewise
 **Export**: `invokeDevicePairing<T>(action, payload)` — invokes the function with `{ action, ...payload }`, normalizes error extraction from both a non-2xx response and a `{ error }` field on an HTTP-200 body (the latter exists so "soft failure" responses like the local code's lockout countdown carry structured data instead of being swallowed as a thrown error), and throws an `Error` with the server's message on failure.
 
 ### `securedMessage/LocalPairingCode.ts`
-**Purpose**: Client for the same-room, 4-digit pairing-code gate that sits in front of the QR key-sharing flow (see `documentation/app/tabs/managekeys/PairingCode.md` / `EnterPairingCode.md`). Added 2026-09-15 (commit `3104094`). Carries no key material itself — purely a physical-proximity check.
+**Purpose**: Client for the same-room, 4-digit pairing-code gate that sits in front of the QR key-sharing flow (see `documentation/app/tabs/managekeys/PairingCode.md` / `EnterPairingCode.md`). Added 2026-09-15 (commit `3104094`). Since 2026-09-28 it also carries the new device's one-time **public** key and its proof, but never a secret.
 
 **Export**: `LocalPairingCode` object, calling the `local-code-*` device-pairing Edge Function actions via `invokeDevicePairing`:
 - `create(deviceRowId)` — old device: request a fresh 4-digit code
 - `status()` — either device: poll the account's current code state
-- `verify(deviceRowId, code)` — new device: submit the digits; returns `verified`, or `locked` with `retryAfterSeconds`, or `attemptsRemaining`
+- `verify(deviceRowId, code, ephemeralPublicKey, keyProof)` — new device: submit the digits with the one-time public key and proof; returns `verified`, or `locked` with `retryAfterSeconds`, or `attemptsRemaining`
+- `status()` also returns `requesterEphemeralPublicKey` / `requesterKeyProof` once the code is verified
 - `cancel(deviceRowId)` — old device: invalidate the code immediately
 
 ### `securedMessage/RemoteDevicePairing.ts`
@@ -363,7 +377,7 @@ This is also what brings conversations back after a vault recovery, since the va
 - `Profile`: User profile type from database
 - `UserContextType`: User context interface
 - `KeyObject`: the key-sync payload (`req`, `userId`, `validTime`, `private_key`, `list` of `{id, key}`) — what gets sealed and transported by either pairing flow
-- `PairInitPayload` / `PairDataPayload`: the two-QR ECDH handshake's payload shapes — unused since commit `4e02cce` removed that handshake from `ManageKeys`/`ScanningKeys` (see `DevicePairing.ts` above)
+- `PairInitPayload` / `PairDataPayload`: one-time key announcement / sealed key QR. `PairDataPayload` is what `ManageKeys` shows and `ScanningKeys` accepts since 2026-09-28 (see `DevicePairing.ts` above).
 
 **Fields**:
 - User: id, email, user_metadata, app_metadata, timestamps

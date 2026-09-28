@@ -2,6 +2,8 @@ appId: com.phuocng23000.sdchat
 tags:
   - auth
 ---
+# Inputs: the gluestack Input wrapper hides the TextInput's testID and (on iOS)
+# its placeholder, so tap the field below its label instead.
 # Covers: sign-up with "Confirm email" on -> generic "Registration received"
 # message -> logging in before confirming is refused with "confirm your email
 # first" -> resend button with its 60 s cooldown -> confirming lets the login
@@ -16,11 +18,15 @@ tags:
     timeout: 50000
 
 - runScript: scripts/create-inbox.js
-- tapOn: { id: "email-input" }
+- tapOn:
+    text: "Input Field|Enter your email"
+    below: "Email"
 - inputText: ${output.INBOX_EMAIL}
-- tapOn: { id: "password-input" }
+- tapOn:
+    text: "Input Field|Enter your password"
+    below: "Password"
 - inputText: ${MAESTRO_PASSWORD}
-- hideKeyboard
+- runFlow: subflows/dismiss-keyboard.yaml
 
 - tapOn: { id: "register-button" }
 - extendedWaitUntil:

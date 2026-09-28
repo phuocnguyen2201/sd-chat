@@ -93,6 +93,11 @@ export const DevicePairing = {
     return ephemeralKeyPair !== null;
   },
 
+  /** Base64 public half of the pending one-time key pair, or null when none. */
+  publicKey(): string | null {
+    return ephemeralKeyPair ? MessageEncryption.bytesToBase64(ephemeralKeyPair.publicKey) : null;
+  },
+
   /** Wipe the in-memory ephemeral key pair (cancel, timeout, or unmount). */
   reset(): void {
     if (ephemeralKeyPair) {

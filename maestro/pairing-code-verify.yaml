@@ -3,8 +3,10 @@ appId: com.phuocng23000.sdchat
 # Covers: the same-room pairing gate's happy path. The server doesn't care
 # which of the account's devices enters the code, so one device can show the
 # code (PairingCode) and then enter it (EnterPairingCode) itself. A correct
-# code hands off to ScanningKeys; the QR scan itself needs a second device and
-# isn't covered.
+# code hands off to ScanningKeys, which now holds the one-time key the key QR
+# will be sealed to and shows its pairing check. The QR scan itself needs a
+# second device and isn't covered (the sealing is unit-tested in
+# utility/securedMessage/__tests__/LocalKeyTransfer.test.ts).
 - launchApp
 - assertVisible: "Chat.*"
 - runFlow: subflows/open-manage-keys.yaml
@@ -24,6 +26,7 @@ appId: com.phuocng23000.sdchat
 - extendedWaitUntil:
     visible: "On your other device, tap \"Share Keys\" and scan the code it shows."
     timeout: 15000
+- assertVisible: "Pairing check: [0-9A-F]{4}"
 - assertVisible: "No other device to scan from?"
 - assertVisible: "Recover from backup"
 - assertNotVisible: "Delete this account"

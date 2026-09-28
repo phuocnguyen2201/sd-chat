@@ -74,6 +74,10 @@ function generateDigitCode(): string {
   return code;
 }
 
+// Standard base64 of exactly 32 bytes: the new device's one-time X25519
+// public key, and the HMAC-SHA256 that binds it to the pairing code.
+const BASE64_32_BYTES = /^[A-Za-z0-9+/]{43}=$/;
+
 async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   return Array.from(new Uint8Array(digest))
@@ -423,7 +427,7 @@ async function actionLocalCodeCreate(userId: string, body: any) {
 async function actionLocalCodeStatus(userId: string) {
   const { data: row, error } = await db
     .from("local_pairing_codes")
-    .select("id, status, expires_at, locked_until, attempts, verified_by_device_id")
+    .select("id, status, expires_at, locked_until, attempts, verified_by_device_id, requester_ephemeral_pub, requester_key_proof")
     .eq("user_id", userId)
     .in("status", ["pending", "verified"])
     .order("created_at", { ascending: false })
@@ -457,14 +461,26 @@ async function actionLocalCodeStatus(userId: string) {
     lockedUntil: row.locked_until,
     attempts: row.attempts,
     verifiedByDeviceName,
+    // Public values: the old device checks the proof against the code it
+    // showed, then seals the key QR to this key.
+    requesterEphemeralPublicKey: row.status === "verified" ? row.requester_ephemeral_pub : null,
+    requesterKeyProof: row.status === "verified" ? row.requester_key_proof : null,
   });
 }
 
 async function actionLocalCodeVerify(userId: string, body: any) {
-  const { deviceId, code } = body;
+  const { deviceId, code, ephemeralPublicKey, keyProof } = body;
   const trimmedCode = typeof code === "string" ? code.trim() : "";
   if (!isNonEmptyString(deviceId) || !/^\d{4}$/.test(trimmedCode)) {
     return json({ error: "deviceId and a 4-digit code are required" }, 400);
+  }
+  // The old device seals the key QR to this key (security #4). Older app
+  // versions don't send it and would only get a plaintext QR, so refuse them.
+  if (
+    typeof ephemeralPublicKey !== "string" || !BASE64_32_BYTES.test(ephemeralPublicKey) ||
+    typeof keyProof !== "string" || !BASE64_32_BYTES.test(keyProof)
+  ) {
+    return json({ error: "Update SD Chat on this device to pair it" }, 400);
   }
   if (!(await assertOwnDevice(userId, deviceId))) {
     return json({ error: "Unknown device" }, 403);
@@ -511,6 +527,8 @@ async function actionLocalCodeVerify(userId: string, body: any) {
   if (matched) {
     updatePayload.status = "verified";
     updatePayload.verified_by_device_id = deviceId;
+    updatePayload.requester_ephemeral_pub = ephemeralPublicKey;
+    updatePayload.requester_key_proof = keyProof;
   } else if (newAttempts >= LOCAL_CODE_MAX_ATTEMPTS) {
     updatePayload.locked_until = new Date(now + LOCAL_CODE_LOCKOUT_MS).toISOString();
   }
