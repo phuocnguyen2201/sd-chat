@@ -1,0 +1,10 @@
+appId: com.phuocng23000.sdchat
+---
+# Local flows: make a fresh mail.tm inbox, then register-and-confirm with it.
+# Needs: MAESTRO_PASSWORD, MAESTRO_SUPABASE_URL, MAESTRO_SUPABASE_KEY.
+- runScript: ../scripts/create-inbox.js
+- runFlow:
+    file: register-and-confirm.yaml
+    env:
+      EMAIL: ${output.INBOX_EMAIL}
+      INBOX_PASSWORD: ${output.INBOX_PASSWORD}

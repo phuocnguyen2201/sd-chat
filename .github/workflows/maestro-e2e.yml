@@ -97,9 +97,13 @@ jobs:
 
       - name: Run Maestro on emulator
         uses: reactivecircus/android-emulator-runner@v2
+        # The account's email is a mail.tm inbox made by run-maestro.sh, so the
+        # sign-up confirmation email can be read (example.com would bounce).
         env:
-          EMAIL: sdchat-ci-${{ github.run_id }}-${{ github.run_attempt }}@example.com
           PASSWORD: ${{ secrets.MAESTRO_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          # Must be the publishable key (sb_publishable_...), same as the app build.
+          SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
         with:
           api-level: 34
           target: google_apis

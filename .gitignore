@@ -44,5 +44,4 @@ ios/
 
 /brag-output
 /.agents
-
-google-services.json
+/supabase/migrations

@@ -3,8 +3,25 @@
 # Flows share state (logged-in account, the DM with "Android Simulator"),
 # so order matters and each flow runs as its own `maestro test` call.
 # Every flow runs even if an earlier one fails; teardown always runs.
-# Requires EMAIL and PASSWORD in the environment.
+# Requires PASSWORD, SUPABASE_URL and SUPABASE_KEY (publishable) in the environment.
 set -uo pipefail
+
+# Sign-up needs a confirmed email, so the run's account is a throwaway mail.tm
+# inbox that maestro/scripts/confirm-email.js can read. Created here, not in a
+# flow, because every flow is its own `maestro test` call and needs the address.
+MAILTM=https://api.mail.tm
+MAILTM_DOMAIN=$(curl -fsS "$MAILTM/domains" | jq -r '.["hydra:member"][0].domain') || {
+  echo "::error::mail.tm unavailable; cannot create a confirmable test account."
+  exit 1
+}
+EMAIL="sdchat-ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$RANDOM@$MAILTM_DOMAIN"
+INBOX_PASSWORD=$(openssl rand -hex 16)
+curl -fsS -X POST "$MAILTM/accounts" -H 'Content-Type: application/json' \
+  -d "{\"address\":\"$EMAIL\",\"password\":\"$INBOX_PASSWORD\"}" > /dev/null || {
+  echo "::error::Could not create mail.tm inbox $EMAIL."
+  exit 1
+}
+echo "CI account: $EMAIL"
 
 OUT=maestro-results
 mkdir -p "$OUT"
@@ -24,6 +41,8 @@ trap 'kill "$LOGCAT_PID" 2>/dev/null' EXIT
 #                                  pick specific files from the device's gallery
 #   create-account-without-picutre-enable-biometric-authentication.yaml
 #                                  needs an enrolled fingerprint
+#   signup-unconfirmed.yaml, delete-account.yaml
+#                                  register extra throwaway accounts
 FLOWS=(
   maestro/send-messages.yaml
   maestro/send-emojies.yaml
@@ -45,6 +64,8 @@ run_flow() {
   echo "::group::$name"
   maestro test "$flow" \
     -e MAESTRO_EMAIL="$EMAIL" -e MAESTRO_PASSWORD="$PASSWORD" -e MAESTRO_USER="$USER" \
+    -e MAESTRO_INBOX_PASSWORD="$INBOX_PASSWORD" \
+    -e MAESTRO_SUPABASE_URL="$SUPABASE_URL" -e MAESTRO_SUPABASE_KEY="$SUPABASE_KEY" \
     --format junit --output "$OUT/$name.xml" \
     --test-output-dir "$OUT/$name"
   local status=$?

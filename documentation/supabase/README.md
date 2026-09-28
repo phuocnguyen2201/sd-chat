@@ -8,7 +8,10 @@ The `supabase` folder contains configuration and serverless functions for the Su
 ```
 supabase/
 ├── .gitignore          # Git ignore rules for Supabase files
-├── config.toml         # Supabase local development configuration
+├── config.toml         # Supabase local development configuration (auth: confirmations on, 60 s resend, password policy)
+├── templates/
+│   └── confirmation.html  # "Confirm signup" email: links to confirm-page/ with a token_hash
+├── migrations/         # Tracked migrations (delete-own-messages, push webhook secret, profiles-on-signup)
 └── functions/
     ├── push/
     │   ├── .npmrc       # NPM configuration
@@ -204,6 +207,21 @@ Four tables, all added via hand-run SQL (not currently tracked under `supabase/m
 **`local_pairing_codes`** — added 2026-09-15 (commit `3104094`) for the same-room pairing-code gate: `user_id`, `issued_by_device_id`, `code_hash` (never the plaintext code), `status` (`pending → verified`, plus `expired`), `expires_at`, `attempts`, `locked_until`, `verified_by_device_id`. Same RLS rationale as `device_pairing_requests` — **no client-facing policies**; every read/write goes through the `local-code-*` actions above. A partial unique index limits one active (`pending`/`verified`) code per account.
 
 **`key_backups`** — added 2026-09-22 for the key vault, migration at `sd-chat-vault/supabase/migrations/20260922000000_key_backups.sql`, **not applied yet**. One row per account: the scrypt parameters (`kdf_n`/`kdf_r`/`kdf_p`, `kdf_salt`) and `nonce` needed to re-derive the sealing key, plus `vault_ref` and `blob_version`. **No key material and no passphrase** — none of it is secret on its own, and none of it is any use without the passphrase, which is stored nowhere. The sealed key itself lives outside Supabase entirely, on the vault service (`sd-chat-vault/`). RLS: `auth.uid() = user_id` for all four verbs, so the client reads and writes it directly. `on delete cascade` from `profiles`, so the row goes when the account does — the blob on the vault does not, which is why `deleteAccountAndLocalData` deletes it explicitly before signing out.
+
+### Auth: sign-up and email confirmation
+
+- "Confirm email" is **on**. `signUp` returns no session until the email is confirmed, so the client can't insert into `profiles` (RLS `auth.uid() = id`).
+- **`on_auth_user_created`** trigger → `public.handle_new_user()` (migration `20260928000000_profiles_on_signup.sql`): `SECURITY DEFINER`, `search_path = ''`, EXECUTE revoked from `public`/`anon`/`authenticated`.
+  - It inserts `profiles(id, username, public_key)`.
+  - `public_key` comes from `raw_user_meta_data.public_key` and is only accepted if it is a 44-char base64 X25519 key (otherwise `null`).
+  - `username` is the email local part. On a `UNIQUE(username)` collision it becomes `<name>_<8 hex of id>`, so sign-up never fails on it and never reveals that a name is taken.
+- The confirmation email (`templates/confirmation.html`) links to the static page `confirm-page/` with `?token_hash=…&type=email`. The page calls `verifyOtp` on a button tap, then revokes the session. See `documentation/confirm-page/README.md`.
+- Dashboard settings that must match config.toml:
+  - Site URL / Redirect URLs = the page's exact URL.
+  - The template.
+  - Resend interval.
+  - Password policy.
+  - Steps in `need-action.md`.
 
 ### The key vault (outside Supabase)
 

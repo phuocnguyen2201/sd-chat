@@ -11,27 +11,43 @@ export const authAPI = {
     email: string, 
     password: string,
     public_key: string
-  ): Promise<ApiResponse<{ user: any }>> {
+  ): Promise<ApiResponse<{ user: any; isNewUser: boolean; hasSession: boolean }>> {
     try {
+      /*
+        The profile row is created by the on_auth_user_created trigger from this
+        metadata. With email confirmation on there is no session yet, so the app
+        can't insert it itself (RLS).
+      */
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: { data: { public_key } },
       })
       
     if (authError) throw authError
     if (!authData.user) {
       throw new Error('User creation failed - no user returned')
     }
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: authData.user.id, // Use the same ID from auth
-        public_key: public_key,
-        username: email?.split('@')[0] as string || '',
-        created_at: new Date().toISOString()
-      })
-    if (profileError) throw profileError
-      return { data: { user: authData.user }, error: null }
+    /*
+      For an email that is already registered Supabase returns an obfuscated
+      user with no identities (and sends nothing), so callers can't tell the
+      difference - and must not file a private key under that fake id.
+    */
+    const isNewUser = (authData.user.identities?.length ?? 0) > 0
+      return {
+        data: { user: authData.user, isNewUser, hasSession: !!authData.session },
+        error: null,
+      }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
+  },
+
+  async resendConfirmation(email: string): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email })
+      if (error) throw error
+      return { data: null, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }

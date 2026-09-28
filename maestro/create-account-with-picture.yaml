@@ -6,28 +6,11 @@ appId: com.phuocng23000.sdchat
     timeout: 50000
 - assertVisible: "Email"
 - assertVisible: "Password"
-- tapOn: 
-    point: '50%, 40%'
-- inputRandomEmail
-- tapOn: 
-    point: '50%, 50%'
-- inputText: ${MAESTRO_PASSWORD}
-
-- runFlow:
-    when: 
-        platform: "iOS"
-    commands: 
-        - assertVisible: ".*Return.*"
-        - tapOn: ".*Return.*"
-        - assertNotVisible: ".*Return.*"
-
-- tapOn: "Register"
-- assertVisible: "Notification.*"
-- assertVisible: ".*Registration successful!.*"
-- assertVisible: ".*Okay.*"
-- tapOn: "Okay"
-- tapOn: "Login"
-- assertVisible: "Complete the profile"
+# Register with a fresh mail.tm inbox, confirm the email, log in
+- runFlow: subflows/new-inbox-register-and-confirm.yaml
+- extendedWaitUntil:
+    visible: "Complete the profile"
+    timeout: 20000
 - assertVisible: "Input Field"
 - tapOn: "Input Field"
 - inputRandomCityName

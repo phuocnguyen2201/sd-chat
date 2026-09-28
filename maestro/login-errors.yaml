@@ -1,6 +1,7 @@
 appId: com.phuocng23000.sdchat
 ---
-# Covers: login screen validation and a rejected sign-in.
+# Covers: login and sign-up form validation and a rejected sign-in.
+# The unconfirmed-email case lives in signup-unconfirmed.yaml.
 #
 # NOTE: starts with clearState, which wipes this device's copy of ${EMAIL}'s
 # private key. Run recover-key-from-backup.yaml (after backup-key.yaml) next
@@ -18,6 +19,42 @@ appId: com.phuocng23000.sdchat
 - tapOn: "Register"
 - assertVisible: "Please enter both email and password"
 - tapOn: { id: "accept-button" }
+
+# Sign-up validation (runs before anything is sent)
+- tapOn: { id: "email-input" }
+- inputText: "not-an-email"
+- tapOn: { id: "password-input" }
+- inputText: "long-enough-123"
+- hideKeyboard
+- tapOn: { id: "register-button" }
+- assertVisible: "Please enter a valid email address"
+- tapOn: { id: "accept-button" }
+
+- tapOn: { id: "email-input" }
+- eraseText
+- inputText: "someone@example.com"
+- tapOn: { id: "password-input" }
+- eraseText
+- inputText: "short"
+- hideKeyboard
+- tapOn: { id: "register-button" }
+- assertVisible: "Password must be at least 8 characters"
+- tapOn: { id: "accept-button" }
+
+- tapOn: { id: "password-input" }
+- eraseText
+- inputText: "alllowercase1"
+- hideKeyboard
+- tapOn: { id: "register-button" }
+- assertVisible: "Password must include an uppercase letter, a symbol"
+- tapOn: { id: "accept-button" }
+
+# Clear both fields for the login checks below
+- tapOn: { id: "email-input" }
+- eraseText
+- tapOn: { id: "password-input" }
+- eraseText
+- hideKeyboard
 
 # Email only
 - tapOn: "Enter your email"

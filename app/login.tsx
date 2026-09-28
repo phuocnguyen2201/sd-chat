@@ -21,6 +21,30 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { inputFocusClassName } from '@/constants/inputStyles';
+const EMAIL_NOT_CONFIRMED = 'email_not_confirmed';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Only enforced on sign-up; older accounts may have weaker passwords. Mirrors
+// the project's Auth policy (length + lower/upper/digit/symbol) so users get a
+// readable message instead of the server's character list.
+const MIN_PASSWORD_LENGTH = 8;
+const RESEND_COOLDOWN_SECONDS = 60;
+const SIGN_UP_SENT_MESSAGE =
+  "Registration received! If this email can be registered, we've sent a confirmation link to it. Open the link, then come back and log in.";
+const PASSWORD_RULES: { test: RegExp; label: string }[] = [
+  { test: /[a-z]/, label: 'a lowercase letter' },
+  { test: /[A-Z]/, label: 'an uppercase letter' },
+  { test: /[0-9]/, label: 'a number' },
+  { test: /[^A-Za-z0-9]/, label: 'a symbol' },
+];
+
+function passwordProblem(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  const missing = PASSWORD_RULES.filter((rule) => !rule.test.test(password)).map((rule) => rule.label);
+  return missing.length ? `Password must include ${missing.join(', ')}` : null;
+}
+
 /**
  * Login Screen
  * 
@@ -34,6 +58,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Email waiting for confirmation; shows the resend button.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const router = useRouter();
   const { refreshProfile } = useSession();
 
@@ -61,9 +88,16 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const msg = await authAPI.signIn(email, password);
+      const msg = await authAPI.signIn(email.trim(), password);
       if (msg?.error) {
-        setMessage(msg.error.message);
+        if ((msg.error as { code?: string }).code === EMAIL_NOT_CONFIRMED) {
+          setPendingEmail(email.trim());
+          setMessage(
+            'Please confirm your email first. Open the link we sent you, then log in again. You can request a new link below.'
+          );
+        } else {
+          setMessage(msg.error.message);
+        }
       } else if (msg.data?.user) {
         // Refresh profile to update session state
         await refreshProfile();
@@ -79,28 +113,55 @@ export default function Login() {
   };
 
   const signUpAsync = async () => {
-    if (!email.trim() || !password.trim()) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password.trim()) {
       setMessage('Please enter both email and password');
+      return;
+    }
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      setMessage('Please enter a valid email address');
+      return;
+    }
+    const problem = passwordProblem(password);
+    if (problem) {
+      setMessage(problem);
       return;
     }
 
     setIsLoading(true);
     try {
       const masterKey = await MessageEncryption.generateKeyPair();
-      const msg = await authAPI.signUp(email, password, masterKey.publicKey);
+      const msg = await authAPI.signUp(trimmedEmail, password, masterKey.publicKey);
       if (msg?.error) {
         setMessage(msg.error.message);
       } else if (msg.data?.user) {
         /*
           The account exists now, so the private key finally has a user id to be
           filed under. Nothing is persisted before this point, which is why a
-          failed sign-up no longer has to clean a key up.
+          failed sign-up no longer has to clean a key up. An already-registered
+          email comes back as a fake user (isNewUser false): no key for that id.
+          Registering again before confirming returns the same real user, whose
+          profile already holds the first public key - keep the first private key.
         */
-        MessageEncryption.setPrivateKey(
-          msg.data.user.id,
-          MessageEncryption.base64ToBytes(masterKey.privateKey)
-        );
-        setMessage('Registration successful! Please check your email to verify your account.');
+        if (msg.data.isNewUser && !MessageEncryption.getPrivateKey(msg.data.user.id)) {
+          MessageEncryption.setPrivateKey(
+            msg.data.user.id,
+            MessageEncryption.base64ToBytes(masterKey.privateKey)
+          );
+        }
+        if (msg.data.hasSession) {
+          // Email confirmation is off: already signed in.
+          await refreshProfile();
+          router.replace('/Bootstrap');
+          return;
+        }
+        /*
+          Same wording whether or not the email was already registered, so the
+          form can't be used to find out who has an account.
+        */
+        setPendingEmail(trimmedEmail);
+        startResendCooldown();
+        setMessage(SIGN_UP_SENT_MESSAGE);
       }
     } catch (error) {
       setMessage('An error occurred during registration. Please try again.');
@@ -109,6 +170,31 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
+  const startResendCooldown = () => setResendCooldown(RESEND_COOLDOWN_SECONDS);
+
+  const resendAsync = async () => {
+    if (!pendingEmail || resendCooldown > 0) return;
+
+    setIsLoading(true);
+    try {
+      const result = await authAPI.resendConfirmation(pendingEmail);
+      startResendCooldown();
+      setMessage(
+        result.error
+          ? 'Could not send a new link right now. Please wait a moment and try again.'
+          : 'If this email is waiting for confirmation, a new link is on its way.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   useEffect(() => {
     if (message) {
@@ -213,6 +299,24 @@ export default function Login() {
                   <ButtonText>{isLoading ? 'Loading...' : 'Register'}</ButtonText>
                 </Button>
               </VStack>
+              {pendingEmail && (
+                <VStack>
+                  <Button
+                    testID={automationLocatorsDataState.loginScreen.resendButton}
+                    className="p-0"
+                    size="md"
+                    variant="outline"
+                    onPress={resendAsync}
+                    disabled={isLoading || resendCooldown > 0}
+                  >
+                    <ButtonText>
+                      {resendCooldown > 0
+                        ? `Resend confirmation email (${resendCooldown}s)`
+                        : 'Resend confirmation email'}
+                    </ButtonText>
+                  </Button>
+                </VStack>
+              )}
             </VStack>
           </FormControl>
         </Box>

@@ -1,0 +1,35 @@
+appId: com.phuocng23000.sdchat
+---
+# From the login screen: register ${EMAIL}, confirm it through its mail.tm inbox
+# (scripts/confirm-email.js does what confirm-page/ does), then log in.
+# Stops right after tapping Login - Bootstrap then opens "Complete the profile".
+#
+# Needs: EMAIL + INBOX_PASSWORD (a mail.tm inbox: scripts/create-inbox.js, or
+# made by .github/scripts/run-maestro.sh in CI), MAESTRO_PASSWORD,
+# MAESTRO_SUPABASE_URL, MAESTRO_SUPABASE_KEY (publishable key).
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+- tapOn: { id: "email-input" }
+- inputText: ${EMAIL}
+- tapOn: { id: "password-input" }
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+
+- tapOn: { id: "register-button" }
+- extendedWaitUntil:
+    visible: ".*Registration received!.*"
+    timeout: 20000
+- tapOn: { id: "accept-button" }
+# The resend button only exists while a confirmation is pending
+- assertVisible: { id: "resend-button" }
+
+- runScript:
+    file: ../scripts/confirm-email.js
+    env:
+      INBOX_EMAIL: ${EMAIL}
+      INBOX_PASSWORD: ${INBOX_PASSWORD}
+      SUPABASE_URL: ${MAESTRO_SUPABASE_URL}
+      SUPABASE_KEY: ${MAESTRO_SUPABASE_KEY}
+
+- tapOn: { id: "sign-in-button" }

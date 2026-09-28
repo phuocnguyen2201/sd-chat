@@ -6,7 +6,7 @@ This folder documents the current Expo Router application under `app/`.
 
 - [`index.tsx`](../../app/index.tsx) redirects the root route to [`Bootstrap.tsx`](../../app/Bootstrap.tsx).
 - [`Bootstrap.tsx`](Bootstrap.md) restores the session, initializes push notifications for authenticated users, and selects the next route.
-- [`login.tsx`](../../app/login.tsx) handles sign-in and registration. It returns to `Bootstrap` after sign-in.
+- [`login.tsx`](../../app/login.tsx) handles sign-in and registration. It returns to `Bootstrap` after sign-in. Registration requires a confirmed email. The link opens the browser page in [`confirm-page/`](../confirm-page/README.md), and the user logs in afterwards. There is no deep link back into the app. Sign-up checks the email format and the password policy, shows the same message whether or not the email already exists, and offers **Resend confirmation email** (60 s cooldown) after sign-up or after an `email_not_confirmed` login.
 - [`CompleteProfile.tsx`](../../app/CompleteProfile.tsx) collects the required display name and optional avatar.
 - [`tabs/_layout.tsx`](../../app/tabs/_layout.tsx) registers the chat, message, and key-management stack routes.
 
@@ -54,6 +54,7 @@ Push notification registration and notification response handling are centralize
 
 ## Current caveats
 
+- If the app is reinstalled between sign-up and the first login (after confirming), the private key generated at sign-up is lost. No messages exist yet, so there is nothing to recover, but the account's `public_key` no longer matches any device. It's tracked in `in-progress.md`.
 - The app currently has `Chat` and `Settings` bottom tabs; key-management and message screens are stack routes.
 - **`ManageKeys` / `ScanningKeys` exchange a single QR containing the plaintext private key again** (commit `4e02cce`, 2026-09-16) — the brief two-QR ephemeral-ECDH handshake (sealed ciphertext, never a raw key on screen) was removed. The only remaining protection before a QR is generated is the `PairingCode`/`EnterPairingCode` same-room 4-digit code gate plus a 30s QR display window. See `tabs/managekeys/ManageKeys.md` and `ScanningKeys.md` for the full flow and the security-model note. `utility/securedMessage/DevicePairing.ts` (the removed handshake's crypto) is left in the tree unused.
 - A second, server-relayed pairing transport exists (`device-pairing` Supabase Edge Function + `RemoteDevicePairing.ts`, for syncing devices that aren't physically together) but has no screen wired to it yet — only the local QR flow is reachable from the UI today.

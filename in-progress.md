@@ -1,5 +1,14 @@
 # In Progress / Open Items
 
+## Email confirmation (2026-09-28): code done, deploy and config pending (steps in need-action.md)
+1. **#15 Critical:** swap `.env` `EXPO_PUBLIC_SUPABASE_KEY` to the publishable key, then rotate the secret key.
+2. Apply `20260928000000_profiles_on_signup.sql`. Sign-up is broken in production until this is done.
+3. Host `confirm-page/`, set Site URL and the exact redirect URL, paste the email template, set the resend interval and min length in the dashboard, and replace `CONFIRM_PAGE_HOST` in config.toml.
+4. Run the Maestro auth flows on an emulator (`signup-unconfirmed`, `login-errors`, `delete-account`, `ci/setup-account`). The scripts are verified, the app flows aren't.
+5. mail.tm rate-limits inbox creation (a 429 was seen after 2 inboxes in about a minute). If CI flakes on it, add a retry in `run-maestro.sh`, or switch CI to a pre-confirmed fixed account.
+6. Delete the two `sdchat-e2e-probe-*@uberip.com` users.
+7. Later: if the app is reinstalled between sign-up and first login, the private key is lost (nothing to recover yet). Consider "regenerate identity key on first login if no conversations". Also #18 (email local part as the public username).
+
 ## Security re-scan pass 2 (2026-09-26): new live-DB findings, full detail in security-scan.md
 Fix in this order. Nothing has been changed yet:
 1. **#9 Critical**: lock down `conversation_participants` RLS (currently `true` for SELECT/INSERT/UPDATE/DELETE). Any user can insert themselves into any chat, and a member's device then backfills the conversation key to them. Write it as a migration file.

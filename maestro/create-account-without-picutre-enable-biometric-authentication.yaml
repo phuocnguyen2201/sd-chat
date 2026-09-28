@@ -3,19 +3,11 @@ appId: "com.phuocng23000.sdchat"
 - extendedWaitUntil: 
     visible: "Authentication.*"
     timeout: 50000
-- tapOn: "Enter your email"
-- inputRandomEmail
-- tapOn: "Enter your password"
-- inputText: ${MAESTRO_PASSWORD}
-- tapOn: "Register"
+# Register with a fresh mail.tm inbox, confirm the email, log in
+- runFlow: subflows/new-inbox-register-and-confirm.yaml
 - extendedWaitUntil:
-    visible:
-        point: 10%,41%
-    timeout: 10000
-- assertVisible: "Okay"
-- tapOn: "Okay"
-- tapOn: "Login"
-- assertVisible: "Input Field"
+    visible: "Input Field"
+    timeout: 20000
 - tapOn: "Input Field"
 - inputRandomPersonName
 - tapOn: "Save"

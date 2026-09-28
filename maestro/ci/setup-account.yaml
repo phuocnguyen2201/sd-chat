@@ -1,22 +1,18 @@
 appId: com.phuocng23000.sdchat
 ---
-# CI only: register a fresh account for this run (${MAESTRO_EMAIL} is unique per
-# workflow run) and land on the Chat screen, so the rest of the suite starts
+# CI only: register and confirm a fresh account for this run (${MAESTRO_EMAIL} is
+# unique per workflow run) and land on the Chat screen, so the rest of the suite starts
 # logged in with this device holding the account's keys.
 # Same steps as delete-account.yaml's registration half.
 - launchApp:
     clearState: true
-- assertVisible: "Authentication"
-- tapOn: "Enter your email"
-- inputText: ${MAESTRO_EMAIL}
-- tapOn: "Enter your password"
-- inputText: ${MAESTRO_PASSWORD}
-- hideKeyboard
-
-- tapOn: "Register"
-- assertVisible: ".*Registration successful!.*"
-- tapOn: "Okay"
-- tapOn: "Login"
+# ${MAESTRO_EMAIL} is a mail.tm inbox run-maestro.sh created for this run, so
+# the confirmation email can be read and the account confirmed.
+- runFlow:
+    file: ../subflows/register-and-confirm.yaml
+    env:
+      EMAIL: ${MAESTRO_EMAIL}
+      INBOX_PASSWORD: ${MAESTRO_INBOX_PASSWORD}
 
 - extendedWaitUntil:
     visible: "Complete the profile"

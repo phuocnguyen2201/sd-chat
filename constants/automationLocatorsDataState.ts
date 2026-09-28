@@ -4,6 +4,7 @@ export const automationLocatorsDataState = {
         passwordInput: 'password-input',
         signInButton: 'sign-in-button',
         registerButton: 'register-button',
+        resendButton: 'resend-button',
         notificationDialog: 'notification-dialog',
         successNotification: 'success-notification',
         errorNotification: 'error-notification',

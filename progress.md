@@ -1,5 +1,29 @@
 # Progress Log
 
+## 2026-09-28 — Email confirmation through a browser page (no deep link)
+
+- Plan: `~/.claude/plans/i-enable-email-authentication-quiet-quokka.md`. The confirmation link opens a static page (`confirm-page/`) instead of deep-linking into the app. The user then logs in.
+- **Found and fixed (code):** with "Confirm email" ON, sign-up was broken. `signUp` returns no session, so the app's `profiles` insert failed RLS. The new trigger `on_auth_user_created` (`supabase/migrations/20260928000000_profiles_on_signup.sql`) creates the profile from a validated `public_key` in the sign-up metadata. It handles the `UNIQUE(username)` collision (`john@a` / `john@b`), which would otherwise fail sign-up and leak that the name exists. Tested against the live schema in a rolled-back transaction. **Not applied.**
+- `authAPI.signUp`: sends `options.data.public_key`, no client insert. Returns `isNewUser` (false for Supabase's obfuscated existing-email user) and `hasSession`. New `authAPI.resendConfirmation`.
+- `app/login.tsx`:
+  - Sign-up checks email format and the live password policy (8+, lower/upper/digit/symbol).
+  - Same message whether or not the email exists, and no private key is stored for a fake user.
+  - "Resend confirmation email" button (`resend-button`) with a 60 s cooldown.
+  - An `email_not_confirmed` login gets a clear message plus resend.
+- `confirm-page/`: `index.html`, `confirm.js`, `style.css`, `config.js` (URL + publishable key), vendored `supabase-2.89.0.js`, `_headers`.
+  - Behaviour: token stripped on load, verify only on a tap, session revoked afterwards, strict CSP, `no-referrer`.
+  - Tested: headless Chrome showed no CSP errors and no auto-verify; the verify endpoint rejects a bogus token.
+- `supabase/config.toml`: confirmations on, 60 s resend, min 8 chars + character classes, `site_url` placeholder, confirmation template `supabase/templates/confirmation.html`.
+- Maestro (per the `maestro-mobile-testing` skill):
+  - New `scripts/create-inbox.js` and `scripts/confirm-email.js` (GraalJS): a mail.tm inbox, then the same verify-and-revoke steps as the page.
+  - New subflows `register-and-confirm.yaml` and `new-inbox-register-and-confirm.yaml`, using testID selectors.
+  - Rewired the `create-account-*`, `delete-account` and `ci/setup-account` flows.
+  - New `signup-unconfirmed.yaml`. `login-errors.yaml` gained the sign-up validation cases.
+  - CI: `run-maestro.sh` makes a mail.tm inbox for the run (example.com would bounce off your SMTP), and the workflow passes URL and key to the e2e job.
+  - **Verified live** through the Maestro chromium device: two real probe sign-ups got confirmed, and the second left 0 sessions. No emulator was running, so the app flows themselves haven't been run yet.
+- **Security (pass 3 in security-scan.md):** new **#15 Critical**. The local `.env` gives the app client an `sb_secret_` key, so local builds bypass RLS. Changing `.env` was blocked in-session; the user has to do it. #16–#19 also recorded.
+- Manual steps: `need-action.md`. `tsc`: no new errors (the 8 pre-existing ones in `components/`).
+
 ## 2026-09-27 — Local pairing code enforced on the server (security #6)
 
 - `device-pairing` `actionCreate` now requires a `verified`, unexpired `local_pairing_codes` row with `verified_by_device_id` = the requesting device, and deletes it in the same statement (one code opens one request; a concurrent create finds nothing). Otherwise 403 "Enter the pairing code from your other device first". No schema change (the status check has no "consumed" value, hence delete).

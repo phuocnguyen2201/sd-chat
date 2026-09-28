@@ -1,0 +1,10 @@
+# Cloudflare Pages / Netlify response headers (GitHub Pages ignores this file;
+# the same CSP and referrer policy are also set as <meta> tags in index.html).
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://kblseanmnntpxqzgmsho.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow

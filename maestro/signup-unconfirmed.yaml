@@ -1,0 +1,57 @@
+appId: com.phuocng23000.sdchat
+tags:
+  - auth
+---
+# Covers: sign-up with "Confirm email" on -> generic "Registration received"
+# message -> logging in before confirming is refused with "confirm your email
+# first" -> resend button with its 60 s cooldown -> confirming lets the login
+# through.
+#
+# Needs: MAESTRO_PASSWORD, MAESTRO_SUPABASE_URL, MAESTRO_SUPABASE_KEY.
+# Registers a throwaway mail.tm account; never the shared fixture.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Authentication.*"
+    timeout: 50000
+
+- runScript: scripts/create-inbox.js
+- tapOn: { id: "email-input" }
+- inputText: ${output.INBOX_EMAIL}
+- tapOn: { id: "password-input" }
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+
+- tapOn: { id: "register-button" }
+- extendedWaitUntil:
+    visible: ".*Registration received!.*"
+    timeout: 20000
+- tapOn: { id: "accept-button" }
+
+# Resend starts on cooldown right after sign-up
+- assertVisible:
+    id: "resend-button"
+    enabled: false
+- assertVisible: "Resend confirmation email \\(\\d+s\\)"
+
+# Not confirmed yet: login is refused with a clear message
+- tapOn: { id: "sign-in-button" }
+- extendedWaitUntil:
+    visible: ".*confirm your email first.*"
+    timeout: 15000
+- tapOn: { id: "accept-button" }
+- assertVisible: "Authentication.*"
+- assertNotVisible: "Complete the profile"
+
+# Confirm through the inbox, then the same login goes through
+- runScript:
+    file: scripts/confirm-email.js
+    env:
+      INBOX_EMAIL: ${output.INBOX_EMAIL}
+      INBOX_PASSWORD: ${output.INBOX_PASSWORD}
+      SUPABASE_URL: ${MAESTRO_SUPABASE_URL}
+      SUPABASE_KEY: ${MAESTRO_SUPABASE_KEY}
+- tapOn: { id: "sign-in-button" }
+- extendedWaitUntil:
+    visible: "Complete the profile"
+    timeout: 20000
