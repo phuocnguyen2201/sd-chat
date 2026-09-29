@@ -1,7 +1,7 @@
 // chat room can edit room name and avatar and 2 panels to display images and files
 import { useEffect, useState } from 'react';
 import { TextInput, TouchableOpacity, Text, Image, ScrollView } from 'react-native';
-import { useLocalSearchParams, useRouter, Link } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import { supabase } from '@/utility/connection';
 import { handleDeviceFilePath, storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
@@ -18,18 +18,14 @@ import { Spinner } from '@/components/ui/spinner';
 import { conversationAPI } from '@/utility/messages';
 import { Files, Message } from '@/utility/types/supabse';
 import { Grid, GridItem } from '@/components/ui/grid';
-import { LinkText } from '@/components/ui/link';
-import { Icon } from '@/components/ui/icon';
-import {
-  ArrowBigDown
-} from 'lucide-react-native';
 import { Card } from '@/components/ui/card';
 import { Heading } from '@/components/ui/heading';
 import ZoomImage from '@/components/ZoomImage';
+import EncryptedAttachment from '@/components/EncryptedAttachment';
 import { useSession } from '@/utility/session/SessionProvider';
 
 export default function ChatRoomEditing() {
-  const { user, isDarkMode } = useSession();
+  const { user, isDarkMode, getConversationKey } = useSession();
   const router = useRouter();
   const { conversation_id, displayName } = useLocalSearchParams<{
     conversation_id?: string;
@@ -43,6 +39,12 @@ export default function ChatRoomEditing() {
   const [modalVisible, setModalVisible] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState<string>('');
   const [isGroup, setIsGroup] = useState(false);
+  const [conversationKey, setConversationKey] = useState<Uint8Array | null>(null);
+
+  useEffect(() => {
+    if (!conversation_id) return;
+    getConversationKey(conversation_id).then(setConversationKey);
+  }, [conversation_id, getConversationKey]);
   const pickImage = async () => {
     handleDeviceFilePath.pickImageFromAlbumOrGallery().then((result) => {
       if (result != null)
@@ -167,40 +169,31 @@ export default function ChatRoomEditing() {
 
   },[avatarUri, messages])
 
-  const renderMessageContent = (m: Message, msgType: string, url: string) => {
+  const renderMessageContent = (m: Message, msgType: string) => {
     if (msgType.includes('image')) {
       return (
-        <TouchableOpacity
-          onPress={() => {
-            setActiveImageUrl(url);
+        <EncryptedAttachment
+          message={m}
+          file={m?.files?.[0] ?? null}
+          conversationKey={conversationKey}
+          kind="image"
+          onPressImage={(uri) => {
+            setActiveImageUrl(uri);
             setModalVisible(true);
           }}
-        >
-          <Image
-            source={{ uri: url }}
-            className="w-42 h-48 rounded-lg"
-            alt="image"
-          />
-        </TouchableOpacity>
+        />
       );
     }
 
     if (msgType.includes('file')) {
       return (
-        <Link
-          href={url as '/'}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <LinkText className={`${isDarkMode == 'dark' ? 'text-white' : 'text-black'} text-xl`}>
-            {m?.files?.[0]?.filename || ''}
-          </LinkText>
-          <Icon
-            as={ArrowBigDown}
-            size="lg"
-            className={`mt-0.5 text-info-600 ${isDarkMode == 'dark' ? 'text-white' : 'text-black'}`}
-          />
-        </Link>
+        <EncryptedAttachment
+          message={m}
+          file={m?.files?.[0] ?? null}
+          conversationKey={conversationKey}
+          kind="file"
+          isCurrentUser={isDarkMode === 'dark'}
+        />
       );
     }
 
@@ -257,21 +250,20 @@ export default function ChatRoomEditing() {
             }}
         >
 
-        {messages?.length > 0? messages.map((m, index) => {
+        {messages?.length > 0? messages.map((m) => {
             const msg_type = m.message_type? m.message_type : '';
-            const url = utilityFunction.buildFileUrl(m?.files?.[0] || null);
             return(
-                
-                <GridItem 
+
+                <GridItem
                     key={`${m.id}-${m.conversation_id}`}
                     className="bg-background-50 p-4 rounded-md text-center"
                     _extra={{
                     className: 'col-span-4',
                     }}
-                >   
-                    {renderMessageContent(m, msg_type, url)}
+                >
+                    {renderMessageContent(m, msg_type)}
                 </GridItem>
-                
+
             )
         }):
           <GridItem  

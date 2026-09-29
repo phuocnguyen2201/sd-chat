@@ -2,18 +2,18 @@ import { useEffect, useState, useRef } from 'react';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
-import { useLocalSearchParams, Link, useRouter, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { supabase } from '@/utility/connection';
-import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, Image, View, Keyboard } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, Pressable, Alert, View, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { storageAPIs, utilityFunction, filesAPI } from '@/utility/handleStorage';
 import ZoomImage from '@/components/ZoomImage';
-import { LinkText } from '@/components/ui/link';
-import { ArrowBigDown, ForwardIcon,
+import EncryptedAttachment from '@/components/EncryptedAttachment';
+import { ForwardIcon,
   MoveRightIcon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
@@ -405,12 +405,54 @@ export default function ChatScreen() {
 
   //Forward file or image message with file reference
   const forwardFileOrImageMessage = async (messageToForward: Message, forwardConversationId: string) => {
+    let newContent = messageToForward?.content;
+    let newNonce = messageToForward?.nonce;
+    let newWrappedKey = messageToForward?.wrapped_key;
+    let newKeyNonce = messageToForward?.key_nonce;
+
+    /*
+      An encrypted attachment's descriptor (name, mime, per-file key) is
+      wrapped for THIS room's conversation key, so it has to be opened here
+      and re-encrypted for the target conversation. The underlying ciphertext
+      blob in storage is untouched and reused via the files row below.
+      Attachments sent before encryption shipped have no nonce and are
+      forwarded as-is, same as today.
+    */
+    if (messageToForward?.nonce) {
+      if (!conversationKey) throw new Error('No conversation key for this room');
+      const descriptorJson = MessageEncryption.decryptMessage(
+        {
+          ciphertext: messageToForward.content ?? '',
+          nonce: messageToForward.nonce ?? '',
+          wrappedKey: messageToForward.wrapped_key ?? '',
+          keyNonce: messageToForward.key_nonce ?? '',
+        },
+        conversationKey
+      );
+
+      let forwardPartyKey = await getConversationKey(forwardConversationId);
+      if (!forwardPartyKey && userId) {
+        const lookup = await resolveConversationKey(forwardConversationId, userId);
+        if (lookup.status === 'found') forwardPartyKey = lookup.key;
+      }
+      if (!forwardPartyKey) throw new Error('No conversation key for forward target');
+
+      const encryptedDescriptor = MessageEncryption.encryptMessage(descriptorJson, forwardPartyKey);
+      newContent = encryptedDescriptor.ciphertext;
+      newNonce = encryptedDescriptor.nonce;
+      newWrappedKey = encryptedDescriptor.wrappedKey;
+      newKeyNonce = encryptedDescriptor.keyNonce;
+    }
+
     //Forward the message first and get the id for the new conversation.
     const newFwdMessage: Message = {
       sender_id: userId,
       conversation_id: forwardConversationId as string || '',
       message_type: messageToForward?.message_type,
-      content: messageToForward?.content,
+      content: newContent,
+      nonce: newNonce,
+      wrapped_key: newWrappedKey,
+      key_nonce: newKeyNonce,
       is_forward: true
     }
     // insert new message first
@@ -458,47 +500,37 @@ export default function ChatScreen() {
   const renderMessageContent = (m: Message, url: string, data: Files | null, isCurrentUser: boolean) => {
     // Image message
     if (m?.message_type?.includes('image')) {
-      if (url !== 'INACTIVE') {
-        return (
-          <Pressable
-            onPress={() => {
-              setActiveImageUrl(url);
-              setModalVisible(true);
-            }}
-            onLongPress={() => {
-              setShowReaction(true);
-              setActiveMessage(m.id ?? '');
-            }}
-          >
-            <Image
-              source={{ uri: url }}
-              className="w-48 h-48 rounded-lg"
-              alt="image"
-              onError={(e) => console.log('Image error:', e.nativeEvent.error)}
-            />
-          </Pressable>
-        );
+      if (url === 'INACTIVE') {
+        return <Text>File/ image not available</Text>;
       }
-      return <Text>File/ image not available</Text>;
+      return (
+        <EncryptedAttachment
+          message={m}
+          file={data}
+          conversationKey={conversationKey}
+          kind="image"
+          onPressImage={(uri) => {
+            setActiveImageUrl(uri);
+            setModalVisible(true);
+          }}
+          onLongPress={() => {
+            setShowReaction(true);
+            setActiveMessage(m.id ?? '');
+          }}
+        />
+      );
     }
 
     // File message
     if (m?.message_type?.includes('file')) {
       return (
-        <Link
-          href={url as '/'}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <LinkText className={`${isCurrentUser ? 'text-white' : 'text-black'} text-xl`}>
-            {data?.filename || ''}
-          </LinkText>
-          <Icon
-            as={ArrowBigDown}
-            size="lg"
-            className={`mt-0.5 text-info-600 ${isCurrentUser ? 'text-white' : 'text-black'}`}
-          />
-        </Link>
+        <EncryptedAttachment
+          message={m}
+          file={data}
+          conversationKey={conversationKey}
+          kind="file"
+          isCurrentUser={isCurrentUser}
+        />
       );
     }
 
@@ -661,11 +693,13 @@ export default function ChatScreen() {
     });
 
     if (!result.canceled && conversation_id) {
-      //const uri = result.assets[0].uri;
-      //const fileName = uri.split('/').pop() || 'image.jpg';
+      if (!conversationKey) {
+        Alert.alert('Error', 'Conversation key not available. Please try again.');
+        return;
+      }
       setLoading(true);
       try {
-        await storageAPIs.uploadImageToSupabase(result.assets[0], conversation_id, userId);
+        await storageAPIs.uploadImageToSupabase(result.assets[0], conversation_id, userId, conversationKey);
       } catch (error) {
         Alert.alert('Error', 'Failed to upload image');
       } finally {
@@ -679,6 +713,10 @@ export default function ChatScreen() {
       Alert.alert('Error', 'Session not available');
       return;
     }
+    if (!conversationKey) {
+      Alert.alert('Error', 'Conversation key not available. Please try again.');
+      return;
+    }
 
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -687,10 +725,10 @@ export default function ChatScreen() {
 
       if (result.assets && result.assets.length > 0 && conversation_id) {
         const file = result.assets[0];
-        
+
         setLoading(true);
         try {
-          await storageAPIs.uploadFileToSupabase(file, conversation_id, userId);
+          await storageAPIs.uploadFileToSupabase(file, conversation_id, userId, conversationKey);
         } catch (error) {
           Alert.alert('Error', 'Failed to upload file');
         } finally {
@@ -746,11 +784,22 @@ export default function ChatScreen() {
   //Get message preview for forwarding
   const getMessagePreview = (): string => {
     const activeMsg = messages.find((msg) => msg.id === activeMessage);
-    
+
     if (activeMsg?.message_type === 'text') {
       return safeDecrypt(activeMsg, conversationKey);
     }
-    
+
+    // Encrypted attachment: `content` is the ciphertext descriptor, not a
+    // name - decrypt it to show the filename instead of raw ciphertext.
+    if (activeMsg?.nonce) {
+      try {
+        const descriptor = JSON.parse(safeDecrypt(activeMsg, conversationKey));
+        return descriptor?.name ? String(descriptor.name).toUpperCase() : '';
+      } catch {
+        return '';
+      }
+    }
+
     return activeMsg?.content?.toUpperCase() || '';
   };
 

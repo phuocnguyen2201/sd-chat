@@ -6,26 +6,30 @@ import { Alert } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator'
 import { ApiResponse, Files, Message } from './types/supabse';
 import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { DocumentPickerAsset } from 'expo-document-picker';
 import { Constants } from '../constants/Constants';
+import { AttachmentDescriptor, MessageEncryption } from './securedMessage/secured';
 
 export const storageAPIs = {
   async uploadImageToSupabase(
   image: ImagePicker.ImagePickerAsset,
   conversation_id: string,
-  userId: string | null
+  userId: string | null,
+  conversationKey: Uint8Array
 ) {
   try {
     const response = await fetch(image.uri);
-    const arrayBuffer = await response.arrayBuffer();
+    const plaintext = new Uint8Array(await response.arrayBuffer());
+    const attachment = MessageEncryption.encryptAttachment(plaintext);
 
-    const fileToStore = `${Date.now()}-${image.fileName}`;
+    const fileToStore = uuidv4();
     const filePath = `${Constants.STORAGE_BUCKETS.MESSAGES}/${conversation_id}/${fileToStore}`;
 
     const { data, error } = await supabase.storage
       .from(Constants.STORAGE_BUCKETS.MESSAGES)
-      .upload(filePath, arrayBuffer, {
-        contentType: image.mimeType,
+      .upload(filePath, attachment.ciphertext, {
+        contentType: 'application/octet-stream',
       });
 
     if (error) throw error;
@@ -38,10 +42,29 @@ export const storageAPIs = {
 
     const token = utilityFunction.getToken(publicUrl.signedUrl);
 
-    // Send message with image URL
+    const descriptor: AttachmentDescriptor = {
+      v: 1,
+      name: image.fileName || 'image.jpg',
+      mime: image.mimeType || 'application/octet-stream',
+      size: plaintext.byteLength,
+      key: attachment.key,
+      nonce: attachment.nonce,
+    };
+    const encryptedDescriptor = MessageEncryption.encryptMessage(JSON.stringify(descriptor), conversationKey);
+
+    // Send message with the encrypted descriptor (name, mime, per-file key) -
+    // never the plaintext filename.
     const {data: newImage, error: errorImage} = await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'image', content: image.fileName }])
+      .insert([{
+        conversation_id: conversation_id,
+        sender_id: userId,
+        message_type: 'image',
+        content: encryptedDescriptor.ciphertext,
+        nonce: encryptedDescriptor.nonce,
+        wrapped_key: encryptedDescriptor.wrappedKey,
+        key_nonce: encryptedDescriptor.keyNonce,
+      }])
       .select()
       .single();
     if(errorImage) throw errorImage
@@ -49,18 +72,19 @@ export const storageAPIs = {
     const fileData: Files = {
       filepath: filePath,
       filename: fileToStore,
-      mime_type: image.mimeType || 'unknown',
-      original_name: image.fileName|| 'image.jpg',
+      mime_type: 'application/octet-stream',
+      original_name: '',
       token: token,
       bucket_name: Constants.STORAGE_BUCKETS.MESSAGES,
       created_at: new Date().toISOString(),
       expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
       message_id: newImage.id,
+      file_size: plaintext.byteLength,
     }
 
     await filesAPI.insertFilesMessages(fileData);
-    
+
     //Update to Files table
     return { success: true, message: 'Image uploaded and sent!' };
   } catch (e) {
@@ -71,18 +95,22 @@ export const storageAPIs = {
   async uploadFileToSupabase(
   file: DocumentPickerAsset,
   conversation_id: string,
-  userId: string | null
+  userId: string | null,
+  conversationKey: Uint8Array
 ) {
   try {
     const response = await fetch(file.uri);
-    const arrayBuffer = await response.arrayBuffer();
+    const plaintext = new Uint8Array(await response.arrayBuffer());
+    const attachment = MessageEncryption.encryptAttachment(plaintext);
 
-    const fileToStore = `${Date.now()}-${file.name}`;
+    const fileToStore = uuidv4();
     const filePath = `${Constants.STORAGE_BUCKETS.FILES}/${conversation_id}/${fileToStore}`;
-    
+
     const { data, error } = await supabase.storage
       .from(Constants.STORAGE_BUCKETS.FILES)
-      .upload(filePath, arrayBuffer);
+      .upload(filePath, attachment.ciphertext, {
+        contentType: 'application/octet-stream',
+      });
 
     if (error) throw error;
 
@@ -94,10 +122,29 @@ export const storageAPIs = {
 
     const token = utilityFunction.getToken(publicUrl.signedUrl);
 
-    // Send message with file URL
+    const descriptor: AttachmentDescriptor = {
+      v: 1,
+      name: file.name,
+      mime: file.mimeType || 'application/octet-stream',
+      size: plaintext.byteLength,
+      key: attachment.key,
+      nonce: attachment.nonce,
+    };
+    const encryptedDescriptor = MessageEncryption.encryptMessage(JSON.stringify(descriptor), conversationKey);
+
+    // Send message with the encrypted descriptor (name, mime, per-file key) -
+    // never the plaintext filename.
     const {data: newFile, error: fileError } = await supabase
       .from('messages')
-      .insert([{ conversation_id: conversation_id, sender_id: userId, message_type: 'file', content: file.name }])
+      .insert([{
+        conversation_id: conversation_id,
+        sender_id: userId,
+        message_type: 'file',
+        content: encryptedDescriptor.ciphertext,
+        nonce: encryptedDescriptor.nonce,
+        wrapped_key: encryptedDescriptor.wrappedKey,
+        key_nonce: encryptedDescriptor.keyNonce,
+      }])
       .select()
       .single();
 
@@ -106,15 +153,15 @@ export const storageAPIs = {
      const fileData: Files = {
       filepath: filePath,
       filename: fileToStore,
-      mime_type: file.mimeType || 'unknown',
-      original_name: file.name,
+      mime_type: 'application/octet-stream',
+      original_name: '',
       token: token,
       bucket_name: Constants.STORAGE_BUCKETS.FILES,
       created_at: new Date().toISOString(),
       expiry_date: new Date(Date.now() + 60 * 60 * 24 * 365 * 1000).toISOString(), // 1 year
       status: true,
       message_id: newFile.id,
-      file_size: file.size || 0
+      file_size: plaintext.byteLength
     }
 
     await filesAPI.insertFilesMessages(fileData);
