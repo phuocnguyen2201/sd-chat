@@ -18,7 +18,7 @@ import { ArrowBigDown, ForwardIcon,
 import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
-import { resolveConversationKey } from '@/utility/securedMessage/ConversationKeyResolver';
+import { resolveConversationKeyInteractive } from '@/utility/securedMessage/ConversationKeyResolver';
 import { Picker } from 'emoji-mart-native';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
@@ -50,7 +50,7 @@ import { Files, Message } from '@/utility/types/supabse';
  */
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const { conversation_id, displayName, public_key } = useLocalSearchParams<{
+  const { conversation_id, displayName } = useLocalSearchParams<{
     conversation_id?: string;
     displayName?: string;
     public_key?: string;
@@ -129,15 +129,20 @@ export default function ChatScreen() {
 
         /*
           Not held locally, so unwrap it from this user's participant row. The
-          row records the public key that wrapped it; the `public_key` param is
-          only set when this screen is reached from a notification, so it is
-          passed as a fallback candidate rather than relied on.
+          resolver looks up who is expected to have wrapped it itself, rather
+          than trusting the `public_key` notification param as that identity -
+          a route param is not a source either of us can vouch for.
         */
-        const lookup = await resolveConversationKey(conversation_id, userId, [public_key]);
+        const lookup = await resolveConversationKeyInteractive(conversation_id, userId);
 
         if (lookup.status === 'found') {
           await setCurrentConversation(conversation_id, lookup.key);
           setKeyError(null);
+          return;
+        }
+
+        if (lookup.status === 'untrusted') {
+          setKeyError('You did not accept this contact’s new security key, so this conversation cannot be opened.');
           return;
         }
 
@@ -378,7 +383,7 @@ export default function ChatScreen() {
     // to unwrapping its key from this user's participant row. Never mint one here.
     let forwardPartyKey = await getConversationKey(forwardConversationId);
     if (!forwardPartyKey && userId) {
-      const lookup = await resolveConversationKey(forwardConversationId, userId);
+      const lookup = await resolveConversationKeyInteractive(forwardConversationId, userId);
       if (lookup.status === 'found') forwardPartyKey = lookup.key;
     }
     if (!forwardPartyKey) throw new Error('No conversation key for forward target');

@@ -14,10 +14,12 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import {
-  resolveConversationKey,
+  resolveConversationKeyInteractive,
   backfillMissingWrappedKeys,
   ConversationKeyLookup,
+  PeerKeyWrapper,
 } from '@/utility/securedMessage/ConversationKeyResolver';
+import { PeerKeyPins } from '@/utility/securedMessage/PeerKeyPins';
 import * as Notifications from 'expo-notifications';
 import { PlusCircleIcon, Trash2Icon } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
@@ -125,6 +127,41 @@ export default function Chat() {
 
       const groupCreatorPublicKey = profile!.public_key!;
 
+      /*
+        Wrap for the creator as well. The member picker never includes the
+        creator, so their own row used to stay empty and the group opened only
+        from the key held on the creating device - lose that and the creator is
+        locked out of their own group.
+      */
+      const participantIds = Array.from(new Set([userId, ...recipientIds]));
+
+      // Retrieve public keys for all participants BEFORE creating anything,
+      // so declining a changed key below leaves no half-created group behind.
+      const { data: publicKeys, error: storeKeyError } = await profileAPI.getParticipantsPublicKey(participantIds);
+
+      if (storeKeyError) {
+        throw new Error(storeKeyError.message || 'Failed to retrieve public keys for recipients');
+      }
+
+      if (!publicKeys) {
+        throw new Error('No public keys found for the selected recipients');
+      }
+
+      // Vet every member's key against what this device has pinned for them
+      // before the group exists at all.
+      for (const pkEntry of publicKeys) {
+        if (!pkEntry?.id || pkEntry.id === userId || !pkEntry.public_key) continue;
+
+        const check = await PeerKeyPins.checkPeerKey(userId, pkEntry.id, pkEntry.public_key);
+        if (check.state === 'changed') {
+          const trusted = await PeerKeyPins.confirmPeerKeyChange(pkEntry.displayname ?? '');
+          if (!trusted) {
+            return null;
+          }
+          await PeerKeyPins.trustPeerKey(userId, pkEntry.id, pkEntry.public_key);
+        }
+      }
+
       // create group conversation ID
       const { data, error } = await conversationAPI.createGroupConversation(name , userId, recipientIds);
 
@@ -138,25 +175,6 @@ export default function Chat() {
 
       // Generate group conversation key
       const conversationKey = await MessageEncryption.createConversationKey();
-
-      /*
-        Wrap for the creator as well. The member picker never includes the
-        creator, so their own row used to stay empty and the group opened only
-        from the key held on the creating device - lose that and the creator is
-        locked out of their own group.
-      */
-      const participantIds = Array.from(new Set([userId, ...recipientIds]));
-
-      // Retrieve public keys for all participants
-      const { data: publicKeys, error: storeKeyError } = await profileAPI.getParticipantsPublicKey(participantIds);
-
-      if (storeKeyError) {
-        throw new Error(storeKeyError.message || 'Failed to retrieve public keys for recipients');
-      }
-
-      if (!publicKeys) {
-        throw new Error('No public keys found for the selected recipients');
-      }
 
       // Wrap and store the conversation key for each participant
       for (const pkEntry of publicKeys) {
@@ -221,18 +239,11 @@ export default function Chat() {
   };
 
   const lookupConversationKey = async (
-    public_key: string,
-    conversationId: string
+    wrapper: PeerKeyWrapper | undefined,
+    conversationId: string,
+    peerLabel?: string
   ): Promise<ConversationKeyLookup> =>
-    resolveConversationKey(conversationId, userId, [public_key]);
-
-  const getConversationKeyForOtherParticipants = async (
-    public_key: string,
-    conversationId: string
-  ): Promise<Uint8Array | null> => {
-    const lookup = await lookupConversationKey(public_key, conversationId);
-    return lookup.status === 'found' ? lookup.key : null;
-  };
+    resolveConversationKeyInteractive(conversationId, userId, wrapper, peerLabel);
 
   /*
     Fill in any participant row that is missing its wrapped key. Runs in the
@@ -259,7 +270,8 @@ export default function Chat() {
   const createAndDistributeConversationKey = async (
     conversationId: string,
     recipientId: string,
-    recipientPublicKey: string
+    recipientPublicKey: string,
+    recipientLabel?: string
   ): Promise<Uint8Array | null> => {
     if (!recipientPublicKey || !profile?.public_key) {
       Alert.alert('Error', 'Encryption keys not found. Please complete your profile setup.');
@@ -271,6 +283,17 @@ export default function Chat() {
     if (recipientKeyBytes.length !== 32) {
       Alert.alert('Error', 'Invalid encryption keys detected. Please contact support.');
       return null;
+    }
+
+    // A first-time recipient is pinned here; a changed one needs the user's
+    // explicit go-ahead before this device wraps anything for them.
+    const check = await PeerKeyPins.checkPeerKey(userId, recipientId, recipientPublicKey);
+    if (check.state === 'changed') {
+      const trusted = await PeerKeyPins.confirmPeerKeyChange(recipientLabel ?? '');
+      if (!trusted) {
+        return null;
+      }
+      await PeerKeyPins.trustPeerKey(userId, recipientId, recipientPublicKey);
     }
 
     const conversationKey = await MessageEncryption.createConversationKey();
@@ -459,7 +482,16 @@ export default function Chat() {
         conversationId = newConversation.data.conversationId;
       }
 
-      const lookup = await lookupConversationKey(users.public_key, conversationId);
+      const lookup = await lookupConversationKey(
+        { peerId: users.id, publicKey: users.public_key },
+        conversationId,
+        users.displayname
+      );
+
+      if (lookup.status === 'untrusted') {
+        // The user already saw and declined the key-change warning.
+        return;
+      }
 
       if (lookup.status === 'failed') {
         // A key exists but this device cannot open it. Minting a replacement here
@@ -490,7 +522,7 @@ export default function Chat() {
       const conversationKey =
         lookup.status === 'found'
           ? lookup.key
-          : await createAndDistributeConversationKey(conversationId, users.id, users.public_key);
+          : await createAndDistributeConversationKey(conversationId, users.id, users.public_key, users.displayname);
 
       if (!conversationKey) {
         return;
@@ -532,18 +564,24 @@ export default function Chat() {
       const groupChatCreatorId = room?.created_by || '';
 
       let otherPublicKey: string | null = null;
+      let otherPeerId: string | null = null;
+      let otherDisplayName: string | undefined;
       if (isGroup) {
         // A group key is wrapped by whoever created the group, so the creator's
         // public key is the one that opens this user's row.
-        otherPublicKey =
-          data?.find((participant: any) => participant?.profiles?.id === groupChatCreatorId)
-            ?.profiles?.public_key || null;
+        const creatorParticipant = data?.find(
+          (participant: any) => participant?.profiles?.id === groupChatCreatorId
+        );
+        otherPublicKey = creatorParticipant?.profiles?.public_key || null;
+        otherDisplayName = creatorParticipant?.profiles?.displayname;
+        otherPeerId = groupChatCreatorId || null;
 
         if (!otherPublicKey && groupChatCreatorId) {
           // The creator is not in the participant list any more (they left the
           // group), but their public key is still what opens the row.
           const creatorProfile = await profileAPI.getParticipantsPublicKey([groupChatCreatorId]);
           otherPublicKey = creatorProfile.data?.[0]?.public_key ?? null;
+          otherDisplayName = creatorProfile.data?.[0]?.displayname ?? otherDisplayName;
         }
       }
       else if (data?.[0]?.profiles?.public_key == null || data?.[1]?.profiles?.public_key == null) {
@@ -558,27 +596,37 @@ export default function Chat() {
             .filter((id: any): id is string => !!id) ?? [];
 
         const firstInitConversationKey = await profileAPI.getParticipantsPublicKey(participantIds);
-        otherPublicKey =
-          firstInitConversationKey.data?.find((candidate: any) => candidate?.id !== userId)
-            ?.public_key ?? null;
+        const other = firstInitConversationKey.data?.find((candidate: any) => candidate?.id !== userId);
+        otherPublicKey = other?.public_key ?? null;
+        otherPeerId = other?.id ?? null;
+        otherDisplayName = other?.displayname;
       }
-      else
+      else {
         /*
           In a DM the other participant is the one who created the conversation
           and wrapped the key, so their public key is what opens this user's row.
           Matching on "not me" rather than on a fixed index keeps this correct
           whatever order the participants come back in.
         */
-        otherPublicKey =
-          data?.find((participant: any) => participant?.profiles?.id !== userId)?.profiles
-            ?.public_key ?? null;
-    
+        const other = data?.find((participant: any) => participant?.profiles?.id !== userId);
+        otherPublicKey = other?.profiles?.public_key ?? null;
+        otherPeerId = other?.profiles?.id ?? null;
+        otherDisplayName = other?.profiles?.displayname;
+      }
+
       // A locally stored key still opens the room even when the public key is
       // missing, so only treat a missing public key as fatal if the lookup fails.
-      const conversationKeyBytes = await getConversationKeyForOtherParticipants(
-          otherPublicKey ?? '',
-          room.id
-        );
+      const wrapper: PeerKeyWrapper | undefined = otherPeerId
+        ? { peerId: otherPeerId, publicKey: otherPublicKey }
+        : undefined;
+      const lookup = await lookupConversationKey(wrapper, room.id, otherDisplayName);
+
+      if (lookup.status === 'untrusted') {
+        // The user already saw and declined the key-change warning.
+        return;
+      }
+
+      const conversationKeyBytes = lookup.status === 'found' ? lookup.key : null;
 
       if (!conversationKeyBytes) {
         Alert.alert(
