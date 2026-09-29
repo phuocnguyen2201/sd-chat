@@ -1,5 +1,14 @@
 # In Progress / Open Items
 
+## Security #5, #7, #8a, #8b (2026-09-29): code + unit tests only, three unmerged branches
+Full detail in progress.md and security-scan.md. Manual steps in need-action.md. To pick up next session:
+1. **Merge the three branches** into `main`: `security/attachment-encryption`, `security/peer-key-pinning`, `security/key-import-and-hkdf`. They're independent (off `main`, not off each other); `[room_id].tsx` and `secured.ts` are the only files more than one branch touches, and both diffs are small.
+2. **`security/attachment-encryption` needs a dev-client rebuild first** (new native dependency, `expo-sharing`) before any of it can be tested. Once built: upload an image/file and confirm the storage object is opaque ciphertext, confirm image render/zoom and file share-sheet open, confirm forwarding works, confirm the Images & Files gallery renders, confirm a pre-existing (legacy) attachment still opens.
+3. **`security/peer-key-pinning`:** on a test project, change a test peer's `profiles.public_key` (or a row's `other_party_pub_key`), clear the local conversation-key cache, open the chat - confirm the "Security key changed" dialog appears, Cancel gives no access/no DB write, "Trust new key" restores access.
+4. **`security/key-import-and-hkdf`:** scan a QR with a private key that doesn't match the account and confirm it's rejected with nothing changed; open an existing chat with the local key cache cleared (exercises the legacy-HKDF fallback) and confirm it still opens; create a new chat between two up-to-date devices.
+5. **None of this has touched the live Supabase project.** No live checks were run this pass (unlike passes 2/3), since these three findings are pure client-side crypto/logic fixes with no RLS/RPC/schema component.
+6. **#8c (no per-sender authentication within a conversation) is deferred, not fixed** - documented as a known limitation in `ConversationKeyManagement.ts`. Revisit after #7 lands, since a real fix needs per-user signing keys distributed/pinned the same way.
+
 ## Sealed key QR (security #4, 2026-09-28): code done, deploy pending (need-action.md)
 1. Apply `20260928000100_local_pairing_ephemeral_key.sql`, then deploy `device-pairing`, then test on two devices (the old device's sealing path is untested on a device).
 2. Ship iOS and Android together: pairing needs both devices on the new build.
