@@ -54,6 +54,40 @@ describe('attachment content encryption', () => {
 
     expect(() => MessageEncryption.decryptAttachment(ciphertext, wrongKey, nonce)).toThrow(/authentication invalid/);
   });
+
+  it('round trips an empty file', () => {
+    const plaintext = new Uint8Array(0);
+    const { ciphertext, key, nonce } = MessageEncryption.encryptAttachment(plaintext);
+
+    expect(MessageEncryption.decryptAttachment(ciphertext, key, nonce)).toEqual(plaintext);
+  });
+
+  it('rejects a wrong-size key', () => {
+    const plaintext = new Uint8Array([1, 2, 3]);
+    const { ciphertext, nonce } = MessageEncryption.encryptAttachment(plaintext);
+    const shortKey = MessageEncryption.bytesToBase64(new Uint8Array(16));
+
+    expect(() => MessageEncryption.decryptAttachment(ciphertext, shortKey, nonce)).toThrow(/Invalid attachment key size/);
+  });
+
+  it('rejects a wrong-size nonce', () => {
+    const plaintext = new Uint8Array([1, 2, 3]);
+    const { ciphertext, key } = MessageEncryption.encryptAttachment(plaintext);
+    const shortNonce = MessageEncryption.bytesToBase64(new Uint8Array(4));
+
+    expect(() => MessageEncryption.decryptAttachment(ciphertext, key, shortNonce)).toThrow(/Invalid attachment nonce size/);
+  });
+
+  it('rejects a tampered nonce', () => {
+    const plaintext = new Uint8Array([1, 2, 3, 4, 5]);
+    const { ciphertext, key, nonce } = MessageEncryption.encryptAttachment(plaintext);
+
+    const nonceBytes = MessageEncryption.base64ToBytes(nonce);
+    nonceBytes[0] ^= 1;
+    const tamperedNonce = MessageEncryption.bytesToBase64(nonceBytes);
+
+    expect(() => MessageEncryption.decryptAttachment(ciphertext, key, tamperedNonce)).toThrow(/authentication invalid/);
+  });
 });
 
 describe('attachment descriptor (name, mime, per-file key) travels encrypted', () => {
