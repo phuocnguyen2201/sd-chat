@@ -28,6 +28,21 @@ export interface UserKeyPair {
 }
 
 /**
+ * What an encrypted attachment message's decrypted `content` holds: enough to
+ * fetch and open the ciphertext blob in storage. `key`/`nonce` are base64 and
+ * are only ever exposed after decrypting this descriptor with the
+ * conversation key, so they never touch the wire or the database in the clear.
+ */
+export interface AttachmentDescriptor {
+  v: 1;
+  name: string;
+  mime: string;
+  size: number;
+  key: string;
+  nonce: string;
+}
+
+/**
  * Whether the identity private key held on this device matches the public key
  * this account advertises in `profiles.public_key`.
  * - `ok`       the two correspond; conversations can be unwrapped
@@ -140,6 +155,51 @@ export class MessageEncryption {
       console.error('Error decrypting message:', error);
       throw new Error(`Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * Encrypt raw bytes (an attachment) with a fresh, random single-use key -
+   * never the conversation key directly, so a compromised attachment key
+   * exposes only that one file. The key/nonce travel to the recipient inside
+   * an encrypted message descriptor (see handleStorage.ts), the same way a
+   * message key travels wrapped inside `encryptMessage`'s output.
+   */
+  static encryptAttachment(bytes: Uint8Array): { ciphertext: Uint8Array; key: string; nonce: string } {
+    const key = Crypto.getRandomBytes(this.KEY_SIZE);
+    const nonce = Crypto.getRandomBytes(this.NONCE_SIZE);
+    const cipher = new ChaCha20Poly1305(key);
+    const ciphertext = cipher.seal(nonce, bytes);
+
+    return {
+      ciphertext,
+      key: this.bytesToBase64(key),
+      nonce: this.bytesToBase64(nonce),
+    };
+  }
+
+  /**
+   * Inverse of encryptAttachment. Throws if `keyB64`/`nonceB64` don't match
+   * the ciphertext (wrong key, or tampered bytes).
+   */
+  static decryptAttachment(ciphertext: Uint8Array, keyB64: string, nonceB64: string): Uint8Array {
+    const key = this.base64ToBytes(keyB64);
+    const nonce = this.base64ToBytes(nonceB64);
+
+    if (key.length !== this.KEY_SIZE) {
+      throw new Error('Invalid attachment key size');
+    }
+    if (nonce.length !== this.NONCE_SIZE) {
+      throw new Error('Invalid attachment nonce size');
+    }
+
+    const cipher = new ChaCha20Poly1305(key);
+    const plaintext = cipher.open(nonce, ciphertext);
+
+    if (!plaintext) {
+      throw new Error('Attachment decryption failed - authentication invalid');
+    }
+
+    return plaintext;
   }
 
   /**
