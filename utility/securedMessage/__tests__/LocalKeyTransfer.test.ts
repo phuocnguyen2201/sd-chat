@@ -15,7 +15,7 @@ jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
 }));
 
-import { DevicePairing, isPairDataPayload } from '../DevicePairing';
+import { DevicePairing, isPairDataPayload, isPairInitPayload } from '../DevicePairing';
 import { LocalKeyTransfer, isLegacyPlaintextPayload } from '../LocalKeyTransfer';
 import { MessageEncryption } from '../secured';
 import { KeyObject } from '@/utility/types/user';
@@ -74,6 +74,75 @@ describe('sealed key QR', () => {
     const qr = await DevicePairing.sealForPeer(DevicePairing.publicKey()!, payload);
     await expect(DevicePairing.openFromPeer({ ...qr, expiresAt: Date.now() - 1 })).rejects.toThrow(/expired/);
   });
+
+  it('treats a NaN expiresAt as expired', async () => {
+    DevicePairing.startPairing(USER);
+    const qr = await DevicePairing.sealForPeer(DevicePairing.publicKey()!, payload);
+    await expect(DevicePairing.openFromPeer({ ...qr, expiresAt: NaN })).rejects.toThrow(/expired/);
+  });
+
+  it('treats a missing expiresAt as expired', async () => {
+    DevicePairing.startPairing(USER);
+    const qr = await DevicePairing.sealForPeer(DevicePairing.publicKey()!, payload);
+    const { expiresAt: _drop, ...rest } = qr;
+    await expect(DevicePairing.openFromPeer(rest as typeof qr)).rejects.toThrow(/expired/);
+  });
+
+  it('rejects a successfully-decrypted but non-JSON payload', async () => {
+    DevicePairing.startPairing(USER);
+    const senderEphemeral = MessageEncryption.generateEphemeralKeyPair();
+    // 'sd-chat-device-pairing-v1' mirrors DevicePairing's private PAIRING_INFO constant.
+    const { ciphertext, nonce } = await MessageEncryption.ecdhSeal(
+      new TextEncoder().encode('not valid json'),
+      MessageEncryption.base64ToBytes(DevicePairing.publicKey()!),
+      senderEphemeral.secretKey,
+      'sd-chat-device-pairing-v1'
+    );
+    const qr = {
+      req: 'pair_data' as const,
+      senderEphemeralPublicKey: MessageEncryption.bytesToBase64(senderEphemeral.publicKey),
+      ciphertext: MessageEncryption.bytesToBase64(ciphertext),
+      nonce: MessageEncryption.bytesToBase64(nonce),
+      expiresAt: Date.now() + 60_000,
+    };
+    await expect(DevicePairing.openFromPeer(qr)).rejects.toThrow();
+    // The pairing state resets before JSON.parse runs, so the failed parse doesn't leave it stuck open.
+    expect(DevicePairing.isPairing()).toBe(false);
+  });
+
+  it('starting again discards the previous ephemeral key and issues a new one', () => {
+    DevicePairing.startPairing(USER);
+    const first = DevicePairing.publicKey();
+    DevicePairing.startPairing(USER);
+    const second = DevicePairing.publicKey();
+    expect(second).not.toBe(first);
+    expect(DevicePairing.isPairing()).toBe(true);
+  });
+});
+
+describe('isPairInitPayload', () => {
+  it('accepts a valid pair_init payload', () => {
+    const init = DevicePairing.startPairing(USER);
+    expect(isPairInitPayload(init)).toBe(true);
+  });
+
+  it('rejects the wrong req value', () => {
+    const init = DevicePairing.startPairing(USER);
+    expect(isPairInitPayload({ ...init, req: 'pair_data' })).toBe(false);
+  });
+
+  it('rejects a payload missing ephemeralPublicKey', () => {
+    const init = DevicePairing.startPairing(USER);
+    const { ephemeralPublicKey: _drop, ...rest } = init;
+    expect(isPairInitPayload(rest)).toBe(false);
+  });
+
+  it('rejects non-object input', () => {
+    expect(isPairInitPayload(null)).toBe(false);
+    expect(isPairInitPayload(undefined)).toBe(false);
+    expect(isPairInitPayload('pair_init')).toBe(false);
+    expect(isPairInitPayload(42)).toBe(false);
+  });
 });
 
 describe('key proof', () => {
@@ -108,6 +177,12 @@ describe('key proof', () => {
   it('issued code is read once', () => {
     LocalKeyTransfer.setIssuedCode(CODE);
     expect(LocalKeyTransfer.takeIssuedCode()).toBe(CODE);
+    expect(LocalKeyTransfer.takeIssuedCode()).toBeNull();
+  });
+
+  it('clearIssuedCode forgets the code even before it is taken', () => {
+    LocalKeyTransfer.setIssuedCode(CODE);
+    LocalKeyTransfer.clearIssuedCode();
     expect(LocalKeyTransfer.takeIssuedCode()).toBeNull();
   });
 });
