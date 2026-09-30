@@ -10,7 +10,7 @@ appId: com.phuocng23000.sdchat
 # made by .github/scripts/run-maestro.sh in CI), MAESTRO_PASSWORD,
 # MAESTRO_SUPABASE_URL, MAESTRO_SUPABASE_KEY (publishable key).
 - extendedWaitUntil:
-    visible: "Authentication.*"
+    visible: "Authentication"
     timeout: 50000
 - tapOn:
     text: "Input Field|Enter your email"
