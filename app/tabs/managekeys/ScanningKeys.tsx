@@ -26,6 +26,7 @@ import { AlertDialogBody } from '@/components/ui/alert-dialog';
 import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
 import { DevicePairing, isPairDataPayload } from '@/utility/securedMessage/DevicePairing';
 import { LocalKeyTransfer, isLegacyPlaintextPayload } from '@/utility/securedMessage/LocalKeyTransfer';
+import { verifyAndImportIdentityKey } from '@/utility/securedMessage/ImportScannedIdentityKey';
 
 type Phase = 'scan' | 'done';
 
@@ -76,7 +77,7 @@ export default function ScanningKeys() {
         Alert.alert('Account deleted', 'Your account and everything on this device have been removed.');
     };
 
-    const importKeysToNewDevice = (payload: KeyObject) => {
+    const importKeysToNewDevice = async (payload: KeyObject) => {
         if (!payload || !Array.isArray(payload.list)) {
             Alert.alert('Error', 'Invalid key payload');
             return;
@@ -98,7 +99,21 @@ export default function ScanningKeys() {
         }
 
         if (payload.private_key) {
-            MessageEncryption.setPrivateKey(user.id, MessageEncryption.base64ToBytes(payload.private_key));
+            const check = await verifyAndImportIdentityKey(user.id, payload.private_key);
+
+            if (check !== 'ok') {
+                if (check === 'mismatch') {
+                    Alert.alert(
+                        'This key does not match this account',
+                        'The scanned key belongs to a different identity, so it was not installed. Nothing on this device was changed.'
+                    );
+                } else if (check === 'invalid') {
+                    Alert.alert('Error', 'That QR code contains an invalid key');
+                } else {
+                    Alert.alert('Error', 'Could not verify this key against your account. Try again.');
+                }
+                return;
+            }
         }
 
         const importTasks = payload.list.map(async (item) => {
@@ -166,7 +181,7 @@ export default function ScanningKeys() {
         }
 
         try {
-            importKeysToNewDevice(payload);
+            await importKeysToNewDevice(payload);
         } finally {
             importingRef.current = false;
         }

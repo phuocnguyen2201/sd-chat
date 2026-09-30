@@ -1,4 +1,6 @@
 import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
+import { hkdf } from '@noble/hashes/hkdf';
+import { sha512 } from '@noble/hashes/sha2';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as nacl from 'tweetnacl';
@@ -175,6 +177,15 @@ export class MessageEncryption {
   }
 
   /**
+   * The public half of an X25519 secret key, base64-encoded. Used wherever a
+   * key needs to be checked against what an account advertises before it is
+   * trusted - e.g. a scanned or recovered key - without persisting anything.
+   */
+  static publicKeyFromSecret(secretKey: Uint8Array): string {
+    return this.bytesToBase64(nacl.box.keyPair.fromSecretKey(secretKey).publicKey);
+  }
+
+  /**
    * The public key that actually corresponds to the private key stored for
    * `userId` on this device. Returns null when no usable key is stored.
    */
@@ -189,7 +200,7 @@ export class MessageEncryption {
       return null;
     }
 
-    return this.bytesToBase64(nacl.box.keyPair.fromSecretKey(secretKey).publicKey);
+    return this.publicKeyFromSecret(secretKey);
   }
 
   /**
@@ -315,16 +326,20 @@ static async unwrapConversationKey(
   // 1. ECDH
   const sharedSecret = nacl.box.before(otherPartyPublicKey, privateKey);
 
-  // 2. KDF (IMPORTANT)
-  const unwrapKey = await this.hkdfSha512(
-      sharedSecret,
-      new TextEncoder().encode('conversation-key-wrap'),
-      this.KEY_SIZE
-    );
+  // 2. KDF (IMPORTANT). Try the correct derivation first; a row wrapped
+  // before this fix used the legacy one, and Poly1305 gives an unambiguous
+  // pass/fail, so retrying with it is safe.
+  const info = new TextEncoder().encode('conversation-key-wrap');
+  const unwrapKey = await this.hkdfSha512(sharedSecret, info, this.KEY_SIZE);
 
-  // 3. Unwrap conversation key
   const cipher = new ChaCha20Poly1305(unwrapKey);
-  const conversationKey = cipher.open(nonce, wrappedKey);
+  let conversationKey = cipher.open(nonce, wrappedKey);
+
+  if (!conversationKey) {
+    const legacyUnwrapKey = this.legacyKdfSha512(sharedSecret, info, this.KEY_SIZE);
+    conversationKey = new ChaCha20Poly1305(legacyUnwrapKey).open(nonce, wrappedKey);
+    legacyUnwrapKey.fill(0);
+  }
 
   if (!conversationKey) {
     // Zero the derived material before unwinding, not just on the success path.
@@ -343,25 +358,32 @@ static async unwrapConversationKey(
   return conversationKey;
 }
 
-// HKDF-SHA512 implementation
+/**
+ * HKDF-SHA512 (RFC 5869), via @noble/hashes. Replaces a hand-rolled
+ * derivation (plain SHA-512 hashing, no HMAC, no salt, no expand chaining)
+ * that shipped before this fix - see legacyKdfSha512, kept only so data
+ * sealed under the old derivation can still be opened.
+ */
 static async hkdfSha512(
   ikm: Uint8Array,
   info: Uint8Array,
   length = this.KEY_SIZE
 ): Promise<Uint8Array> {
-  // Extract (no salt)
+  return hkdf(sha512, ikm, undefined, info, length);
+}
+
+/**
+ * Pre-RFC-5869 derivation: SHA-512(ikm) as "extract", then a single plain
+ * hash (not HMAC) as "expand". Only used to OPEN data written before the
+ * hkdfSha512 fix - never for new wraps/seals.
+ */
+private static legacyKdfSha512(
+  ikm: Uint8Array,
+  info: Uint8Array,
+  length = this.KEY_SIZE
+): Uint8Array {
   const prk = nacl.hash(ikm);
-
-  // Expand (single block is enough for 32 bytes)
-  const t = nacl.hash(
-    new Uint8Array([
-      ...prk,
-      ...info,
-      0x01,
-    ])
-    
-  );
-
+  const t = nacl.hash(new Uint8Array([...prk, ...info, 0x01]));
   return t.slice(0, length);
 }
 
@@ -456,9 +478,15 @@ static async hkdfSha512(
     }
 
     const sharedSecret = nacl.box.before(senderPublicKey, recipientSecretKey);
-    const openKey = await this.hkdfSha512(sharedSecret, new TextEncoder().encode(info), this.KEY_SIZE);
-    const cipher = new ChaCha20Poly1305(openKey);
-    const plaintext = cipher.open(nonce, ciphertext);
+    const infoBytes = new TextEncoder().encode(info);
+    const openKey = await this.hkdfSha512(sharedSecret, infoBytes, this.KEY_SIZE);
+    let plaintext = new ChaCha20Poly1305(openKey).open(nonce, ciphertext);
+
+    if (!plaintext) {
+      const legacyOpenKey = this.legacyKdfSha512(sharedSecret, infoBytes, this.KEY_SIZE);
+      plaintext = new ChaCha20Poly1305(legacyOpenKey).open(nonce, ciphertext);
+      legacyOpenKey.fill(0);
+    }
 
     sharedSecret.fill(0);
     openKey.fill(0);
