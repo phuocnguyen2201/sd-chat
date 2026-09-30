@@ -42,11 +42,22 @@ jest.mock('@/utility/messages', () => ({
   },
 }));
 
+jest.mock('react-native', () => ({
+  Alert: { alert: jest.fn() },
+}));
+
+import { Alert } from 'react-native';
 import { MessageEncryption } from '../secured';
 import { PeerKeyPins } from '../PeerKeyPins';
 import { ConversationKeyManager } from '../ConversationKeyManagement';
-import { backfillMissingWrappedKeys, resolveConversationKey } from '../ConversationKeyResolver';
+import {
+  backfillMissingWrappedKeys,
+  resolveConversationKey,
+  resolveConversationKeyInteractive,
+} from '../ConversationKeyResolver';
 import { conversationAPI, profileAPI } from '@/utility/messages';
+
+const mockedAlert = Alert.alert as jest.Mock;
 
 // Cast to `any`: the mock only needs to satisfy the shapes the resolver
 // actually reads, not the full live ApiResponse/UserProfile types.
@@ -215,6 +226,210 @@ describe('resolveConversationKey with peer pinning', () => {
     expect(lookup.status).toBe('found');
     expect(await PeerKeyPins.checkPeerKey(ME, PEER, peer.publicKey)).toMatchObject({ state: 'match' });
   });
+
+  it('fails closed when a changed-key row cannot be attributed to any peer', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const peer = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    // No participant found for this DM, and no wrapper hint supplied either.
+    mockedConversationAPI.getCurrentConversation.mockResolvedValue({
+      data: { is_group: false, created_by: null, conversation_participants: [] },
+      error: null,
+    });
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(peer.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: peer.publicKey,
+      }],
+    });
+
+    const lookup = await resolveConversationKey(CONVO, ME);
+    expect(lookup.status).toBe('failed');
+  });
+
+  it('does not treat the group creator as a peer when this user created the group', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const peer = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    mockedConversationAPI.getCurrentConversation.mockResolvedValue({
+      data: { is_group: true, created_by: ME, conversation_participants: [] },
+      error: null,
+    });
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    // The row really was wrapped by someone else's key, but this user being
+    // the group's creator means findKeyWrapperPeerId can't name a peer to pin it to.
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(peer.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: peer.publicKey,
+      }],
+    });
+
+    const lookup = await resolveConversationKey(CONVO, ME);
+    expect(lookup.status).toBe('failed');
+  });
+
+  it('identifies the group creator as the peer when someone else created the group', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const peer = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    mockedConversationAPI.getCurrentConversation.mockResolvedValue({
+      data: { is_group: true, created_by: PEER, conversation_participants: [] },
+      error: null,
+    });
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(peer.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: peer.publicKey,
+      }],
+    });
+
+    const lookup = await resolveConversationKey(CONVO, ME);
+    expect(lookup.status).toBe('found');
+    expect(await PeerKeyPins.checkPeerKey(ME, PEER, peer.publicKey)).toMatchObject({ state: 'match' });
+  });
+
+  it('falls back to the wrapper hint when the recorded public key fails to unwrap, and corrects the row', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const peer = await MessageEncryption.generateKeyPair();
+    const staleKey = await MessageEncryption.generateKeyPair(); // wrong key left on the row
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(peer.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: staleKey.publicKey, // does not actually unwrap the row
+      }],
+    });
+
+    const lookup = await resolveConversationKey(CONVO, ME, { peerId: PEER, publicKey: peer.publicKey });
+
+    expect(lookup.status).toBe('found');
+    expect(mockedConversationAPI.storeConversationKey).toHaveBeenCalledWith(
+      CONVO,
+      ME,
+      expect.any(String),
+      expect.any(String),
+      peer.publicKey
+    );
+  });
+});
+
+describe('PeerKeyPins.checkPeerKey storage validation', () => {
+  it('throws when the local user id or peer id is empty', async () => {
+    await expect(PeerKeyPins.checkPeerKey('', PEER, 'key')).rejects.toThrow(/local user id and a peer id/);
+    await expect(PeerKeyPins.checkPeerKey(ME, '', 'key')).rejects.toThrow(/local user id and a peer id/);
+  });
+});
+
+describe('PeerKeyPins.confirmPeerKeyChange', () => {
+  it('resolves true when the user chooses to trust the new key', async () => {
+    mockedAlert.mockImplementation((_title: string, _msg: string, buttons: any[]) =>
+      buttons.find((b) => b.text === 'Trust new key')?.onPress()
+    );
+    await expect(PeerKeyPins.confirmPeerKeyChange('Alice')).resolves.toBe(true);
+  });
+
+  it('resolves false when the user cancels', async () => {
+    mockedAlert.mockImplementation((_title: string, _msg: string, buttons: any[]) =>
+      buttons.find((b) => b.text === 'Cancel')?.onPress()
+    );
+    await expect(PeerKeyPins.confirmPeerKeyChange('Alice')).resolves.toBe(false);
+  });
+
+  it('shows a non-cancelable alert so it cannot be dismissed without an explicit choice', () => {
+    PeerKeyPins.confirmPeerKeyChange('Alice');
+    const [, , , options] = mockedAlert.mock.calls[mockedAlert.mock.calls.length - 1];
+    expect(options).toMatchObject({ cancelable: false });
+  });
+});
+
+describe('resolveConversationKeyInteractive', () => {
+  it('passes the result through unchanged when the peer key has not changed', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({ data: [] });
+
+    const lookup = await resolveConversationKeyInteractive(CONVO, ME);
+
+    expect(lookup.status).toBe('absent');
+    expect(mockedAlert).not.toHaveBeenCalled();
+  });
+
+  it('trusts a changed key on confirmation and resolves found on retry', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const originalPeer = await MessageEncryption.generateKeyPair();
+    const newPeerKey = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+    await PeerKeyPins.checkPeerKey(ME, PEER, originalPeer.publicKey);
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(newPeerKey.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: newPeerKey.publicKey,
+      }],
+    });
+    mockedAlert.mockImplementation((_title: string, _msg: string, buttons: any[]) =>
+      buttons.find((b) => b.text === 'Trust new key')?.onPress()
+    );
+
+    const lookup = await resolveConversationKeyInteractive(
+      CONVO,
+      ME,
+      { peerId: PEER, publicKey: newPeerKey.publicKey },
+      'Peer'
+    );
+
+    expect(lookup.status).toBe('found');
+    expect(await PeerKeyPins.checkPeerKey(ME, PEER, newPeerKey.publicKey)).toMatchObject({ state: 'match' });
+  });
+
+  it('resolves untrusted and never trusts the new key when the user declines', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    const originalPeer = await MessageEncryption.generateKeyPair();
+    const newPeerKey = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+    await PeerKeyPins.checkPeerKey(ME, PEER, originalPeer.publicKey);
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(PEER, MessageEncryption.base64ToBytes(newPeerKey.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: newPeerKey.publicKey,
+      }],
+    });
+    mockedAlert.mockImplementation((_title: string, _msg: string, buttons: any[]) =>
+      buttons.find((b) => b.text === 'Cancel')?.onPress()
+    );
+
+    const lookup = await resolveConversationKeyInteractive(CONVO, ME, { peerId: PEER, publicKey: newPeerKey.publicKey });
+
+    expect(lookup).toEqual({ status: 'untrusted' });
+    // Still pinned to the original key - trustPeerKey was never called.
+    expect(await PeerKeyPins.checkPeerKey(ME, PEER, originalPeer.publicKey)).toMatchObject({ state: 'match' });
+  });
 });
 
 describe('backfillMissingWrappedKeys with peer pinning', () => {
@@ -255,5 +470,31 @@ describe('backfillMissingWrappedKeys with peer pinning', () => {
     await backfillMissingWrappedKeys(CONVO, ME, me.publicKey, conversationKey);
 
     expect(mockedConversationAPI.fillMissingConversationKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when no participant is missing a wrapped key', async () => {
+    mockedConversationAPI.getParticipantKeyRows.mockResolvedValue({
+      data: [{ user_id: PEER, wrapped_key: 'already-set' }],
+    });
+
+    await backfillMissingWrappedKeys(CONVO, ME, 'irrelevant', new Uint8Array(32));
+
+    expect(mockedProfileAPI.getParticipantsPublicKey).not.toHaveBeenCalled();
+    expect(mockedConversationAPI.fillMissingConversationKey).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when this device does not hold the key the profile advertises', async () => {
+    const me = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    mockedConversationAPI.getParticipantKeyRows.mockResolvedValue({
+      data: [{ user_id: PEER, wrapped_key: null }],
+    });
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    await backfillMissingWrappedKeys(CONVO, ME, 'some-other-account-public-key', conversationKey);
+
+    expect(mockedProfileAPI.getParticipantsPublicKey).not.toHaveBeenCalled();
+    expect(mockedConversationAPI.fillMissingConversationKey).not.toHaveBeenCalled();
   });
 });
