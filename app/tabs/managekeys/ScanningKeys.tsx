@@ -26,7 +26,7 @@ import { AlertDialogBody } from '@/components/ui/alert-dialog';
 import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
 import { DevicePairing, isPairDataPayload } from '@/utility/securedMessage/DevicePairing';
 import { LocalKeyTransfer, isLegacyPlaintextPayload } from '@/utility/securedMessage/LocalKeyTransfer';
-import { verifyScannedIdentityKey } from '@/utility/securedMessage/ScannedKeyVerification';
+import { verifyAndImportIdentityKey } from '@/utility/securedMessage/ImportScannedIdentityKey';
 
 type Phase = 'scan' | 'done';
 
@@ -99,11 +99,9 @@ export default function ScanningKeys() {
         }
 
         if (payload.private_key) {
-            const scannedKey = MessageEncryption.base64ToBytes(payload.private_key);
-            const check = await verifyScannedIdentityKey(user.id, scannedKey);
+            const check = await verifyAndImportIdentityKey(user.id, payload.private_key);
 
             if (check !== 'ok') {
-                scannedKey.fill(0);
                 if (check === 'mismatch') {
                     Alert.alert(
                         'This key does not match this account',
@@ -116,8 +114,6 @@ export default function ScanningKeys() {
                 }
                 return;
             }
-
-            MessageEncryption.setPrivateKey(user.id, scannedKey);
         }
 
         const importTasks = payload.list.map(async (item) => {

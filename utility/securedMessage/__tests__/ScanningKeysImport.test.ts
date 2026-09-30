@@ -78,3 +78,14 @@ describe('verifyScannedIdentityKey', () => {
     expect(result).toBe('lookup-failed');
   });
 });
+
+describe('MessageEncryption.publicKeyFromSecret', () => {
+  it('derives the same public key nacl.box.keyPair.fromSecretKey would', async () => {
+    const pair = await MessageEncryption.generateKeyPair();
+    const secretKey = MessageEncryption.base64ToBytes(pair.privateKey);
+
+    const derived = MessageEncryption.publicKeyFromSecret(secretKey);
+
+    expect(derived).toBe(pair.publicKey);
+  });
+});

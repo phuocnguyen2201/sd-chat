@@ -134,6 +134,42 @@ describe('unwrapConversationKey compatibility', () => {
       )
     ).rejects.toThrow(/Key unwrapping failed/);
   });
+
+  it('writes exclusively under the new derivation, never the legacy one', async () => {
+    const alice = await MessageEncryption.generateKeyPair();
+    const bob = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(USER, MessageEncryption.base64ToBytes(alice.privateKey));
+
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await MessageEncryption.wrapConversationKey(
+      conversationKey,
+      MessageEncryption.base64ToBytes(bob.publicKey),
+      USER
+    );
+
+    // If the write side ever regressed to the legacy derivation, this would open successfully.
+    const sharedSecret = nacl.box.before(
+      MessageEncryption.base64ToBytes(bob.publicKey),
+      MessageEncryption.base64ToBytes(alice.privateKey)
+    );
+    const legacyWrapKey = legacyKdfSha512(sharedSecret, new TextEncoder().encode('conversation-key-wrap'), 32);
+    const { ChaCha20Poly1305 } = require('@stablelib/chacha20poly1305');
+
+    expect(new ChaCha20Poly1305(legacyWrapKey).open(wrapped.nonce, wrapped.wrappedKey)).toBeNull();
+  });
+
+  it('throws its documented error when a garbage payload opens under neither derivation', async () => {
+    const alice = await MessageEncryption.generateKeyPair();
+    const bob = await MessageEncryption.generateKeyPair();
+    MessageEncryption.setPrivateKey(USER, MessageEncryption.base64ToBytes(alice.privateKey));
+
+    const garbageWrappedKey = new Uint8Array(48).fill(9); // 32-byte key + 16-byte auth tag, all garbage
+    const nonce = nacl.randomBytes(12);
+
+    await expect(
+      MessageEncryption.unwrapConversationKey(garbageWrappedKey, nonce, MessageEncryption.base64ToBytes(bob.publicKey), USER)
+    ).rejects.toThrow(/Key unwrapping failed/);
+  });
 });
 
 describe('ecdhOpen compatibility', () => {
@@ -179,6 +215,31 @@ describe('ecdhOpen compatibility', () => {
 
     await expect(
       MessageEncryption.ecdhOpen(sealed.ciphertext, sealed.nonce, sender.publicKey, stranger.secretKey, 'test-info')
+    ).rejects.toThrow(/authentication invalid/);
+  });
+
+  it('writes exclusively under the new derivation, never the legacy one', async () => {
+    const sender = MessageEncryption.generateEphemeralKeyPair();
+    const recipient = MessageEncryption.generateEphemeralKeyPair();
+    const plaintext = new TextEncoder().encode('hello');
+
+    const sealed = await MessageEncryption.ecdhSeal(plaintext, recipient.publicKey, sender.secretKey, 'test-info');
+
+    const sharedSecret = nacl.box.before(recipient.publicKey, sender.secretKey);
+    const legacySealKey = legacyKdfSha512(sharedSecret, new TextEncoder().encode('test-info'), 32);
+    const { ChaCha20Poly1305 } = require('@stablelib/chacha20poly1305');
+
+    expect(new ChaCha20Poly1305(legacySealKey).open(sealed.nonce, sealed.ciphertext)).toBeNull();
+  });
+
+  it('throws its documented error when a garbage payload opens under neither derivation', async () => {
+    const sender = MessageEncryption.generateEphemeralKeyPair();
+    const recipient = MessageEncryption.generateEphemeralKeyPair();
+    const garbageCiphertext = new Uint8Array(32).fill(9);
+    const nonce = nacl.randomBytes(12);
+
+    await expect(
+      MessageEncryption.ecdhOpen(garbageCiphertext, nonce, sender.publicKey, recipient.secretKey, 'test-info')
     ).rejects.toThrow(/authentication invalid/);
   });
 });
