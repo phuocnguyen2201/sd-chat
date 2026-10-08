@@ -1,5 +1,14 @@
 # In Progress / Open Items
 
+## Security pass 4 (2026-10-03): fix list, details in security-scan.md
+Nothing fixed yet. Suggested order:
+1. **#12 + #9 together:** `delete-account` should remove only the caller's participant row (and a conversation only when it's empty). Then a tracked migration for the `conversation_participants` RLS (member-only, and cross-user UPDATE only when `wrapped_key is null`, via an RPC that sets `wrapped_by`).
+2. **#20:** `push-Notification.ts:124` `.neq('profile_id', …)` → `.eq`. Then check live whether other users' tokens were mass-deactivated.
+3. #10, #11 (carried).
+4. **#21:** `secure_password_change = true` plus re-authentication, a biometric check inside ManageKeys/BackupKey/PairingCode/delete account, and fix the Back button. **#22:** pin against the wrapping member (`wrapped_by`), not `created_by`.
+5. Low/info: #23–#28.
+Coverage gap: export the live schema (`supabase db dump --schema public`) so the RLS and RPCs can be reviewed from the repo.
+
 ## Security #5, #7, #8a, #8b (2026-09-29): code + unit tests only, three unmerged branches
 Full detail in progress.md and security-scan.md. Manual steps in need-action.md. To pick up next session:
 1. **Merge the three branches** into `main`: `security/attachment-encryption`, `security/peer-key-pinning`, `security/key-import-and-hkdf`. They're independent (off `main`, not off each other); `[room_id].tsx` and `secured.ts` are the only files more than one branch touches, and both diffs are small.
@@ -439,3 +448,6 @@ See progress.md (2026-09-26). To verify on a new APK:
 - Consider `lockscreenVisibility: PRIVATE` on the Android `default` channel so the decrypted text only shows once unlocked.
 - Group chats get no push at all: `push` uses `.single()` on the other participants (now logs a warning and returns).
 - Pre-existing bug spotted: `updateTokenStatus` deactivates "other" tokens with `.neq('profile_id', user.id)`, which RLS turns into a no-op; it was probably meant to deactivate this user's other tokens.
+
+## CI job order in `maestro-e2e.yml` (2026-10-08)
+- `unit-test` has `needs: build` but doesn't use the APK. Proposed: drop it, and make `build` depend on `unit-test` so failing tests skip the APK build. Waiting on the user's decision.

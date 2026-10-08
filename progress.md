@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-10-03: Security audit pass 4 (review only, no code changed)
+- Audited `main` @ `cb824e5` by hand. No strix skill was available, and nothing was run against live Supabase or the vault. Results are in `security-scan.md`, recreated because the old one, never committed, was gone from disk.
+- Confirmed still open in code: **#12** (`delete-account` deletes whole conversations for every member, and it's live) and **#9** (the client writes other users' `conversation_participants` rows, so the RLS can't simply be tightened).
+- New: **#20** `updateTokenStatus` uses `.neq('profile_id', user.id)` and deactivates *other users'* push tokens. **#21** No re-authentication for password change (`secure_password_change=false`), key export, vault overwrite or account deletion, and the biometric screen's Back button skips straight to ManageKeys. **#22** Group key pinning checks `created_by` instead of the member who wrapped the row. **#23–#28** are low/info: the remote pairing gate, unbounded vault KDF params, the session in AsyncStorage with `allowBackup=true`, an un-namespaced snapshot DB, a private-key byte log in `secured.ts:340`, npm audit (24 high, build tooling only), and vault container hardening.
+- `npm audit`: vault-service is clean.
+
 ## 2026-09-29 — Security #5, #7, #8a, #8b: three branches, code + unit tests only
 
 Fixed the three remaining findings from the 2026-09-26 manual white-box review, each on its own local branch off `main` (not pushed, not merged): `security/attachment-encryption`, `security/peer-key-pinning`, `security/key-import-and-hkdf`. Design was worked out with the user first (plan mode), including two explicit trade-off calls: attachment content gets fully encrypted rather than just hiding the filename (the storage bucket RLS was confirmed live to let any authenticated user read any object, so a filename-only fix wouldn't have closed the finding), and the HKDF fix ships as "write new, read both" in one commit rather than a two-phase rollout.
@@ -736,3 +742,11 @@ daemon on the Mac, so nothing has actually run.
 - Messages forwarded before this fix stay unreadable; they are stored double-encrypted.
 - `maestro/forward-message.yaml` now opens the Android Simulator DM after forwarding, checks that "Testing forward message" is readable, then returns to the "Testing" DM for `forward-cancel-then-send.yaml`.
 - `npx tsc --noEmit`: no errors in `[room_id].tsx`. Not run on a device; needs a new APK.
+
+## 2026-10-08 — Fixed: every Jest suite failed locally
+- `npx jest --ci` failed all 7 suites before any test ran. Two causes:
+  - `react-native-css-interop` (pulled in by NativeWind) ships JSX in `dist/`, and it wasn't in the `transformIgnorePatterns` allowlist. Added `nativewind|react-native-css-interop` to the allowlist in `package.json`.
+  - `PeerKeyPins.test.ts` mocked `react-native` as only `{ Alert }`. jest-expo's lazy `fetch` polyfill loads `expo-modules-core`, which needs the real `Platform`/`Appearance`. Removed the mock; the test now uses `jest.spyOn(Alert, 'alert')`.
+- Result: 7/7 suites, 73/73 tests pass locally.
+- Reviewed the workflow: the `unit-test` job in `maestro-e2e.yml` only tests source and doesn't use the APK, but `needs: build` makes it wait for the ~60-min build. Suggested reordering it (not changed yet).
+- Added `documentation/testing/README.md`: what each Jest suite checks (mapped to its security item), how to run them, the Jest config gotchas, the Maestro flow order (CI vs. hand-run only), and the CI job layout.

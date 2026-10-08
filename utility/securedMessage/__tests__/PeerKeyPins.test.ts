@@ -42,10 +42,6 @@ jest.mock('@/utility/messages', () => ({
   },
 }));
 
-jest.mock('react-native', () => ({
-  Alert: { alert: jest.fn() },
-}));
-
 import { Alert } from 'react-native';
 import { MessageEncryption } from '../secured';
 import { PeerKeyPins } from '../PeerKeyPins';
@@ -57,7 +53,9 @@ import {
 } from '../ConversationKeyResolver';
 import { conversationAPI, profileAPI } from '@/utility/messages';
 
-const mockedAlert = Alert.alert as jest.Mock;
+// Spy rather than jest.mock('react-native'): a partial mock breaks
+// jest-expo's setup, which needs the real Platform/Appearance modules.
+const mockedAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {}) as jest.Mock<any>;
 
 // Cast to `any`: the mock only needs to satisfy the shapes the resolver
 // actually reads, not the full live ApiResponse/UserProfile types.
