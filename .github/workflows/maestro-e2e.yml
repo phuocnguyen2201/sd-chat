@@ -11,6 +11,10 @@ on:
       - '**.md'
       - 'documentation/**'
       - 'sd-chat-vault/**'
+      - 'confirm-page/**'
+      - 'assets/**'
+      - 'sd-chat-vault/**'
+      - 'supabase/**'
 
 concurrency:
   group: maestro-e2e-${{ github.ref }}

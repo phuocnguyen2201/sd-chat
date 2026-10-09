@@ -80,6 +80,21 @@ if ! run_flow maestro/ci/setup-account.yaml; then
   exit 1
 fi
 
+# Flows chat with these seeded users, so they must already exist in profiles.
+SEED_USERS=(Testing Android Simulator)
+seed_filter=$(printf '"%s",' "${SEED_USERS[@]}")
+found=$(curl -fsS "$SUPABASE_URL/rest/v1/profiles?select=displayname&displayname=in.(${seed_filter%,})" \
+  -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" | jq -r '.[].displayname') || {
+  echo "::error::Could not query Supabase profiles for seed users."
+  exit 1
+}
+for user in "${SEED_USERS[@]}"; do
+  grep -qx "$user" <<<"$found" || {
+    echo "::error::Seed user '$user' not found in Supabase profiles; skipping the suite."
+    exit 1
+  }
+done
+
 for flow in "${FLOWS[@]}"; do
   run_flow "$flow" || failed+=("$(basename "$flow")")
 done
