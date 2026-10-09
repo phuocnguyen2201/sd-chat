@@ -45,18 +45,53 @@ async function getAuthedUser(req: Request): Promise<{ id: string } | null> {
   return { id: data.user.id };
 }
 
+/** Thrown before anything is changed, so the caller gets a clean refusal. */
+class GroupCreatorBlockedError extends Error {}
+
 /**
- * Messages, reactions and their attachments are deliberately left where
- * they are. They are end-to-end encrypted, and the keys for them are
- * destroyed on the device as part of the same flow, so what stays behind
- * is ciphertext that nobody - this account included - holds a key for.
+ * Removes this account from its conversations without taking anyone else's
+ * conversation with it (security #12).
  *
- * What does go is everything that still means something without a key:
- * every conversation this account took part in, the participant rows that
- * tie people to those conversations, the avatar record, the profile and
- * the auth user.
+ * - The caller's participant rows go. Everyone else stays in the chat.
+ * - A conversation is deleted only once nobody is left in it. Its messages go
+ *   with it (cascade), and nobody else can see them any more.
+ * - DMs the caller created get `created_by` cleared, so the profile can be
+ *   deleted. DM key lookup never reads `created_by`, so this is safe.
+ * - A group the caller created that still has other members is refused before
+ *   anything changes. Clearing its `created_by` would break key lookup for
+ *   every remaining member (see ConversationKeyResolver.findKeyWrapperPeerId),
+ *   so that case needs a decision first.
+ *
+ * Messages the caller sent in conversations that stay are removed with the
+ * profile (messages.sender_id cascades), so the caller's text does not outlive
+ * the account in other people's chats. The messages are encrypted anyway.
  */
-async function deleteAccount(userId: string): Promise<void> {
+async function leaveConversations(userId: string): Promise<void> {
+  const { data: ownedGroups, error: ownedError } = await db
+    .from("conversations")
+    .select("id")
+    .eq("created_by", userId)
+    .eq("is_group", true);
+
+  if (ownedError) throw ownedError;
+
+  const ownedGroupIds = ownedGroups?.map((row) => row.id) ?? [];
+  if (ownedGroupIds.length > 0) {
+    const { data: otherMembers, error: membersError } = await db
+      .from("conversation_participants")
+      .select("conversation_id")
+      .in("conversation_id", ownedGroupIds)
+      .neq("user_id", userId)
+      .limit(1);
+
+    if (membersError) throw membersError;
+    if (otherMembers && otherMembers.length > 0) {
+      throw new GroupCreatorBlockedError(
+        "This account created a group that other people are still in.",
+      );
+    }
+  }
+
   const { data: participantRows, error: participantError } = await db
     .from("conversation_participants")
     .select("conversation_id")
@@ -66,25 +101,75 @@ async function deleteAccount(userId: string): Promise<void> {
   const conversationIds: string[] = participantRows?.map((row) => row.conversation_id) ?? [];
 
   if (conversationIds.length > 0) {
-    /*
-      Every participant row for these conversations, not only this
-      account's. They are the children of the rows deleted immediately
-      after, so leaving the other members behind would just block that.
-    */
-    const { error: participantsError } = await db
+    const { error: leaveError } = await db
       .from("conversation_participants")
       .delete()
+      .eq("user_id", userId);
+
+    if (leaveError) throw leaveError;
+  }
+
+  // Conversations that still have a member stay exactly as they are.
+  let stillPopulated = new Set<string>();
+  if (conversationIds.length > 0) {
+    const { data: remaining, error: remainingError } = await db
+      .from("conversation_participants")
+      .select("conversation_id")
       .in("conversation_id", conversationIds);
 
-    if (participantsError) throw participantsError;
+    if (remainingError) throw remainingError;
+    stillPopulated = new Set((remaining ?? []).map((row) => row.conversation_id));
+  }
+
+  // Groups this account created that were already empty (it had left them, and
+  // everyone else had too) still point at it. The check above guarantees they
+  // have no other members, so they can go with the rest.
+  const emptyIds = new Set([
+    ...conversationIds.filter((id) => !stillPopulated.has(id)),
+    ...ownedGroupIds,
+  ]);
+
+  // DMs the caller created: the profile can't be deleted while this points at it.
+  const { error: dmError } = await db
+    .from("conversations")
+    .update({ created_by: null })
+    .eq("created_by", userId)
+    .eq("is_group", false);
+
+  if (dmError) throw dmError;
+
+  if (emptyIds.size > 0) {
+    const ids = [...emptyIds];
+
+    // files_group has no cascade from conversations, so it goes first.
+    const { error: filesGroupError } = await db
+      .from("files_group")
+      .delete()
+      .in("conversation_id", ids);
+
+    if (filesGroupError) throw filesGroupError;
 
     const { error: conversationsError } = await db
       .from("conversations")
       .delete()
-      .in("id", conversationIds);
+      .in("id", ids);
 
     if (conversationsError) throw conversationsError;
   }
+}
+
+/**
+ * Other people's messages, reactions and attachments in conversations that
+ * stay are left where they are. They are end-to-end encrypted, and the keys
+ * for them are destroyed on the device as part of the same flow. This
+ * account's own messages go with the profile (cascade).
+ *
+ * What does go is everything that still means something without a key: this
+ * account's participant rows, conversations nobody is left in, the avatar
+ * record, the profile and the auth user.
+ */
+async function deleteAccount(userId: string): Promise<void> {
+  await leaveConversations(userId);
 
   // The avatar's row. The file itself is removed by the app beforehand, while its session still works.
   const { error: profileFiles } = await db
@@ -122,6 +207,9 @@ Deno.serve(async (req: Request) => {
     await deleteAccount(user.id);
     return json({ ok: true });
   } catch (error) {
+    if (error instanceof GroupCreatorBlockedError) {
+      return json({ error: error.message }, 409);
+    }
     console.error("delete-account failed:", error);
     return json({ error: "Could not delete account" }, 500);
   }

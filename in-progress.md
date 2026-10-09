@@ -25,8 +25,12 @@ Full detail in progress.md and security-scan.md. Manual steps in need-action.md.
 4. Maestro: make `open-manage-keys` / `show-pairing-code` work on iOS too (tab text "Settings, tab, …", no `back`). Fix the `jest-expo` preset (`npm i -D @react-native/jest-preset`) so `npm test` works.
 5. Delete the `sdchat-e2e-*@uberip.com` user left by the simulator run.
 
-## NEXT: #12 is live — `delete-account` wipes shared conversations for every member
-Change it to delete only the caller's participant rows (and a conversation only when it has no members left), redeploy, and fix #9 alongside.
+## #9 + #12 (2026-10-09): written, not applied or deployed
+- #9 was **not** resolved. Live policies on `conversation_participants` were still `true` on 2026-10-09. Migration `20261009000000_conversation_participants_rls.sql` is written and tested in a rolled-back transaction. Not applied.
+- #12: `delete-account` now removes only the caller's rows (see security-scan.md). Not deployed.
+- **Open decision:** a group the caller created that still has members. The function returns 409 for now. Options are in security-scan.md (2026-10-09).
+- Steps: need-action.md, "#9 and #12".
+- Also: `/supabase/migrations` is gitignored (`.gitignore` line 47), so new migrations aren't committed.
 
 ## Email confirmation (2026-09-28): DONE (user did all manual steps; checked live where possible)
 - Leftovers: the mail.tm rate limit in CI (add a retry if it flakes); reinstall-before-first-login key loss; #18.
