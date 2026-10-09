@@ -59,7 +59,7 @@ export default function BiometricAuthentication() {
 
                         <Button size="md"
                             action="primary"
-                            className="bg-blue-500" onPress={() => router.push('/tabs/managekeys/ManageKeys')}>
+                            className="bg-blue-500" onPress={() => router.push('/tabs/(tabs)/Settings')}>
                             <ButtonText className="dark:text-gray-300">Back</ButtonText>
                         </Button>
                     </View>
