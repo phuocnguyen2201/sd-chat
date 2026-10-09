@@ -30,12 +30,12 @@ tags:
 
 - tapOn: { id: "register-button" }
 - extendedWaitUntil:
-    visible: "(?i).*(Registration received!|email rate limit exceeded).*"
+    visible: "(?i).*(Registration received!|rate limit).*"
     timeout: 20000
 # Supabase's 2-per-hour email limit: fail with a clear note, not a timeout.
 - runFlow:
     when:
-      visible: "(?i).*email rate limit exceeded.*"
+      visible: "(?i).*rate limit.*"
     commands:
       - runScript: scripts/rate-limited.js
 - tapOn: { id: "accept-button" }
