@@ -44,3 +44,5 @@ ios/
 
 /brag-output
 /.agents
+
+/.github/scripts/check-seed-users.js

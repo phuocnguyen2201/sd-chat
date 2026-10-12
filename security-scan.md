@@ -1,5 +1,23 @@
 # Security Scan
 
+## 2026-10-12 — RLS regression tests (pgTAP) and the ownership gaps they found
+
+**Method:** read the live public schema with `supabase db dump --linked --schema public` (read-only), saved as the baseline migration `20260925000000_baseline_schema.sql`, and built a local database from the migrations. `supabase/tests/ownership_rls.test.sql` checks 55 rules as 3 users (A and B share a DM and a group; O is an outsider), and `rls_enabled.test.sql` checks that RLS is on for every public table. They run in CI (`.github/workflows/rls-tests.yml`) on a throwaway database, never on production.
+
+**Live state at the time of the check:** RLS is on for all 13 public tables. `conversation_participants` (#9), `profiles` (read all, write own), `push_notification_tokens` (own only), and `messages` read/update/delete are correct. Before the fix, 14 checks failed:
+
+| # | Severity | Finding | Status |
+|---|---|---|---|
+| 10 (tables) | High | `files`, `files_group` and `files_profiles` have an `ALL true` policy: anyone can read, change, add or delete any attachment row or avatar row. | ✅ **Applied live 2026-10-12** (`20261012000000_ownership_rls.sql`, checked in a fresh dump; tests green). The storage-bucket half of #10 is still open. |
+| 29 | High | **Message impersonation.** The `messages` INSERT policy checks membership but not `sender_id`, so any member can post a message that shows up as another member's. | ✅ Applied live 2026-10-12: INSERT requires `sender_id = auth.uid()`. |
+| 13 (reactions) | Medium | `reactions` SELECT is `true`, and INSERT doesn't check membership, so an outsider can see and add reactions in any chat. | ✅ Applied live 2026-10-12: members only. The `profiles.fcm_token` half of #13 is still open. |
+| 30 | Low (functional) | `mark_messages_as_read` isn't `SECURITY DEFINER`, so under "update own messages only" it can't mark the other person's messages as read. Read receipts likely do nothing today. | 🔴 Open. Fix: make it `SECURITY DEFINER`, use `auth.uid()` instead of the `p_user_id` parameter, and only touch `read_by`. |
+
+**To apply:**
+1. Mark the baseline as already applied: `supabase migration repair --status applied 20260925000000`.
+2. Run `supabase db push`, which applies only `20261012000000_ownership_rls.sql`.
+3. Test on a device: send, edit, delete, forward, attachments and the gallery, profile and group avatars, reactions.
+
 ## 2026-10-09 — #9 and #12: fixed in code, not yet applied to the live project
 
 **Live check first.** #9 was thought to be resolved, but it is not. The live `conversation_participants` policies (read via `supabase db query --linked`, 2026-10-09) are still `true` for SELECT, INSERT, UPDATE and DELETE. No migration in the repo touched them.

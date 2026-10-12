@@ -46,6 +46,10 @@ drop policy if exists "Enable insert for authenticated users only" on public.con
 drop policy if exists "Enable update for authenticated users only" on public.conversation_participants;
 drop policy if exists "Enable delete for authenticated users only" on public.conversation_participants;
 drop policy if exists "Enable delete for users based on user_id" on public.conversation_participants;
+-- Re-runnable on top of the baseline, which already has these.
+drop policy if exists "participants_select_members" on public.conversation_participants;
+drop policy if exists "participants_update_key_columns" on public.conversation_participants;
+drop policy if exists "participants_delete_own" on public.conversation_participants;
 
 create policy "participants_select_members"
   on public.conversation_participants

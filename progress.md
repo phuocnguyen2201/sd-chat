@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-10-12: RLS integration tests (pgTAP + GitHub Actions), ownership migration
+- **Brainstorm:** listed unit-test ideas for the chat code: crypto round trips, the key cache, the API layer with a mocked supabase, and logic to extract from the screens. Not implemented yet.
+- **Baseline schema:** the tables were made in the dashboard, so no migration created them and nothing could build a local database (`relation "public.messages" does not exist`). Added `20260925000000_baseline_schema.sql` from a read-only `db dump --linked --schema public` (checked for secrets: none). It leaves out the `push_notification` trigger, which `20260927…` creates. In `20261009…participants_rls.sql`, added `drop policy if exists` for its 3 policies so it can be re-run. All 8 migrations now build a fresh local database.
+- The CLI had to go from 2.54.11 to 2.120.0: the old storage image crashed on `db pull` (`Migration drop-bucketid-objname-index not found`).
+- **Tests:** `supabase/tests/ownership_rls.test.sql` (55 checks, 8 tables, users A/B/outsider O) and `rls_enabled.test.sql`. Before the fix, **14 failed**: files* wide open, message impersonation, and reactions readable and addable by outsiders. **After `20261012000000_ownership_rls.sql`: 56/56 pass.** Mutation check: a temporary `using (true)` on `messages` makes the outsider check fail, as it should.
+- **CI:** `.github/workflows/rls-tests.yml` runs `supabase db start` and `supabase test db` (CLI 2.120.0) on PRs and pushes that change `supabase/**`. It needs no secrets. Not run on GitHub yet.
+- **Found:** `mark_messages_as_read` isn't SECURITY DEFINER, so read receipts are probably blocked (security-scan.md #30).
+- **Not applied live.** The #20 push-token fix from this session is in `stash@{0}` (the user stashed before pulling), not in the working tree.
+
 ## 2026-10-03: Security audit pass 4 (review only, no code changed)
 - Audited `main` @ `cb824e5` by hand. No strix skill was available, and nothing was run against live Supabase or the vault. Results are in `security-scan.md`, recreated because the old one, never committed, was gone from disk.
 - Confirmed still open in code: **#12** (`delete-account` deletes whole conversations for every member, and it's live) and **#9** (the client writes other users' `conversation_participants` rows, so the RLS can't simply be tightened).

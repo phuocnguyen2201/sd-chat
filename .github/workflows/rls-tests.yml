@@ -1,0 +1,23 @@
+name: RLS tests
+
+# Runs the pgTAP tests in supabase/tests against a throwaway local database
+# built from supabase/migrations. No secrets; production is never touched.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['supabase/**']
+  push:
+    branches: [main]
+    paths: ['supabase/**']
+
+jobs:
+  rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - run: supabase db start
+      - run: supabase test db

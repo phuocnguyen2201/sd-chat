@@ -1,5 +1,13 @@
 # In Progress / Open Items
 
+## RLS tests + ownership migration (2026-10-12): APPLIED LIVE (checked by dump); on-device check pending
+1. Push a branch and check that the `RLS tests` Action is green.
+2. Applied live by the user (repair + db push), and the policies were checked in a fresh dump. Still needed: an on-device check of send, edit, delete, forward, attachments and the gallery, profile and group avatars, reactions.
+3. **#20 fix is in `stash@{0}`:** `push-Notification.ts` `.neq('profile_id')` → `.eq`. Restore it with `git stash pop` (keep the committed `.gitignore`), or redo the one-line change. The stash also holds the user's own `run-maestro.sh` change.
+4. #30: make `mark_messages_as_read` SECURITY DEFINER, using `auth.uid()`, and add a test.
+5. Still open: the storage-bucket half of #10, and `profiles.fcm_token` (#13).
+6. Chat unit tests from the brainstorm: not started.
+
 ## Security pass 4 (2026-10-03): fix list, details in security-scan.md
 Nothing fixed yet. Suggested order:
 1. **#12 + #9 together:** `delete-account` should remove only the caller's participant row (and a conversation only when it's empty). Then a tracked migration for the `conversation_participants` RLS (member-only, and cross-user UPDATE only when `wrapped_key is null`, via an RPC that sets `wrapped_by`).
