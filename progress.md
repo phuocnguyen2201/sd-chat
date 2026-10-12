@@ -759,3 +759,6 @@ daemon on the Mac, so nothing has actually run.
 - Result: 7/7 suites, 73/73 tests pass locally.
 - Reviewed the workflow: the `unit-test` job in `maestro-e2e.yml` only tests source and doesn't use the APK, but `needs: build` makes it wait for the ~60-min build. Suggested reordering it (not changed yet).
 - Added `documentation/testing/README.md`: what each Jest suite checks (mapped to its security item), how to run them, the Jest config gotchas, the Maestro flow order (CI vs. hand-run only), and the CI job layout.
+
+## 2026-10-12
+- Fixed `.github/scripts/run-maestro.sh` seed-user check: `SEED_USERS=(Testing Android Simulator)` split into 3 names; now quoted as 2 (`"Testing" "Android Simulator"`), and the space is URL-encoded (`%20`) in the Supabase `in.(...)` filter.
