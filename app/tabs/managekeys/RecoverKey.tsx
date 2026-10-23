@@ -5,7 +5,8 @@ import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Heading } from '@/components/ui/heading';
 import { Button, ButtonText } from '@/components/ui/button';
-import { Input, InputField } from '@/components/ui/input';
+import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
+import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/spinner';
 import { VStack } from '@/components/ui/vstack';
 import { router } from 'expo-router';
@@ -30,6 +31,7 @@ import {
 
 export default function RecoverKey() {
     const [passphrase, setPassphrase] = useState('');
+    const [showPassphrase, setShowPassphrase] = useState(false);
     const [working, setWorking] = useState(false);
 
     const describe = (error: unknown): { title: string; message: string } => {
@@ -104,10 +106,18 @@ export default function RecoverKey() {
                         value={passphrase}
                         onChangeText={setPassphrase}
                         placeholder="Recovery passphrase"
-                        secureTextEntry
+                        type={showPassphrase ? 'text' : 'password'}
+                        secureTextEntry={!showPassphrase}
                         autoCapitalize="none"
                         autoCorrect={false}
                     />
+                    <InputSlot
+                        className="pr-3"
+                        onPress={() => setShowPassphrase((shown) => !shown)}
+                        accessibilityLabel={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
+                    >
+                        <InputIcon as={showPassphrase ? EyeIcon : EyeOffIcon} />
+                    </InputSlot>
                 </Input>
 
                 <Button

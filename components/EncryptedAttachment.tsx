@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Platform, Pressable } from 'react-native';
+import { Alert, Image, Platform, Pressable } from 'react-native';
 import { Link } from 'expo-router';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import { Text } from '@/components/ui/text';
 import { LinkText } from '@/components/ui/link';
 import { Icon } from '@/components/ui/icon';
@@ -18,6 +18,16 @@ interface EncryptedAttachmentProps {
   isCurrentUser?: boolean;
   onPressImage?: (uri: string) => void;
   onLongPress?: () => void;
+}
+
+/*
+  The descriptor name comes from the sender, so keep only its last path
+  segment and drop characters file systems reject. It becomes the temp file's
+  name, which is what the share sheet saves the file as.
+*/
+function safeFileName(name: string): string {
+  const base = (name.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f<>:"|?*]/g, '_').trim();
+  return base && base !== '.' && base !== '..' ? base : 'attachment';
 }
 
 /**
@@ -37,11 +47,13 @@ export default function EncryptedAttachment({
   onLongPress,
 }: EncryptedAttachmentProps) {
   const [localUri, setLocalUri] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState<string>(file?.filename ?? '');
+  const isEncrypted = !!message.nonce;
+  // An encrypted file's `filename` is its opaque storage id, not something to show.
+  const [displayName, setDisplayName] = useState<string>(isEncrypted ? '' : file?.filename ?? '');
+  const [mimeType, setMimeType] = useState<string | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  const isEncrypted = !!message.nonce;
   const legacyUrl = utilityFunction.buildFileUrl(file);
 
   useEffect(() => {
@@ -84,11 +96,15 @@ export default function EncryptedAttachment({
           cleanupRef.current = () => URL.revokeObjectURL(blobUrl);
           setLocalUri(blobUrl);
         } else {
-          const tempFile = new File(Paths.cache, `att-${message.id}`);
+          // One folder per message, so the file keeps its real name without
+          // two attachments called the same thing overwriting each other.
+          const tempDir = new Directory(Paths.cache, `att-${message.id}`);
+          tempDir.create({ intermediates: true, idempotent: true });
+          const tempFile = new File(tempDir, safeFileName(descriptor.name));
           tempFile.write(plaintext);
           cleanupRef.current = () => {
             try {
-              tempFile.delete();
+              tempDir.delete();
             } catch {
               // best-effort cleanup
             }
@@ -97,6 +113,7 @@ export default function EncryptedAttachment({
         }
 
         setDisplayName(descriptor.name);
+        setMimeType(descriptor.mime);
       } catch (error) {
         console.error('Unable to decrypt attachment:', error);
         if (!cancelled) setFailed(true);
@@ -115,17 +132,48 @@ export default function EncryptedAttachment({
 
   const uri = isEncrypted ? localUri : legacyUrl;
 
-  const openLocalFile = async () => {
+  const shareLocalFile = async () => {
     if (!uri) return;
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const Sharing = require('expo-sharing');
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
+        await Sharing.shareAsync(uri, { mimeType, dialogTitle: displayName });
       }
     } catch (error) {
       console.error('Unable to open attachment:', error);
     }
+  };
+
+  /*
+    Android's share sheet only lists apps to send the file to - unlike iOS's
+    "Save to Files" there is no way to keep it on the device. So save it through
+    the system folder picker instead, which needs no storage permission.
+  */
+  const saveToDevice = async () => {
+    if (!uri) return;
+    try {
+      const target = await Directory.pickDirectoryAsync();
+      const saved = target.createFile(safeFileName(displayName), mimeType ?? 'application/octet-stream');
+      saved.write(new File(uri).bytesSync());
+      Alert.alert('Saved', `${saved.name} was saved to the folder you picked.`);
+    } catch (error) {
+      if (error instanceof Error && /cancel/i.test(error.message)) return;
+      console.error('Unable to save attachment:', error);
+      Alert.alert('Error', 'Could not save the file. Try another folder.');
+    }
+  };
+
+  const openLocalFile = () => {
+    if (Platform.OS !== 'android') {
+      shareLocalFile();
+      return;
+    }
+    Alert.alert(displayName, undefined, [
+      { text: 'Save to device', onPress: saveToDevice },
+      { text: 'Share', onPress: shareLocalFile },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   if (kind === 'image') {

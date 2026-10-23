@@ -182,17 +182,21 @@ export default function EnterPairingCode() {
 
             {isRecovery ? (
                 /*
-                  Recovery users can't reach Settings. ScanningKeys (with no
-                  pairing in progress) holds the other ways out: restore from
-                  backup, or delete the account.
+                  Recovery users can't reach Settings. The key guard sent them
+                  from ScanningKeys (with no pairing in progress), which holds
+                  the other ways out: restore from backup, or delete the account.
                 */
                 <Button
-                    onPress={() => router.replace({ pathname: '/tabs/managekeys/ScanningKeys', params: { recovery: '1' } })}
+                    onPress={() =>
+                        router.canGoBack()
+                            ? router.back()
+                            : router.replace({ pathname: '/tabs/managekeys/ScanningKeys', params: { recovery: '1' } })
+                    }
                     size="md"
                     action="secondary"
                     style={{ width: '100%', maxWidth: 360 }}
                 >
-                    <ButtonText>No other device?</ButtonText>
+                    <ButtonText>Back to other options</ButtonText>
                 </Button>
             ) : (
                 <Button onPress={() => router.replace('/tabs/(tabs)/Settings')} size="md" action="secondary" style={{ width: '100%', maxWidth: 360 }}>

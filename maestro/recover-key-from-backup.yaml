@@ -1,8 +1,9 @@
 appId: com.phuocng23000.sdchat
 ---
 # Covers: signing in on a device without the key -> Bootstrap's key check
-# sends it to EnterPairingCode in recovery mode -> "No other device?" ->
-# ScanningKeys (no pairing in progress, so no scanner) -> Recover from backup -> wrong
+# sends it to ScanningKeys in recovery mode (no pairing in progress, so no
+# scanner) -> "Back to other options" from EnterPairingCode returns there ->
+# Recover from backup -> wrong
 # passphrase rejected -> right passphrase restores the key -> old messages
 # decrypt again.
 #
@@ -18,16 +19,8 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "This device does not have your encryption key yet.*"
 - tapOn: "OK"
 
-# EnterPairingCode, recovery mode: Settings is out of reach, so the way out
-# is "No other device?" instead of Cancel
-- extendedWaitUntil:
-    visible: "Enter the 4-digit code shown on your other device"
-    timeout: 15000
-- assertNotVisible: "Cancel"
-- tapOn: "No other device?"
-
-# ScanningKeys, recovery mode, no pairing started: asks for the code instead
-# of opening the camera, and keeps the backup / delete exits
+# ScanningKeys, recovery mode, no pairing started: offers the pairing code,
+# the backup and delete instead of opening the camera
 - extendedWaitUntil:
     visible: "Enter the pairing code from your other device first.*"
     timeout: 15000
@@ -35,6 +28,18 @@ appId: com.phuocng23000.sdchat
 - assertVisible: "No other device to scan from?"
 - assertVisible: "No backup either?.*"
 - assertVisible: "Delete this account"
+
+# EnterPairingCode, recovery mode: Settings is out of reach, so the way out
+# is "Back to other options" instead of Cancel
+- tapOn: "Enter pairing code"
+- extendedWaitUntil:
+    visible: "Enter the 4-digit code shown on your other device"
+    timeout: 15000
+- assertNotVisible: "Cancel"
+- tapOn: "Back to other options"
+- extendedWaitUntil:
+    visible: "Enter the pairing code from your other device first.*"
+    timeout: 15000
 
 # Wrong passphrase
 - tapOn: "Recover from backup"

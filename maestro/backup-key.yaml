@@ -10,6 +10,12 @@ appId: com.phuocng23000.sdchat
 - scrollUntilVisible:
     element: "Back up my key"
 - tapOn: "Back up my key"
+# An account that already has a backup is asked first (local fixture runs)
+- runFlow:
+    when:
+      visible: "You already have a backup"
+    commands:
+      - tapOn: "Replace backup"
 - assertVisible: "Back up your key"
 - assertVisible: "Choose a recovery passphrase"
 

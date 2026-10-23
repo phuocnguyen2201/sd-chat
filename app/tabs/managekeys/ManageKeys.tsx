@@ -11,6 +11,7 @@ import { buildKeySyncPayload } from '@/utility/securedMessage/KeySyncPayload';
 import { DevicePairing } from '@/utility/securedMessage/DevicePairing';
 import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
+import { hasVaultBackup } from '@/utility/securedMessage/VaultBackup';
 
 type Phase = 'idle' | 'show_sealed';
 
@@ -29,6 +30,37 @@ export default function ManageKeys() {
     const [pairingCheck, setPairingCheck] = useState('');
     const [timeLeft, setTimeLeft] = useState(QR_TTL_SECONDS);
     const autoStartedRef = useRef(false);
+    const [checkingBackup, setCheckingBackup] = useState(false);
+
+    /*
+      A new backup replaces the old one, so say so before leaving this screen
+      rather than letting someone overwrite a working backup by habit. Replacing
+      stays possible - it is the only way to change the backup passphrase.
+    */
+    const openBackup = async () => {
+        if (!user?.id || checkingBackup) return;
+        setCheckingBackup(true);
+        try {
+            if (!(await hasVaultBackup(user.id))) {
+                router.push('/tabs/managekeys/BackupKey');
+                return;
+            }
+            Alert.alert(
+                'You already have a backup',
+                'Your key is already backed up. Replacing it makes the old passphrase stop working - only the new one will recover your key.',
+                [
+                    { text: 'OK', style: 'cancel' },
+                    {
+                        text: 'Replace backup',
+                        style: 'destructive',
+                        onPress: () => router.push('/tabs/managekeys/BackupKey'),
+                    },
+                ]
+            );
+        } finally {
+            setCheckingBackup(false);
+        }
+    };
 
     /*
       Seals the key payload to the one-time key the other device sent with the
@@ -187,7 +219,8 @@ export default function ManageKeys() {
                     this device.
                 </Text>
             </Box>
-            <Button onPress={() => { router.push('/tabs/managekeys/BackupKey'); }}
+            <Button onPress={openBackup}
+                isDisabled={checkingBackup}
                 size="md"
                 action="primary"
                 className="bg-blue-500 mb-8">

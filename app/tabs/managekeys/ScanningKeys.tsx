@@ -47,8 +47,9 @@ export default function ScanningKeys() {
 
     /*
       The QR from the other device is sealed to the one-time key made in
-      EnterPairingCode. Without it (app restarted, or arrived here some other
-      way) nothing could be opened, so ask for the pairing code first.
+      EnterPairingCode. Without it (sent here by the key guard, app restarted,
+      or arrived some other way) nothing could be opened, so offer the pairing
+      code and the backup instead of the camera.
     */
     const [pairingKey] = useState(() => DevicePairing.publicKey());
     const pairingCheck = pairingKey ? LocalKeyTransfer.pairingCheck(pairingKey) : null;
@@ -223,8 +224,10 @@ export default function ScanningKeys() {
                                     action="primary"
                                     size="md"
                                     className="bg-blue-500"
+                                    // push, not replace: keeps this screen underneath so
+                                    // EnterPairingCode gets a header back button to it.
                                     onPress={() =>
-                                        router.replace({
+                                        router.push({
                                             pathname: '/tabs/managekeys/EnterPairingCode',
                                             params: isRecovery ? { recovery: '1' } : {},
                                         })

@@ -23,6 +23,7 @@ export default function AppLayout() {
       <Stack.Screen name='managekeys/PairingCode' options={{ title: 'Pairing Code'}}/>
       <Stack.Screen name='managekeys/BackupKey' options={{ title: 'Back Up Key'}}/>
       <Stack.Screen name='managekeys/RecoverKey' options={{ title: 'Recover From Backup'}}/>
+      <Stack.Screen name='managekeys/EnterPairingCode' options={{ title: 'Enter Pairing Code'}}/>
     </Stack>
   );
 }

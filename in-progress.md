@@ -5,6 +5,10 @@
 2. Apply: `supabase db push` (only `20261023000000_storage_ownership_rls.sql` should be pending). Then check `pg_policies where schemaname='storage'` shows only the 4 `app_objects_*` policies.
 3. On device: change your profile avatar, change a group avatar, send an image and a file, open others' avatars and attachments, delete account (removes own avatar).
 
+## Key recovery lands on ScanningKeys (2026-10-23): code done, not tested on device
+1. Simulator: sign in on a wiped device -> alert -> ScanningKeys with no camera -> Enter pairing code / Back to other options / Recover from backup all work.
+2. Run `maestro/recover-key-from-backup.yaml` (after `backup-key.yaml` + `login-errors.yaml`).
+
 ## RLS tests + ownership migration (2026-10-12): APPLIED LIVE (checked by dump); on-device check pending
 1. Push a branch and check that the `RLS tests` Action is green.
 2. Applied live by the user (repair + db push), and the policies were checked in a fresh dump. Still needed: an on-device check of send, edit, delete, forward, attachments and the gallery, profile and group avatars, reactions.
