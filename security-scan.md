@@ -1,5 +1,26 @@
 # Security Scan
 
+## 2026-10-23 — #10 storage half: bucket ownership policies (written, not applied)
+
+**Live check (read-only, `supabase db query --linked`):** `storage.objects` had 12 policies, one per verb per bucket (`avatars`, `chat-files`, `storage-msg`), each checking only `bucket_id`. Any signed-in user could overwrite or delete anyone's avatar or attachment. All 3 buckets are private. Object names are `<bucket>/<id>/<file>`. Of 72 objects, 3 have no `owner_id` (uploaded with the service key), 17 legacy attachments use old filename-based paths, and 3 avatars sit in a group's folder rather than the uploader's.
+
+**Fix:** `supabase/migrations/20261023000000_storage_ownership_rls.sql` drops the 12 policies by their live names and replaces them with:
+
+| Verb | Rule |
+|---|---|
+| SELECT | Any signed-in user, all 3 buckets (others' avatars and attachments are displayed; attachments are ciphertext since #5). |
+| INSERT | `avatars/<your id>/…`, or `<bucket>/<conversation id>/…` for a conversation you're a member of (group avatars, images, files). |
+| UPDATE | Only objects you uploaded (`owner_id`), and only to a name you could insert. |
+| DELETE | Only objects you uploaded. |
+
+**Tests:** `supabase/tests/storage_rls.test.sql`, 20 checks. **Not run yet:** Docker isn't running, so there's no local DB. Direct SQL deletes are blocked by `storage.protect_delete` (42501) unless `storage.allow_delete_query` is set, so the test sets it.
+
+**Behaviour notes:** an outsider can still *read* any object (by request). Objects without an `owner_id` can't be changed by clients. Group avatars can be replaced by any member, but only the uploader can delete the old file (the app doesn't delete old group avatars today anyway).
+
+| # | Status (2026-10-23) |
+|---|---|
+| 10 (storage) | 🟡 Migration + tests written, **not run, not applied.** |
+
 ## 2026-10-12 — RLS regression tests (pgTAP) and the ownership gaps they found
 
 **Method:** read the live public schema with `supabase db dump --linked --schema public` (read-only), saved as the baseline migration `20260925000000_baseline_schema.sql`, and built a local database from the migrations. `supabase/tests/ownership_rls.test.sql` checks 55 rules as 3 users (A and B share a DM and a group; O is an outsider), and `rls_enabled.test.sql` checks that RLS is on for every public table. They run in CI (`.github/workflows/rls-tests.yml`) on a throwaway database, never on production.

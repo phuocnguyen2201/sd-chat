@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-10-23: Security #10 storage half
+- Listed open security items from security-scan.md.
+- Read the live storage policies and object paths (read-only). Wrote `20261023000000_storage_ownership_rls.sql`: SELECT open to signed-in users; INSERT only into your own avatar folder or a conversation you're in; UPDATE/DELETE only objects you own (`owner_id`).
+- Wrote `supabase/tests/storage_rls.test.sql` (20 checks). Not run: Docker isn't running. Not applied live.
+
 ## 2026-10-12: RLS integration tests (pgTAP + GitHub Actions), ownership migration
 - **Brainstorm:** listed unit-test ideas for the chat code: crypto round trips, the key cache, the API layer with a mocked supabase, and logic to extract from the screens. Not implemented yet.
 - **Baseline schema:** the tables were made in the dashboard, so no migration created them and nothing could build a local database (`relation "public.messages" does not exist`). Added `20260925000000_baseline_schema.sql` from a read-only `db dump --linked --schema public` (checked for secrets: none). It leaves out the `push_notification` trigger, which `20260927…` creates. In `20261009…participants_rls.sql`, added `drop policy if exists` for its 3 policies so it can be re-run. All 8 migrations now build a fresh local database.

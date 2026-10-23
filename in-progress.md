@@ -1,11 +1,16 @@
 # In Progress / Open Items
 
+## Storage bucket RLS (#10, 2026-10-23): written, not tested or applied
+1. Start Docker, then `supabase db start && supabase test db`: `storage_rls.test.sql` should pass 20/20, plus the existing tests.
+2. Apply: `supabase db push` (only `20261023000000_storage_ownership_rls.sql` should be pending). Then check `pg_policies where schemaname='storage'` shows only the 4 `app_objects_*` policies.
+3. On device: change your profile avatar, change a group avatar, send an image and a file, open others' avatars and attachments, delete account (removes own avatar).
+
 ## RLS tests + ownership migration (2026-10-12): APPLIED LIVE (checked by dump); on-device check pending
 1. Push a branch and check that the `RLS tests` Action is green.
 2. Applied live by the user (repair + db push), and the policies were checked in a fresh dump. Still needed: an on-device check of send, edit, delete, forward, attachments and the gallery, profile and group avatars, reactions.
 3. **#20 fix is in `stash@{0}`:** `push-Notification.ts` `.neq('profile_id')` → `.eq`. Restore it with `git stash pop` (keep the committed `.gitignore`), or redo the one-line change. The stash also holds the user's own `run-maestro.sh` change.
 4. #30: make `mark_messages_as_read` SECURITY DEFINER, using `auth.uid()`, and add a test.
-5. Still open: the storage-bucket half of #10, and `profiles.fcm_token` (#13).
+5. Still open: `profiles.fcm_token` (#13). The storage half of #10 is in the section above.
 6. Chat unit tests from the brainstorm: not started.
 
 ## Security pass 4 (2026-10-03): fix list, details in security-scan.md
