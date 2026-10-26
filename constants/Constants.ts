@@ -12,7 +12,6 @@ export const Constants = {
             ID: 'id',
             DISPLAYNAME: 'displayname',
             AVATAR_URL: 'avatar_url',
-            FCM_TOKEN: 'fcm_token',
         },
         CONVERSATIONS: {
             ID: 'id',

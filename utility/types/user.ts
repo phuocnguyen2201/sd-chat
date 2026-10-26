@@ -18,7 +18,6 @@ export type Profile = {
   email?: string;
   username?: string;
   displayname?: string;
-  fcm_token?: string;
   public_key?: string;
   avatar_url?: string;
   bio?: string;

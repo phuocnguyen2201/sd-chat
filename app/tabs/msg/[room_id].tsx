@@ -437,7 +437,7 @@ export default function ChatScreen() {
 
       let forwardPartyKey = await getConversationKey(forwardConversationId);
       if (!forwardPartyKey && userId) {
-        const lookup = await resolveConversationKey(forwardConversationId, userId);
+        const lookup = await resolveConversationKeyInteractive(forwardConversationId, userId);
         if (lookup.status === 'found') forwardPartyKey = lookup.key;
       }
       if (!forwardPartyKey) throw new Error('No conversation key for forward target');

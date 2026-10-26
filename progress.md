@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-10-26: Security #11 and #30 (RPC caller identity)
+- Listed the remaining security items. The user had already applied every migration up to `20261023000000` by hand, so #10 storage is live.
+- Wrote `20261026000000_rpc_caller_identity.sql`. `create_conversation_with_participants` uses `auth.uid()` instead of `p_user_id`. `mark_messages_as_read` is now SECURITY DEFINER, members only, and records the caller. `create_dm_conversation` refuses a null caller. All three get `search_path = ''` and lose anon/PUBLIC EXECUTE. Signatures are unchanged, so there are no app changes.
+- Wrote `supabase/tests/rpc_auth.test.sql` (15 checks). `supabase test db`: 91/91 pass, including `storage_rls` (first run). Without the migration, 11 of the 15 fail, as expected.
+- Not applied live.
+- **#20:** `updateTokenStatus` now deactivates this user's other tokens (`.eq`), redone by hand instead of popping `stash@{0}`.
+- **#13 `fcm_token`:** unused (push uses `push_notification_tokens`). Deleted the never-imported `components/Push.tsx`, the `fcm_token` type field and constant. `20261026000100_drop_profiles_fcm_token.sql` drops the column. Added a `hasnt_column` check to `rls_enabled.test.sql`.
+- **#12 decision (user): keep the creator's id.** `20261026000200_conversations_created_by_no_fk.sql` drops the `created_by` FK. `delete-account` no longer returns 409 or clears `created_by`, and it still deletes conversations nobody is left in. Added 3 checks to `rpc_auth.test.sql`. All DB tests: 95/95 pass. Without the migration, the delete fails on the FK, as expected. Deno not installed, so the function isn't type-checked.
+- **Bug fix:** `[room_id].tsx:440` called an unimported `resolveConversationKey` (attachment forward to an uncached chat would throw), now `resolveConversationKeyInteractive`. tsc: 55 errors, all already there before this change.
+- **Pass 4 (#20–#28)** rebuilt into security-scan.md from the progress.md summary, with each item re-checked in the code.
+
 ## 2026-10-23: Security #10 storage half
 - Listed open security items from security-scan.md.
 - Read the live storage policies and object paths (read-only). Wrote `20261023000000_storage_ownership_rls.sql`: SELECT open to signed-in users; INSERT only into your own avatar folder or a conversation you're in; UPDATE/DELETE only objects you own (`owner_id`).

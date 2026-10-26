@@ -1,9 +1,19 @@
 # In Progress / Open Items
 
-## Storage bucket RLS (#10, 2026-10-23): written, not tested or applied
-1. Start Docker, then `supabase db start && supabase test db`: `storage_rls.test.sql` should pass 20/20, plus the existing tests.
-2. Apply: `supabase db push` (only `20261023000000_storage_ownership_rls.sql` should be pending). Then check `pg_policies where schemaname='storage'` shows only the 4 `app_objects_*` policies.
-3. On device: change your profile avatar, change a group avatar, send an image and a file, open others' avatars and attachments, delete account (removes own avatar).
+## RPC caller identity (#11, #30, 2026-10-26): written, tests green locally, not applied
+1. Apply: `supabase db push` (only `20261026000000_rpc_caller_identity.sql` should be pending). Then check that `select has_function_privilege('anon', 'public.create_conversation_with_participants(text, uuid, uuid[])', 'execute');` returns false, and rerun the security advisors (3 fewer mutable `search_path` warnings).
+2. On device: create a group and a DM, then open a chat as the other member and check that the sender's messages get `read_by` filled in.
+3. Next: the rest of #14, #21 (re-auth), #22 (`wrapped_by`), #24 (KDF bounds), #25 (session storage), #27 (delete the key-byte log). Pass 4 is now in security-scan.md.
+
+## #12, #13, #20 (2026-10-26): written, not applied/deployed
+1. ~~Run the DB tests~~: 95/95 pass locally (2026-10-26). Without `…000200`, the #12 checks fail as expected. Use `supabase db reset` (not `db start`) after adding a migration: `db start` reuses the old local DB.
+2. Before the `fcm_token` drop: `select count(*) from public.profiles where fcm_token is not null;` (stale tokens, nothing reads them).
+3. Apply in one push: `20261026000000`, `…000100` (drop `fcm_token`), `…000200` (drop the `created_by` FK). **Then** `supabase functions deploy delete-account`. The function no longer clears `created_by`, so it fails for creators until the FK is gone.
+4. Device: delete a throwaway account that created a group with members; the others keep the group and can open it on a fresh install. Log in on two devices with one account; only the latest device keeps an active push token.
+5. `stash@{0}`: the #20 part is redone in the tree. The `run-maestro.sh` `--data-urlencode` change is still only in the stash. Pick it out with `git checkout stash@{0} -- .github/scripts/run-maestro.sh` if you want it, then drop the stash.
+
+## Storage bucket RLS (#10, 2026-10-23): APPLIED LIVE by the user; tests 20/20 locally (2026-10-26)
+1. On device: change your profile avatar, change a group avatar, send an image and a file, open others' avatars and attachments, delete account (removes own avatar).
 
 ## Key recovery lands on ScanningKeys (2026-10-23): code done, not tested on device
 1. Simulator: sign in on a wiped device -> alert -> ScanningKeys with no camera -> Enter pairing code / Back to other options / Recover from backup all work.
@@ -12,9 +22,9 @@
 ## RLS tests + ownership migration (2026-10-12): APPLIED LIVE (checked by dump); on-device check pending
 1. Push a branch and check that the `RLS tests` Action is green.
 2. Applied live by the user (repair + db push), and the policies were checked in a fresh dump. Still needed: an on-device check of send, edit, delete, forward, attachments and the gallery, profile and group avatars, reactions.
-3. **#20 fix is in `stash@{0}`:** `push-Notification.ts` `.neq('profile_id')` → `.eq`. Restore it with `git stash pop` (keep the committed `.gitignore`), or redo the one-line change. The stash also holds the user's own `run-maestro.sh` change.
-4. #30: make `mark_messages_as_read` SECURITY DEFINER, using `auth.uid()`, and add a test.
-5. Still open: `profiles.fcm_token` (#13). The storage half of #10 is in the section above.
+3. ~~#20~~: redone in the tree 2026-10-26 (see the #12/#13/#20 section at the top).
+4. ~~#30~~: written 2026-10-26, see the RPC caller identity section at the top.
+5. ~~`profiles.fcm_token` (#13)~~: migration written 2026-10-26.
 6. Chat unit tests from the brainstorm: not started.
 
 ## Security pass 4 (2026-10-03): fix list, details in security-scan.md

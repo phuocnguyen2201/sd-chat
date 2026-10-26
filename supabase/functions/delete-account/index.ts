@@ -45,9 +45,6 @@ async function getAuthedUser(req: Request): Promise<{ id: string } | null> {
   return { id: data.user.id };
 }
 
-/** Thrown before anything is changed, so the caller gets a clean refusal. */
-class GroupCreatorBlockedError extends Error {}
-
 /**
  * Removes this account from its conversations without taking anyone else's
  * conversation with it (security #12).
@@ -55,42 +52,23 @@ class GroupCreatorBlockedError extends Error {}
  * - The caller's participant rows go. Everyone else stays in the chat.
  * - A conversation is deleted only once nobody is left in it. Its messages go
  *   with it (cascade), and nobody else can see them any more.
- * - DMs the caller created get `created_by` cleared, so the profile can be
- *   deleted. DM key lookup never reads `created_by`, so this is safe.
- * - A group the caller created that still has other members is refused before
- *   anything changes. Clearing its `created_by` would break key lookup for
- *   every remaining member (see ConversationKeyResolver.findKeyWrapperPeerId),
- *   so that case needs a decision first.
+ * - `created_by` is left pointing at the deleted account (it has no foreign
+ *   key since 20261026000200). Group members' keys were wrapped by the creator,
+ *   and their pin is keyed by that id (ConversationKeyResolver.findKeyWrapperPeerId),
+ *   so clearing it would lock remaining members out on a new device.
  *
  * Messages the caller sent in conversations that stay are removed with the
  * profile (messages.sender_id cascades), so the caller's text does not outlive
  * the account in other people's chats. The messages are encrypted anyway.
  */
 async function leaveConversations(userId: string): Promise<void> {
-  const { data: ownedGroups, error: ownedError } = await db
+  const { data: owned, error: ownedError } = await db
     .from("conversations")
     .select("id")
-    .eq("created_by", userId)
-    .eq("is_group", true);
+    .eq("created_by", userId);
 
   if (ownedError) throw ownedError;
-
-  const ownedGroupIds = ownedGroups?.map((row) => row.id) ?? [];
-  if (ownedGroupIds.length > 0) {
-    const { data: otherMembers, error: membersError } = await db
-      .from("conversation_participants")
-      .select("conversation_id")
-      .in("conversation_id", ownedGroupIds)
-      .neq("user_id", userId)
-      .limit(1);
-
-    if (membersError) throw membersError;
-    if (otherMembers && otherMembers.length > 0) {
-      throw new GroupCreatorBlockedError(
-        "This account created a group that other people are still in.",
-      );
-    }
-  }
+  const ownedIds: string[] = owned?.map((row) => row.id) ?? [];
 
   const { data: participantRows, error: participantError } = await db
     .from("conversation_participants")
@@ -109,37 +87,22 @@ async function leaveConversations(userId: string): Promise<void> {
     if (leaveError) throw leaveError;
   }
 
-  // Conversations that still have a member stay exactly as they are.
+  // Conversations this account was in or created (it may have left those
+  // already) that still have a member stay exactly as they are.
+  const candidateIds = [...new Set([...conversationIds, ...ownedIds])];
   let stillPopulated = new Set<string>();
-  if (conversationIds.length > 0) {
+  if (candidateIds.length > 0) {
     const { data: remaining, error: remainingError } = await db
       .from("conversation_participants")
       .select("conversation_id")
-      .in("conversation_id", conversationIds);
+      .in("conversation_id", candidateIds);
 
     if (remainingError) throw remainingError;
     stillPopulated = new Set((remaining ?? []).map((row) => row.conversation_id));
   }
 
-  // Groups this account created that were already empty (it had left them, and
-  // everyone else had too) still point at it. The check above guarantees they
-  // have no other members, so they can go with the rest.
-  const emptyIds = new Set([
-    ...conversationIds.filter((id) => !stillPopulated.has(id)),
-    ...ownedGroupIds,
-  ]);
-
-  // DMs the caller created: the profile can't be deleted while this points at it.
-  const { error: dmError } = await db
-    .from("conversations")
-    .update({ created_by: null })
-    .eq("created_by", userId)
-    .eq("is_group", false);
-
-  if (dmError) throw dmError;
-
-  if (emptyIds.size > 0) {
-    const ids = [...emptyIds];
+  const ids = candidateIds.filter((id) => !stillPopulated.has(id));
+  if (ids.length > 0) {
 
     // files_group has no cascade from conversations, so it goes first.
     const { error: filesGroupError } = await db
@@ -207,9 +170,6 @@ Deno.serve(async (req: Request) => {
     await deleteAccount(user.id);
     return json({ ok: true });
   } catch (error) {
-    if (error instanceof GroupCreatorBlockedError) {
-      return json({ error: error.message }, 409);
-    }
     console.error("delete-account failed:", error);
     return json({ error: "Could not delete account" }, 500);
   }

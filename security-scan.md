@@ -1,5 +1,43 @@
 # Security Scan
 
+## 2026-10-26 — #11 and #30: RPCs act as the caller (written and tested, not applied)
+
+**#10 storage half is applied live** (the user applied every migration up to `20261023000000` by hand). `storage_rls.test.sql` ran for the first time today: 20/20 pass.
+
+**Fix:** `supabase/migrations/20261026000000_rpc_caller_identity.sql`. Signatures are unchanged, so the app's calls in `utility/messages.ts` keep working.
+
+| Function | Change |
+|---|---|
+| `create_conversation_with_participants` | Creator and member = `auth.uid()`. `p_user_id` is ignored. Refuses a null caller. |
+| `create_dm_conversation` | Already used `auth.uid()`. Now refuses a null caller (it used to fail on a NOT NULL error). |
+| `mark_messages_as_read` | `SECURITY DEFINER`, members only (`is_conversation_member`), records `auth.uid()` instead of `p_user_id`, touches only `read_by`. |
+| All three | `search_path = ''` (part of #14). EXECUTE revoked from `anon` and `PUBLIC`, granted to `authenticated` and `service_role`. |
+
+**Tests:** `supabase/tests/rpc_auth.test.sql`, 15 checks. Local run: **91/91 pass** across all 4 test files. With the new migration left out, 11 of the 15 fail. That confirms #11 live as described (a group "owned" by `p_user_id`, without the caller in it) and #30 (`read_by` stayed `{}` when another member read the chat).
+
+**Behaviour change:** read receipts now get recorded. Anything in the UI that reads `read_by` will start showing them.
+
+| # | Status (2026-10-26) |
+|---|---|
+| 10 (storage) | ✅ Applied live (by the user). Device check pending. |
+| 11 | 🟡 Migration + tests written, local tests green. **Not applied.** |
+| 30 | 🟡 Same migration. **Not applied.** |
+| 14 | 🟡 Partly: these 3 functions get a pinned `search_path`. The other mutable ones and leaked-password protection are still open. |
+
+### Later the same day: #20, #13 (`fcm_token`), #12 group creators
+
+- **#20, fixed in code.** `push-Notification.ts` `updateTokenStatus` now deactivates the caller's own tokens on other devices (`.eq('profile_id', …)`), not other users' tokens. Redone by hand rather than popping `stash@{0}`, which also holds old doc edits and the user's `run-maestro.sh` change (the `--data-urlencode` part isn't in the tree yet).
+- **#13 `fcm_token`, migration written.** Nothing reads `profiles.fcm_token`: the `push` function uses `push_notification_tokens` (owner-only RLS). The only writer was `components/Push.tsx`, which nothing imports (and which called `useSession()` outside a component), so it's deleted. `20261026000100_drop_profiles_fcm_token.sql` drops the column, and `rls_enabled.test.sql` checks it stays gone. With the reactions half fixed on 2026-10-12, this closes #13 once applied.
+- **#12 group creators: decided (user, 2026-10-26).** Keep the creator's id. `20261026000200_conversations_created_by_no_fk.sql` drops `conversations_created_by_fkey`, so `created_by` can keep a deleted account's id. Members' rows were wrapped by the creator, the creator's public key is already on each row (`other_party_pub_key`), and the pin is keyed by `created_by`, so remaining members can still open the group on a new device. `delete-account` no longer refuses with a 409 and no longer clears `created_by` on DMs. It still deletes every conversation the account was in or created that has nobody left. Deno isn't installed, so the function isn't type-checked. **Order:** apply the migration before deploying the function.
+- **Also found and fixed:** `app/tabs/msg/[room_id].tsx:440` called `resolveConversationKey`, which isn't imported there. It's a leftover from merging the attachment and key-pinning branches. Forwarding an attachment to a chat whose key isn't cached on this device would throw a ReferenceError. It now uses `resolveConversationKeyInteractive`, like the text-forward path. The other 55 `tsc` errors existed before this change.
+
+| # | Status (2026-10-26) |
+|---|---|
+| 12 | 🟡 Decision made; migration + function change written, **not applied or deployed**. |
+| 13 | 🟡 `fcm_token` migration written, **not applied**. Reactions half done (2026-10-12). |
+| 20 | 🟡 Fixed in code, not on a device yet. Still to check live whether other users' tokens were ever deactivated (RLS on `push_notification_tokens` is owner-only, so the old query probably did nothing). |
+| 21 | 🟡 The Back button part was fixed in `8552bef` (it now goes to Settings). The rest is open. |
+
 ## 2026-10-23 — #10 storage half: bucket ownership policies (written, not applied)
 
 **Live check (read-only, `supabase db query --linked`):** `storage.objects` had 12 policies, one per verb per bucket (`avatars`, `chat-files`, `storage-msg`), each checking only `bucket_id`. Any signed-in user could overwrite or delete anyone's avatar or attachment. All 3 buckets are private. Object names are `<bucket>/<id>/<file>`. Of 72 objects, 3 have no `owner_id` (uploaded with the service key), 17 legacy attachments use old filename-based paths, and 3 avatars sit in a group's folder rather than the uploader's.
@@ -56,6 +94,22 @@
 |---|---|
 | 9 | 🟡 Migration written and tested (rolled back), **not applied to the live project**. Live policies still open as of this check. |
 | 12 | 🟡 Code changed, **not deployed**. The group-creator case needs a decision (see above). |
+
+## 2026-10-03 — Pass 4: manual audit of `main` @ `cb824e5` (#20–#28)
+
+**Source note:** this pass's full write-up was never committed and is lost. This section is rebuilt (2026-10-26) from the summary in `progress.md`, and each item was re-checked against the current code. Severities are re-assessed, not the original ones. #23's original detail is lost, so it's marked to re-check. Method at the time: reading the code only, with no strix skill and no live checks.
+
+| # | Severity | Finding | Where | Status (re-checked 2026-10-26) |
+|---|---|---|---|---|
+| 20 | Medium | `updateTokenStatus` deactivated tokens with `.neq('profile_id', user.id)`: other users' tokens instead of this user's other devices. Owner-only RLS probably made it a no-op, so a user's old devices were never deactivated either. | `utility/push-notification/push-Notification.ts:124` | 🟡 Fixed in code 2026-10-26. |
+| 21 | Medium | No re-authentication for sensitive actions: `secure_password_change = false` (a stolen session can change the password), and key export (ManageKeys / PairingCode), vault backup overwrite (BackupKey) and account deletion need no biometric or password re-check. The biometric screen's Back button used to skip straight to ManageKeys. | `supabase/config.toml:180`, `app/tabs/managekeys/*` | 🟡 Back button fixed (`8552bef`). The rest is 🔴 open. |
+| 22 | Low | Group key pinning is keyed by `conversations.created_by`, not by the member who actually wrapped the row. A group row backfilled by another member (`backfillMissingWrappedKeys`) opens with that member's key, which is then checked against the creator's pin. That gives a false "key changed" dialog, or pins the wrong key on first use. Fix: record `wrapped_by` on the row and pin against it. | `ConversationKeyResolver.ts:43` (`findKeyWrapperPeerId`) | 🔴 Open. The #12 decision keeps `created_by` for the same reason, so a `wrapped_by` column would cover both. |
+| 23 | Low | Remote (server-relayed) pairing gate. The detail was lost. The remote flow still has no UI, and `create` requires a verified local code (#6). | `supabase/functions/device-pairing/index.ts` | ❔ Re-check when the remote pairing UI is built. |
+| 24 | Low | Vault recovery feeds `kdf_n` / `kdf_r` / `kdf_p` from the `key_backups` row straight into scrypt with no bounds. A huge `N` written to the row (owner-only RLS, so the owner or a DB-level attacker) hangs or crashes the app at recovery. Fix: refuse values outside a fixed range (e.g. `N` ≤ 2^17, `r` ≤ 16, `p` ≤ 4). | `utility/securedMessage/VaultBackup.ts:289-293` | 🔴 Open. |
+| 25 | Low | The Supabase session (with its refresh token) is kept in AsyncStorage, which is unencrypted, and Android has `allowBackup="true"`, so it can end up in device backups. Fix: SecureStore-backed session storage, or `allowBackup=false`. | `utility/connection.ts:11`, `android/app/src/main/AndroidManifest.xml` | 🔴 Open. |
+| 26 | Info | The local snapshot SQLite DB is one file for every account on the device, not namespaced per user like SecureStore keys, so switching accounts can show the previous account's cached data. | `utility/localstorage/snapshot.ts:4` | 🔴 Open. |
+| 27 | Info | `secured.ts` logs the first 10 bytes of the **sender private key** when its size is wrong. Rare, but it's key material in device logs. | `utility/securedMessage/secured.ts:340` | 🔴 Open (delete the line). |
+| 28 | Info | `npm audit`: 24 high, all build tooling (not shipped in the app). The vault container is less hardened than Traefik in the same compose file (Traefik has `read_only`, `cap_drop`, a non-root user and `no-new-privileges`). vault-service's own `npm audit` was clean. | `package.json`, `sd-chat-vault/docker-compose.yml` | 🔴 Open. |
 
 ## 2026-09-29 — Fixes for #5, #7, #8a, #8b (code only, not deployed/tested on device)
 

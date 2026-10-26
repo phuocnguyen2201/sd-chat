@@ -113,15 +113,15 @@ export const usePushNotifications = {
                 return false;
             }
 
-            //Deactive all others token.
+            //Deactive this user's tokens on other devices (never other users' tokens).
             const { error: otherTokens } = await supabase
             .from('push_notification_tokens')
-            .update({ 
+            .update({
                 is_active: false,
                 updated_at: new Date().toISOString()
             })
             .neq('token', token)
-            .neq('profile_id', user?.id)
+            .eq('profile_id', user?.id)
 
              if (otherTokens) { 
                 console.log(otherTokens.message)
