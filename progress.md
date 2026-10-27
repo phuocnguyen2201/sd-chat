@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-10-27: Legacy identity key migration check
+- Question: is the old single slot `user_encryption_key` migrated to `user_encryption_key_<userId>`? **Yes.** `verifyIdentityKey` adopts it, and it runs from `Bootstrap.tsx` on every sign-in.
+- Hardening in `verifyIdentityKey` (`secured.ts`):
+  - The legacy key is no longer adopted when `profiles.public_key` is empty. Before, it copied whichever account last wrote the slot.
+  - After a successful adoption the legacy slot is deleted, so the secret is not kept in two places.
+- New `__tests__/LegacyIdentityKeyMigration.test.ts` (5 cases). `npx jest utility/securedMessage`: 7/7 suites pass. tsc: 55 errors, all already there before this change; none in touched files. Not run on a device (old build → upgrade).
+
 ## 2026-10-26: Security #11 and #30 (RPC caller identity)
 - Listed the remaining security items. The user had already applied every migration up to `20261023000000` by hand, so #10 storage is live.
 - Wrote `20261026000000_rpc_caller_identity.sql`. `create_conversation_with_participants` uses `auth.uid()` instead of `p_user_id`. `mark_messages_as_read` is now SECURITY DEFINER, members only, and records the caller. `create_dm_conversation` refuses a null caller. All three get `search_path = ''` and lose anon/PUBLIC EXECUTE. Signatures are unchanged, so there are no app changes.

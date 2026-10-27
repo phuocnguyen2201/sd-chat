@@ -297,13 +297,16 @@ export class MessageEncryption {
       nacl.box.keyPair.fromSecretKey(legacySecretKey).publicKey
     );
 
-    if (profilePublicKey && legacyPublicKey !== profilePublicKey) {
-      // Belongs to a different account that used this device. Leave it alone;
-      // this user has to sync their own key from a device that holds it.
+    if (!profilePublicKey || legacyPublicKey !== profilePublicKey) {
+      // Belongs to a different account that used this device, or there is no
+      // profile key to prove ownership. Leave it alone; this user has to sync
+      // their own key from a device that holds it.
       return 'missing';
     }
 
     this.setPrivateKey(userId, legacySecretKey);
+    // Proven to be this user's key and now filed under their id; drop the copy.
+    await SecureStore.deleteItemAsync(this.LEGACY_USER_KEY_STORAGE);
     return 'ok';
   }
 
