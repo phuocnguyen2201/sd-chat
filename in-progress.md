@@ -1,5 +1,15 @@
 # In Progress / Open Items
 
+## App performance testing (2026-11-02): tools set up, device runs pending
+Details in `documentation/testing/performance.md`.
+1. Run `npx expo start` once so `.expo/types` picks up the new `CryptoBench` route (clears the tsc error in ManageKeys.tsx).
+2. Install Flashlight (`curl https://get.flashlight.dev | bash`), install a release APK, sign in, then run `perf/flashlight/run.sh` and fill in the runtime table in performance.md.
+3. Build a release APK with `EXPO_PUBLIC_PERF_BENCH=1`, run Manage Keys → Crypto benchmark on a mid-range Android phone, and record the Hermes numbers.
+4. Push a PR to see `perf-render.yml` run. The first run has no baseline on `main` (that step is allowed to fail).
+4b. Trigger `maestro-e2e.yml` by hand (workflow_dispatch). Check that the `perf` summary has the crypto table, Reassure and bundle size, and that `e2e` waits for `perf`. Check that Flashlight works on the swiftshader emulator (look for `::warning::Flashlight scenario` lines) and that `maestro-results/flashlight/*.json` exists.
+5. Not started: a perf test for `components/EncryptedAttachment.tsx` (it needs expo-file-system mocks).
+6. Possible fixes the measurements point at (not started; measure before and after): debounce or memoize the chat list search; move decryption out of render and the composer into its own component; switch the room to FlatList/FlashList; import lucide icons per file; lazy-load the emoji picker.
+
 ## RPC caller identity (#11, #30, 2026-10-26): written, tests green locally, not applied
 1. Apply: `supabase db push` (only `20261026000000_rpc_caller_identity.sql` should be pending). Then check that `select has_function_privilege('anon', 'public.create_conversation_with_participants(text, uuid, uuid[])', 'execute');` returns false, and rerun the security advisors (3 fewer mutable `search_path` warnings).
 2. On device: create a group and a DM, then open a chat as the other member and check that the sender's messages get `read_by` filled in.
@@ -14,6 +24,7 @@
 
 ## Storage bucket RLS (#10, 2026-10-23): APPLIED LIVE by the user; tests 20/20 locally (2026-10-26)
 1. On device: change your profile avatar, change a group avatar, send an image and a file, open others' avatars and attachments, delete account (removes own avatar).
+
 
 ## Key recovery lands on ScanningKeys (2026-10-23): code done, not tested on device
 1. Simulator: sign in on a wiped device -> alert -> ScanningKeys with no camera -> Enter pairing code / Back to other options / Recover from backup all work.

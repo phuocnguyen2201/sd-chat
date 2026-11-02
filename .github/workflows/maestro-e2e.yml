@@ -93,8 +93,88 @@ jobs:
       - name: Run Jest unit tests
         run: npx jest --watchAll=false --ci
 
+  # Report only: numbers go to the job summary and the perf-results artifact.
+  # Only a crash here blocks e2e; a slower number never does, since timings
+  # on shared runners already move ~15% between runs of the same commit.
+  # Details: documentation/testing/performance.md.
+  perf:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Crypto bench
+        run: |
+          mkdir -p perf-results
+          BENCH_MARKDOWN=perf-results/crypto-bench.md npm run bench:crypto
+          cat perf-results/crypto-bench.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Compared against the previous commit on this branch. Commits from
+      # before perf/render existed have nothing to measure, hence the
+      # continue-on-error; the report then lists every scenario as added.
+      - name: Reassure baseline (previous commit)
+        continue-on-error: true
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base="$BEFORE"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git rev-parse HEAD~1)
+          fi
+          git switch --detach "$base"
+          npm ci
+          npx reassure --baseline
+
+      - name: Reassure current
+        run: |
+          git switch --detach ${{ github.sha }}
+          npm ci
+          npx reassure --branch ${{ github.ref_name }} --commit-hash ${{ github.sha }}
+          cat .reassure/output.md >> "$GITHUB_STEP_SUMMARY"
+
+      # The APK that e2e installs, so no second build is needed.
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-apk
+          path: apk
+
+      - name: Bundle size
+        run: |
+          apk_bytes=$(stat -c %s apk/app-release.apk)
+          bundle_bytes=$(unzip -l apk/app-release.apk assets/index.android.bundle | awk '/index.android.bundle/ {print $1}')
+          {
+            echo "## Bundle size"
+            echo "| | MB |"
+            echo "|---|---|"
+            echo "| APK (x86_64) | $(awk "BEGIN {printf \"%.2f\", $apk_bytes/1048576}") |"
+            echo "| JS bundle (Hermes bytecode) | $(awk "BEGIN {printf \"%.2f\", ${bundle_bytes:-0}/1048576}") |"
+          } | tee -a "$GITHUB_STEP_SUMMARY" perf-results/bundle-size.md
+
+      - name: Upload perf results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: |
+            perf-results/
+            .reassure/
+          retention-days: 14
+          if-no-files-found: ignore
+
   e2e:
-    needs: [build, unit-test]
+    needs: [build, unit-test, perf]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -110,6 +190,12 @@ jobs:
         run: |
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # Used by run-maestro.sh for the FPS/CPU/RAM pass before the suite.
+      - name: Install Flashlight
+        run: |
+          curl -Ls "https://get.flashlight.dev" | bash
+          echo "$HOME/.flashlight/bin" >> "$GITHUB_PATH"
 
       - name: Enable KVM
         run: |

@@ -8,6 +8,8 @@ The project has two layers of tests:
 | Unit | Jest (`jest-expo` preset) | Encryption, key handling, and upload code in `utility/`, with Supabase and native modules mocked | `utility/**/__tests__/*.test.ts` |
 | End-to-end | Maestro | The real release APK on an Android emulator, against the real Supabase project | `maestro/*.yaml` |
 
+Performance (crypto timing, render regressions, runtime FPS/CPU/RAM, bundle size) has its own page: [performance.md](performance.md).
+
 Almost every unit suite guards one item from the security hardening work. The header comment in each file names its item (`security #N`).
 
 ## Running the tests
@@ -114,12 +116,13 @@ The chat flows need two seeded users in the database, **"Android Simulator"** an
 Results (JUnit XML, screenshots, `logcat.txt`) are written to `maestro-results/`. CI uploads that folder as the `maestro-results` artifact.
 
 ## CI
-`.github/workflows/maestro-e2e.yml` runs on pushes to `main` (except doc-only changes) and can also be started by hand. It has three jobs:
+`.github/workflows/maestro-e2e.yml` runs on pushes to `main` (except doc-only changes) and can also be started by hand. It has four jobs:
 
 | Job | What it does |
 |---|---|
 | `build` | Runs `expo prebuild` and builds the x86_64 release APK, then uploads it as an artifact |
 | `unit-test` | Runs `npx jest --ci` on the source code. Doesn't use the APK |
-| `e2e` | Waits for both jobs above, then installs the APK on an emulator and runs `run-maestro.sh` |
+| `perf` | Runs alongside `unit-test`: crypto bench, Reassure render comparison and bundle size, written to the job summary. Report only (see [performance.md](performance.md#ci)) |
+| `e2e` | Waits for the three jobs above, then installs the APK on an emulator and runs `run-maestro.sh`. That script runs a Flashlight perf pass after account setup and before the flows |
 
-A failing unit test stops `e2e` from running.
+A failing unit test, or a crash in `perf`, stops `e2e` from running. A slower perf number doesn't.

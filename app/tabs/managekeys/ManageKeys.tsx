@@ -12,6 +12,7 @@ import { DevicePairing } from '@/utility/securedMessage/DevicePairing';
 import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
 import { hasVaultBackup } from '@/utility/securedMessage/VaultBackup';
+import { CRYPTO_BENCH_ENABLED } from './CryptoBench';
 
 type Phase = 'idle' | 'show_sealed';
 
@@ -226,6 +227,15 @@ export default function ManageKeys() {
                 className="bg-blue-500 mb-8">
                 <ButtonText className="text-white">Back up my key</ButtonText>
             </Button>
+
+            {CRYPTO_BENCH_ENABLED && (
+                <Button onPress={() => router.push('/tabs/managekeys/CryptoBench')}
+                    size="md"
+                    action="secondary"
+                    className="mb-8">
+                    <ButtonText>Crypto benchmark (dev)</ButtonText>
+                </Button>
+            )}
         </ScrollView>
     )
 

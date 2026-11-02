@@ -1,0 +1,10 @@
+appId: com.phuocng23000.sdchat
+---
+# Cold start to a usable chat list. Needs an account that is already signed
+# in (run maestro/login.yaml once first); run.sh force-stops the app before
+# each iteration so every launch is cold.
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: { id: "search-input" }
+    timeout: 50000

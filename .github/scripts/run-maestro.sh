@@ -96,6 +96,22 @@ for user in "${SEED_USERS[@]}"; do
   }
 done
 
+# FPS/CPU/RAM pass (documentation/testing/performance.md), run on the freshly
+# signed-in account before the suite changes anything. Report only: a failure
+# here is a warning, never a failed run. Skipped where flashlight isn't
+# installed, e.g. running this script locally.
+PERF_SCENARIOS=(cold-start search-typing)
+if command -v flashlight >/dev/null; then
+  for scenario in "${PERF_SCENARIOS[@]}"; do
+    echo "::group::flashlight $scenario"
+    REPORTS_DIR="$OUT/flashlight" bash perf/flashlight/run.sh "$scenario" 3 \
+      || echo "::warning::Flashlight scenario $scenario failed; see the maestro-results artifact."
+    echo "::endgroup::"
+  done
+else
+  echo "::warning::flashlight not on PATH; skipping the perf pass."
+fi
+
 for flow in "${FLOWS[@]}"; do
   run_flow "$flow" || failed+=("$(basename "$flow")")
 done

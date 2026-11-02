@@ -1,0 +1,15 @@
+appId: com.phuocng23000.sdchat
+---
+# Type into the chat list search one key at a time, then clear it. Reassure
+# measures this as the most expensive render path in the app
+# (perf/render/ChatListScreen.perf-test.tsx); this is the on-device view.
+- launchApp
+- extendedWaitUntil:
+    visible: { id: "search-input" }
+    timeout: 50000
+- tapOn: { id: "search-input" }
+- inputText: "android simulator"
+- eraseText: 20
+- inputText: "iphone"
+- eraseText: 10
+- runFlow: ../../../maestro/subflows/dismiss-keyboard.yaml

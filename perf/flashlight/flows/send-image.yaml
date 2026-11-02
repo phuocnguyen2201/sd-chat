@@ -1,0 +1,5 @@
+appId: com.phuocng23000.sdchat
+---
+# Pick, encrypt and upload one image (ChaCha20 on the JS thread, then the
+# upload), using the same emulator photo as maestro/send-images.yaml.
+- runFlow: ../../../maestro/send-images.yaml

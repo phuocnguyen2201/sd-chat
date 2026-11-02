@@ -1,0 +1,67 @@
+name: Render perf (Reassure)
+
+# Measures render count and duration of the perf/render/*.perf-test.tsx
+# scenarios on the PR's base branch, then on the PR, and posts the comparison
+# to the job summary. Everything is mocked: no secrets, no network.
+#
+# Report only, never a gate: a baseline and current run of the same commit
+# already differ by up to ~15% on duration. Render count changes are exact,
+# so those are the ones to act on.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'utility/**'
+      - 'perf/render/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+concurrency:
+  group: perf-render-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reassure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Until perf/render exists on the base branch there is nothing to compare
+      # against, so a failed baseline is allowed; the report then shows every
+      # scenario as "added".
+      - name: Baseline (base branch)
+        continue-on-error: true
+        run: |
+          git switch --detach origin/${{ github.base_ref || 'main' }}
+          npm ci
+          npx reassure --baseline
+
+      - name: Current (this branch)
+        run: |
+          git switch --detach ${{ github.sha }}
+          npm ci
+          npx reassure --branch ${{ github.head_ref || github.ref_name }} --commit-hash ${{ github.sha }}
+
+      - name: Report
+        if: always()
+        run: |
+          if [ -f .reassure/output.md ]; then
+            cat .reassure/output.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reassure-report
+          path: .reassure/
+          retention-days: 14

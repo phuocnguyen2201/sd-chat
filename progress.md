@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-11-02 (later): Perf checks wired into the E2E pipeline
+- `maestro-e2e.yml` now runs `build` → `unit-test` + new `perf` → `e2e`. `perf` runs the crypto bench (new `BENCH_MARKDOWN` output), Reassure against the previous commit (baseline step allowed to fail), and APK/JS bundle size from the built APK. Everything goes to the job summary and the `perf-results` artifact.
+- `e2e` installs Flashlight. `run-maestro.sh` runs `cold-start` and `search-typing` (3 iterations each) after account setup and before the flows, writing to `maestro-results/flashlight/`. A failure is a warning, and the step is skipped when flashlight isn't on PATH. `run.sh` takes `REPORTS_DIR`. `search-typing.yaml` now clears the search box at the end.
+- Report only, as the user chose: only a crash blocks e2e.
+- Checks: `bash -n` on both scripts, `maestro check-syntax`, YAML parse (job graph confirmed), bundle-size parsing tested on a fake APK, bench markdown output tested. **Not run on GitHub.** The installer's bin path `~/.flashlight/bin` was confirmed from the install script. Not verified: Flashlight on the swiftshader emulator.
+
+## 2026-11-02: App performance testing toolset
+- Picked one tool per layer, app only. Backend load testing and DB profiling were dropped because the project is on the Supabase free tier. Everything is documented in `documentation/testing/performance.md`, which `documentation/testing/README.md` links to.
+- **Crypto timing:** `utility/securedMessage/bench/cryptoBench.ts` holds the cases and a timing runner (warm-up, then mean/p95/ops). `npm run bench:crypto` runs them in Node. The dev-only `app/tabs/managekeys/CryptoBench.tsx` screen runs them on a phone; it is shown in dev builds or with `EXPO_PUBLIC_PERF_BENCH=1`, and Manage Keys has a button for it. The bench uses a throwaway key and cleans it up. tinybench was dropped because it is ESM-only. Node baseline: X25519 about 20 ms per wrap/unwrap/seal, 10 MB attachment about 200 ms each way, vault scrypt about 150 ms.
+- **Render regressions:** added `reassure` 1.6.1, `@testing-library/react-native` 14.1.0 and `test-renderer`. `perf/render/RoomScreen.perf-test.tsx` (3 scenarios) and `ChatListScreen.perf-test.tsx` (2 scenarios) pass; run them with `npm run perf:render[:baseline]`. Added gluestack, @legendapp and lucide to Jest's `transformIgnorePatterns`. Findings: chat list search takes about 250 ms of render per keystroke with 2 renders per key; the room re-renders twice per keystroke and decrypts every message in render; the message list has no virtualization. `.github/workflows/perf-render.yml` reports on PRs but never blocks them (same-commit noise reaches ~15%). Not run on GitHub yet.
+- **Runtime:** `perf/flashlight/run.sh` + 4 Maestro flows (`cold-start`, `scroll-chat`, `search-typing`, `send-image`). Syntax checked with `maestro check-syntax`. **Not run:** the Flashlight CLI isn't installed (its installer is `curl | bash`, left for the user).
+- **Bundle:** added `expo-atlas` ~0.4.3 (SDK 56's CLI asks for ^0.4.0; 0.5 breaks `expo export`). Android Hermes bundle is 11.7 MB. The biggest causes: lucide barrel import (all 1,598 icons, 3.1 MB of source), emoji-mart-native (0.9 MB, a devDependency yet still bundled), and css-tree/mdn-data via react-native-svg.
+- Checks: `npx jest` 73/73 still pass. tsc shows one new error, the typed route `/tabs/managekeys/CryptoBench`, which clears once `expo start` regenerates `.expo/types`. CryptoBench has not been run on a device.
+
 ## 2026-10-27: Legacy identity key migration check
 - Question: is the old single slot `user_encryption_key` migrated to `user_encryption_key_<userId>`? **Yes.** `verifyIdentityKey` adopts it, and it runs from `Bootstrap.tsx` on every sign-in.
 - Hardening in `verifyIdentityKey` (`secured.ts`):
@@ -17,6 +31,10 @@
 - **#12 decision (user): keep the creator's id.** `20261026000200_conversations_created_by_no_fk.sql` drops the `created_by` FK. `delete-account` no longer returns 409 or clears `created_by`, and it still deletes conversations nobody is left in. Added 3 checks to `rpc_auth.test.sql`. All DB tests: 95/95 pass. Without the migration, the delete fails on the FK, as expected. Deno not installed, so the function isn't type-checked.
 - **Bug fix:** `[room_id].tsx:440` called an unimported `resolveConversationKey` (attachment forward to an uncached chat would throw), now `resolveConversationKeyInteractive`. tsc: 55 errors, all already there before this change.
 - **Pass 4 (#20–#28)** rebuilt into security-scan.md from the progress.md summary, with each item re-checked in the code.
+
+## 2026-10-25: QR key-sharing review (question only, no code changed)
+- Traced the local QR key-sync flow (PairingCode / EnterPairingCode / ManageKeys / ScanningKeys, `DevicePairing`, `LocalKeyTransfer`, `KeySyncPayload`, `device-pairing` local-code-* actions). Confirmed the QR holds only a `pair_data` payload: X25519 ECDH + HKDF-SHA512 + ChaCha20-Poly1305, sealed to the new device's one-time key; plaintext legacy QRs are refused.
+- Noted: the 4-digit code hash + HMAC key proof can be brute-forced by whoever controls the server, so the "Pairing check" comparison is the only defense against a server-side key swap.
 
 ## 2026-10-23: Security #10 storage half
 - Listed open security items from security-scan.md.

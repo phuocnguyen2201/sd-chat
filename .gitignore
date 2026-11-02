@@ -46,3 +46,7 @@ ios/
 /.agents
 
 /.github/scripts/check-seed-users.js
+# Reassure render-perf results (regenerated every run)
+.reassure/
+# Flashlight raw reports (large); summary numbers go in documentation/testing/performance.md
+perf/reports/*.json

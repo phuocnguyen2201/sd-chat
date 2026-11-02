@@ -1,0 +1,27 @@
+appId: com.phuocng23000.sdchat
+---
+# Open the "Android Simulator" conversation (the one the maestro/ flows use)
+# and fling through it. The room renders every message in a ScrollView with
+# no virtualization, so this is where long chats drop frames.
+- launchApp
+- extendedWaitUntil:
+    visible: ".*Android Simulator.*"
+    timeout: 50000
+- tapOn: ".*Android Simulator.*"
+- assertVisible: { id: "message-input" }
+- repeat:
+    times: 4
+    commands:
+      - swipe:
+          direction: DOWN
+          duration: 300
+      - swipe:
+          direction: DOWN
+          duration: 300
+      - swipe:
+          direction: UP
+          duration: 300
+      - swipe:
+          direction: UP
+          duration: 300
+- back
