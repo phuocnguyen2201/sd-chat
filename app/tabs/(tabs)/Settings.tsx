@@ -64,7 +64,7 @@ export default function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile } = useSession();
+  const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile, logout } = useSession();
   const { confirmIdentity, managePin } = useConfirmIdentity();
   const [hasAppPin, setHasAppPin] = useState(false);
 
@@ -463,15 +463,26 @@ export default function Settings() {
         >
           <ButtonText>Delete Account</ButtonText>
         </Button>
+        {/* Switch account: back to the remembered-account cards, still signed in */}
+        <Button
+          testID={automationLocatorsDataState.settingsScreen.switchAccountButton}
+          size="lg"
+          action="secondary"
+          variant="outline"
+          className="mb-6"
+          onPress={() => router.push('/login')}
+        >
+          <ButtonText>Switch Account</ButtonText>
+        </Button>
         {/* Sign Out Button */}
         <Button
         testID={automationLocatorsDataState.settingsScreen.logoutButton}
           size="lg"
           className="bg-red-500"
           onPress={async () => {
-            await supabase.auth.signOut();
-            await AsyncStorage.removeItem('user');
-            await AsyncStorage.removeItem('profile');
+            // This device only. The account's card stays on the login screen
+            // and asks for the password next time.
+            await logout();
             router.replace('/');
           }}
         >

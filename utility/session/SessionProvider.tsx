@@ -3,6 +3,11 @@ import { supabase } from '../connection';
 import { User, Profile } from '../types/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConversationKeyManager } from '../securedMessage/ConversationKeyManagement';
+import { isAuthApiError } from '@supabase/supabase-js';
+import { setSnapshotUser } from '../localstorage/snapshot';
+import { RememberedAccounts } from '../auth/RememberedAccounts';
+import { signOutThisDevice } from '../auth/signOutThisDevice';
+import { utilityFunction } from '../handleStorage';
 
 export interface SessionState {
   user: User;
@@ -32,7 +37,18 @@ interface SessionProviderProps {
 }
 
 export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User>(null);
+  const [user, setUserState] = useState<User>(null);
+  const userIdRef = useRef<string | null>(null);
+
+  /*
+    Every change of account goes through here, so the message cache points at
+    the right account's file before any screen reads it (security #26).
+  */
+  const setUser = useCallback((next: User) => {
+    userIdRef.current = next?.id ?? null;
+    setSnapshotUser(next?.id ?? null);
+    setUserState(next);
+  }, []);
   const [profile, setProfile] = useState<Profile>(null);
   const [conversationKey, setConversationKey] = useState<Uint8Array | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -107,18 +123,16 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
   // Logout function
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await supabase.auth.signOut();
+      await signOutThisDevice(userIdRef.current ?? undefined);
       setUser(null);
       setProfile(null);
       setConversationKey(null);
       setCurrentConversationId(null);
-      await AsyncStorage.removeItem('profile');
-      await AsyncStorage.removeItem('user');
       ConversationKeyManager.clear(); // Clear all conversation keys
     } catch (error) {
       console.error('Error logging out:', error);
     }
-  }, []);
+  }, [setUser]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -133,14 +147,24 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
-          setLoading(false);
-          setInitialized(true);
+          /*
+            A refresh token the server rejected (revoked, already used, or the
+            account is gone) is an expected way for a session to end, not a
+            crash: start signed out, and the account's card asks for the
+            password. Only a non-auth error (offline) is worth a warning.
+          */
+          if (isAuthApiError(error)) {
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          } else {
+            console.warn('Could not restore the session:', error.message);
+          }
+          setUser(null);
           return;
         }
 
         if (session?.user) {
           setUser(session.user);
+          RememberedAccounts.saveSession(session).catch(() => {});
           const profileData = await fetchProfile(session.user.id);
           if (profileData) {
             // Session restored successfully
@@ -156,7 +180,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     };
 
     initializeSession();
-  }, [fetchProfile]);
+  }, [fetchProfile, setUser]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -165,6 +189,28 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
+          // Keep this account's newest tokens for its card on the login screen.
+          RememberedAccounts.saveSession(session).catch(() => {});
+
+          if (session.user.id !== userIdRef.current) {
+            /*
+              A different account (a card tap or another sign-in). Drop the
+              previous account's state first and hold `loading`, so Bootstrap
+              never routes the new user with the old user's profile.
+            */
+            setProfile(null);
+            setConversationKey(null);
+            setCurrentConversationId(null);
+            setLoading(true);
+            setUser(session.user);
+            try {
+              await fetchProfile(session.user.id);
+            } finally {
+              setLoading(false);
+            }
+            return;
+          }
+
           setUser(session.user);
           await fetchProfile(session.user.id);
         } else {
@@ -179,7 +225,18 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     return () => {
       subscription.unsubscribe();
     };
-  }, [initialized, fetchProfile]);
+  }, [initialized, fetchProfile, setUser]);
+
+  // Keep this account's card (name, email, avatar) current for the login screen.
+  useEffect(() => {
+    if (!user?.id || !profile || profile.id !== user.id || !profile.displayname) return;
+    RememberedAccounts.upsert({
+      userId: user.id,
+      email: user.email ?? '',
+      displayName: profile.displayname,
+      avatarUrl: profile.files_profiles?.[0] ? utilityFunction.buildFileUrl(profile.files_profiles[0]) : '',
+    }).catch((error) => console.warn('Could not save the account card:', error));
+  }, [user?.id, user?.email, profile]);
 
   // Persist user to AsyncStorage
   useEffect(() => {

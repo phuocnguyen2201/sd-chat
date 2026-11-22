@@ -10,6 +10,14 @@ export const automationLocatorsDataState = {
         errorNotification: 'error-notification',
         acceptButton: 'accept-button',
         cancelButton: 'cancel-button',
+        rememberedAccountsList: 'remembered-accounts-list',
+        rememberedAccountCard: 'remembered-account-card',
+        rememberedAccountMenu: 'remembered-account-menu',
+        showSignInFormLink: 'show-sign-in-form-link',
+        showSignUpFormLink: 'show-sign-up-form-link',
+        backToAccountsLink: 'back-to-accounts-link',
+        accountPasswordInput: 'account-password-input',
+        accountPasswordSubmit: 'account-password-submit',
     },
     completeProfileScreen:{
         displayNameInput: 'display-name-input',
@@ -43,6 +51,7 @@ export const automationLocatorsDataState = {
         logoutButton: 'logout-button',
         manageBiometricsButton: 'manage-biometrics-button',
         manageAppPinButton: 'manage-app-pin-button',
+        switchAccountButton: 'switch-account-button',
     },
     chatScreen:{
         messageInput: 'message-input',

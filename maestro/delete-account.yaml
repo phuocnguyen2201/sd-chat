@@ -6,9 +6,7 @@ appId: com.phuocng23000.sdchat
 # NOTE: this registers a throwaway account first. It must never run against
 # the shared ${MAESTRO_EMAIL} fixture the other flows log in with.
 - launchApp
-- extendedWaitUntil:
-    visible: "Authentication.*"
-    timeout: 50000
+- runFlow: subflows/show-login-form.yaml
 - assertVisible: "Email"
 - assertVisible: "Password"
 
@@ -61,8 +59,6 @@ appId: com.phuocng23000.sdchat
 - runFlow: subflows/confirm-identity.yaml
 
 # deleteAccount() routes back to the login screen
-- extendedWaitUntil:
-    visible: "Authentication.*"
-    timeout: 20000
+- runFlow: subflows/show-login-form.yaml
 - assertVisible: "Email"
 - assertVisible: "Password"

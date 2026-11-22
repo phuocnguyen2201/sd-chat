@@ -8,9 +8,7 @@ appId: com.phuocng23000.sdchat
 - scrollUntilVisible:
     element: { id: "logout-button" }
 - tapOn: { id: "logout-button" }
-- extendedWaitUntil:
-    visible: "Authentication.*"
-    timeout: 15000
+- runFlow: subflows/show-login-form.yaml
 - assertVisible: "Login"
 - assertVisible: "Register"
 

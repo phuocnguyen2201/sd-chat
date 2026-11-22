@@ -11,7 +11,9 @@ appId: com.phuocng23000.sdchat
 - tapOn: { id: "delete-account-button" }
 - assertVisible: "Notification"
 - tapOn: "Okay"
+# Always asked before deleting (security #21)
+- runFlow: ../subflows/confirm-identity.yaml
 
 - assertVisible: "Account deleted"
 - tapOn: "OK"
-- assertVisible: "Authentication"
+- assertVisible: "Authentication.*|Logined accounts"

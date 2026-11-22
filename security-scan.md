@@ -1,5 +1,58 @@
 # Security Scan
 
+## 2026-11-23 — #25 session storage, #26 per-account cache, remembered accounts on the login screen (code + unit tests, not on a device yet)
+
+**#25: the session is no longer stored in plaintext.** `utility/auth/SecureSessionStorage.ts` is the Supabase client's `auth.storage` now. A random 32-byte key sits in SecureStore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`: never in a backup, never moved to another phone). Every value is sealed with tweetnacl secretbox, and only ciphertext goes into AsyncStorage under `enc:<name>`. Without the key a copy opens nothing, and the value reads as missing (sign in again). The old plaintext session moves over on first read, then the plaintext is deleted, so signed-in users stay signed in. `app.json` has `android.allowBackup: false` (needs a new native build).
+
+**The "Invalid Refresh Token" error at the bottom of the screen:**
+- `connection.ts` now starts and stops the token refresh with the app's foreground/background state (Supabase's React Native setup). This removes the refresh race on resume.
+- `SessionProvider` treats a rejected refresh token as a normal sign-out (it signs out locally, and the card asks for the password) instead of logging an error and leaving the user half signed in.
+
+**#26: one message-cache database per account.** `snapshot.ts` opens `snapshot_<userId>`, and SessionProvider points it at the signed-in account on every account change. The old shared file is deleted the first time a per-account one opens; it's a cache, and Chat rebuilds it. Account deletion reads the cached conversation ids before signing out, then deletes the account's cache file.
+
+**Remembered accounts (user feedback: people forget their account or password):**
+- Every account that signs in on the device gets a card on the login screen: name, email, and a locally saved avatar (initials if none). Its latest session is saved on every sign-in and token refresh. Cards, sessions and avatars all go through the sealed storage.
+- While any cards exist, the email/password form is hidden. "Sign in to another account" / "Create account" show it, and "Back to saved accounts" returns to the cards. 4 cards per page (2×2), swipe between pages, with page dots.
+- Tapping a card that has a session: that account's Face ID / fingerprint (if the user turned it on), else its app PIN, else its password. No grace window. Then it's restored with `setSession`, without a password.
+- Tapping a card without one (signed out, or the server rejected it): a password box with the email filled in. Offline: a message, and the session is kept.
+- **Sign Out** keeps the card but forgets its session (choice a), and is now `scope: 'local'`. Before, it signed the user out on every device. The **⋯** button on a card → "Remove from this device" deletes the card, its session and its avatar. Account deletion also removes the card and the app PIN.
+- **Settings → Switch Account** opens the cards while still signed in. Switching never revokes the previous account's session, so its card keeps working.
+- **Pushes:** before another account takes over, this device's push token is turned off for the current account (`deactivateThisDevice`, needs its session) and turned back on if the switch is cancelled. Only the account in use gets pushes on this device. Bootstrap now saves the device's push token for this.
+- **Account switch safety:** when the signed-in account changes, SessionProvider clears the old profile and conversation state and holds `loading` until the new profile has loaded, so Bootstrap can't route the new user with the old user's profile.
+
+**Tests:** new `SecureSessionStorage.test.ts`, which checks:
+- a round trip, including non-ASCII text;
+- no token ever appears in AsyncStorage;
+- the key lives only in SecureStore, and every write gets a fresh nonce;
+- without the key, nothing opens;
+- tampering is refused;
+- the plaintext session moves over once;
+- removing a value clears both copies.
+
+New `RememberedAccounts.test.ts`, which checks:
+- the order of the cards, and no duplicates;
+- the avatar is saved and downloaded again only when it changes;
+- Sign Out keeps the card, and Remove deletes everything;
+- restoring a session gives ok, needs-password, offline, or a refusal when the session belongs to someone else.
+
+Full suite **130/130**, and `tsc` shows no new errors. Maestro:
+- new `remembered-account.yaml`;
+- new `subflows/show-login-form.yaml`, used everywhere a flow waited for the form;
+- `ci/teardown-account.yaml` now answers the PIN wall before deleting (I missed this in #21).
+
+**None of the Maestro flows have been run.**
+
+**Limits:**
+- A rooted or jailbroken phone, or malware running as the app, can still read the session.
+- Saved sessions for inactive accounts last as long as Supabase refresh tokens do. If the project turns on a session time limit or an inactivity timeout, those cards will ask for the password.
+- If the account the user switches away from has no PIN and they choose the password fallback, that account's push token can't be turned off first. It's switched off the next time that account goes through Bootstrap.
+
+| # | Status (2026-11-23) |
+|---|---|
+| 25 | 🟡 Written, unit tests green. Needs a native rebuild (allowBackup). Device check: an existing signed-in install stays signed in, and backgrounding for over an hour no longer shows the refresh error. |
+| 26 | 🟡 Written. Device check: switch accounts, and each one sees only its own chat list. |
+| Remembered accounts | 🟡 Written. Run `remembered-account.yaml` and try it with 5+ accounts (paging). |
+
 ## 2026-11-23 — #21: confirm it's you before sensitive actions (code + unit tests, not on a device yet)
 
 **What it does:** before a sensitive action the app asks for Face ID / fingerprint, **if the user turned them on** (EnableBiometric). If they didn't turn them on, or biometrics don't work (failed match, locked out, nothing enrolled, or the user taps "Use app PIN" on the prompt), the **app PIN wall** appears, 4 or 6 digits (the user picks the length), with a note when biometrics failed. With no PIN set yet, it asks for the account password, then offers to set a PIN. The prompt's fallback is the app PIN, not the device passcode (`disableDeviceFallback: true`). Cancelling the wall itself refuses the action.

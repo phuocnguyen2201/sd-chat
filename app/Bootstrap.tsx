@@ -60,6 +60,7 @@ export default function Bootstrap() {
         }*/
 
         const token = await usePushNotifications.registerForPushNotificationsAsync();
+        if (token) await usePushNotifications.rememberDeviceToken(token);
         const listTokens = profile?.push_notification_tokens.find((tokens) => tokens.token === token);
        // console.log('Existing tokens:', profile?.push_notification_tokens);
 

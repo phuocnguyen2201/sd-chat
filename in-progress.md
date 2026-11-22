@@ -1,5 +1,23 @@
 # In Progress / Open Items
 
+## #25 / #26 / remembered accounts (2026-11-23): code + unit tests done, not on a device
+1. **Native rebuild** (dev client / EAS): `android.allowBackup: false` only takes effect in a new build.
+2. Restart Metro with `npx expo start -c` (the Tailwind config changed too).
+3. Device checks:
+   - Update over an existing signed-in install: you should stay signed in, and AsyncStorage should hold no `sb-…-auth-token` plaintext.
+   - Background the app for over an hour, then resume: no "Invalid Refresh Token" error.
+   - Sign Out → the card shows "Password needed" → a tap opens the password box.
+   - Switch Account → tap the card → the PIN wall → in.
+   - 5+ accounts: paging works.
+   - ⋯ → Remove deletes the card.
+   - Two accounts: each sees only its own chats (#26), and only the active one gets pushes.
+4. Run Maestro: `remembered-account.yaml`, plus everything that now uses `subflows/show-login-form.yaml`.
+5. Decide whether Supabase should have a session time limit, or an inactivity timeout for refresh tokens. It decides how long a card works without a password.
+
+## GitHub Project backlog (2026-11-23): synced to https://github.com/users/phuocnguyen2201/projects/1
+1. Commit `documentation/backlog/` including `.github-sync.json` (it maps backlog ids to issue numbers; without it a re-run falls back to title matching).
+2. From now on, change a task's status in `backlog.json` and re-run `python3 documentation/backlog/sync_github_project.py`. Issues closed by hand get reopened by the next run if the JSON still says todo.
+
 ## #21 re-authentication (2026-11-23): code + unit tests done, not on a device
 1. **Manual:** turn on "Secure password change" in the Supabase dashboard (Authentication → Email). `config.toml` only covers the local stack.
 2. Run the Maestro flows touched: open-manage-keys (all pairing flows), backup-key, delete-account, change-password, pairing-code-cancel. They use `subflows/confirm-identity.yaml` (PIN 1234).

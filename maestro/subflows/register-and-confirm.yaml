@@ -9,9 +9,7 @@ appId: com.phuocng23000.sdchat
 # Needs: EMAIL + INBOX_PASSWORD (a mail.tm inbox: scripts/create-inbox.js, or
 # made by .github/scripts/run-maestro.sh in CI), MAESTRO_PASSWORD,
 # MAESTRO_SUPABASE_URL, MAESTRO_SUPABASE_KEY (publishable key).
-- extendedWaitUntil:
-    visible: "Authentication"
-    timeout: 50000
+- runFlow: show-login-form.yaml
 - tapOn:
     text: "Input Field|Enter your email"
     below: "Email"

@@ -1,5 +1,24 @@
 # Progress Log
 
+## 2026-11-23 (later): Backlog updated for remembered accounts, SEC-25, SEC-26
+- New story S1.5 "Switch between accounts saved on this phone" under the Accounts & Authentication epic: #154, tasks #155–#162 (6 done, 2 to do: Maestro run, device test).
+- S7.3 (#122): SEC-25 (#123) and SEC-26 (#124) closed as Done. New open tasks: #163 regenerate the Android project (`android/app/src/main/AndroidManifest.xml` still has `allowBackup="true"`, only `app.json` was changed), #164 device test.
+
+## 2026-11-23: #25, #26 and remembered accounts on the login screen
+- `SecureSessionStorage` (sealed session, key in SecureStore) is the Supabase client's storage. The old plaintext session moves over automatically. `allowBackup: false`.
+- The token refresh now follows the app's foreground/background state, and a rejected refresh token is a clean sign-out (the fix for the error at the bottom of the screen).
+- Per-account message cache (#26).
+- Login screen: remembered-account cards (4 per page, swipe), each with a ⋯ menu to remove it. A tap goes through biometric → PIN → password, then signs in without a password. An expired card gets a password box with the email filled in. The form shows only after "Sign in to another account" / "Create account".
+- Sign Out is local only and keeps the card. Settings has Switch Account. Push tokens follow the active account.
+- 130/130 Jest. New Maestro `remembered-account.yaml` and `show-login-form.yaml`, not run.
+
+## 2026-11-23: GitHub Project backlog (epics, user stories, tasks)
+- New `documentation/backlog/backlog.json`: 9 epics, 27 user stories, 113 tasks, each task marked done/in_progress/todo against the current code and docs (68 done, 45 todo). Story and epic status come from their tasks. Security refs are written `SEC-N` (= `#N` in security-scan.md) so GitHub doesn't link them to the wrong issues.
+- New `documentation/backlog/sync_github_project.py`: creates labels (`epic`, `user-story`, `task`, `area:*`), the "SD Chat Roadmap" user project linked to the repo, and issues nested as sub-issues (epic > story > task). Done items are closed and set to Done. Safe to re-run: `.github-sync.json` records what was created, and a re-run updates bodies, state and Status.
+- The three `security/*` branches were confirmed merged into `main`.
+- **Synced** to https://github.com/users/phuocnguyen2201/projects/1: issues #5–#153 (9 epics, 27 stories, 113 tasks), no duplicates. Board: 72 Done, 30 In Progress, 47 Todo. Sub-issue links checked.
+- The first run stopped at #17: the project auto-added the issue, so `item-add` failed with "already exists". The script now reuses an existing issue with the same title and an existing project item, and the re-run finished.
+
 ## 2026-11-23: Security #21, confirm it's you before sensitive actions
 - New `utility/auth/` (AppPin, biometricCheck, verifyAccountPassword, ConfirmIdentityProvider, mounted in `app/_layout.tsx`). The fallback is a 4 or 6 digit app PIN.
 - Gated: opening Manage Keys, the pairing code, the vault backup, account deletion (Settings + ScanningKeys). Change Password now asks for the current password, and its false "updated" message on failure is fixed. Settings has a new App PIN row.

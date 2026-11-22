@@ -1,0 +1,60 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: remembered accounts on the login screen.
+# Sign Out keeps the account's card but forgets its session, so tapping the
+# card asks for the password (email filled in). After that the session is
+# saved again, and "Switch Account" -> tapping the card signs straight back in
+# after the PIN wall, with no password.
+# Uses ${MAESTRO_EMAIL}, ${MAESTRO_PASSWORD} and the test PIN from
+# confirm-identity.yaml.
+- launchApp
+- assertVisible: "Chat.*"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: { id: "logout-button" }
+- tapOn: { id: "logout-button" }
+
+# The card is there, the form is hidden
+- extendedWaitUntil:
+    visible: "Logined accounts"
+    timeout: 15000
+- assertNotVisible: "Authentication.*"
+- assertVisible: "Password needed"
+- assertVisible: "Sign in to another account"
+- assertVisible: "Create account"
+
+# The form can still be reached, and left again
+- tapOn: { id: "show-sign-in-form-link" }
+- assertVisible: "Authentication.*"
+- tapOn: { id: "back-to-accounts-link" }
+- assertVisible: "Logined accounts"
+
+# Signed out: the card asks for the password
+- tapOn: { id: "remembered-account-card-${MAESTRO_EMAIL}" }
+- assertVisible: "Your session ended.*"
+- tapOn: { id: "account-password-input" }
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn: { id: "account-password-submit" }
+- runFlow:
+    when:
+      visible: "Enable Biometric"
+    commands:
+      - tapOn: "Skip"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 20000
+
+# Signed in again: Switch Account -> the card -> PIN wall -> in, no password
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: { id: "switch-account-button" }
+- tapOn: { id: "switch-account-button" }
+- extendedWaitUntil:
+    visible: "Logined accounts"
+    timeout: 15000
+- tapOn: { id: "remembered-account-card-${MAESTRO_EMAIL}" }
+- runFlow: subflows/confirm-identity.yaml
+- assertNotVisible: "Your session ended.*"
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 20000

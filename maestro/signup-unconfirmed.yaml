@@ -13,9 +13,7 @@ tags:
 # Registers a throwaway mail.tm account; never the shared fixture.
 - launchApp:
     clearState: true
-- extendedWaitUntil:
-    visible: "Authentication.*"
-    timeout: 50000
+- runFlow: subflows/show-login-form.yaml
 
 - runScript: scripts/create-inbox.js
 - tapOn:

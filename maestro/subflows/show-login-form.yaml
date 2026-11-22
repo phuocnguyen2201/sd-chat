@@ -1,0 +1,14 @@
+appId: com.phuocng23000.sdchat
+---
+# Gets to the email/password form. When accounts are remembered on the device
+# the login screen shows their cards and hides the form until
+# "Sign in to another account" is tapped.
+- extendedWaitUntil:
+    visible: "Authentication.*|Logined accounts"
+    timeout: 50000
+- runFlow:
+    when:
+      visible: "Logined accounts"
+    commands:
+      - tapOn: { id: "show-sign-in-form-link" }
+- assertVisible: "Authentication.*"

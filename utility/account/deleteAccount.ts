@@ -4,6 +4,9 @@ import { SnapShot } from '@/utility/localstorage/snapshot';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { deleteVaultBackup } from '@/utility/securedMessage/VaultBackup';
+import { deleteSnapshotDatabase } from '@/utility/localstorage/snapshot';
+import { RememberedAccounts } from '@/utility/auth/RememberedAccounts';
+import { AppPin } from '@/utility/auth/AppPin';
 
 /**
  * Delete an account and everything this device kept for it.
@@ -24,6 +27,19 @@ export async function deleteAccountAndLocalData(
     // and deleting server-side first would leave that storage stranded.
     console.error('Cannot delete account: no user id');
     return false;
+  }
+
+  /*
+    Read the cached conversation ids now: the message cache belongs to the
+    signed-in account (security #26), and deleteAccount() signs out partway
+    through, after which it can't be opened any more.
+  */
+  let localConversationIds: string[] = [];
+  try {
+    const snapshots = await SnapShot.getMessagesSnapshot();
+    localConversationIds = snapshots.map((snapshot) => snapshot.conversation_id);
+  } catch (error) {
+    console.warn('Could not read the message cache before deleting:', error);
   }
 
   try {
@@ -63,21 +79,22 @@ export async function deleteAccountAndLocalData(
     has an account.
 
     Secure Store cannot enumerate its own keys, so the conversation ids come
-    from the local snapshots - this device's own record of what it has held.
+    from the local snapshots - this device's own record of what it has held,
+    read above while the account was still signed in. The cache file itself
+    is deleted whole below.
 
     Past this point the account no longer exists, so a failure here is reported
     but never returned as failure: telling the caller the deletion failed would
     strand the user on a screen belonging to an account that is already gone.
   */
   try {
-    const snapshots = await SnapShot.getMessagesSnapshot();
-    const localConversationIds: string[] = snapshots.map((snapshot) => snapshot.conversation_id);
-
     await Promise.all([
       MessageEncryption.deletePrivateKey(userId),
       ConversationKeyManager.deleteAllKeys(userId, localConversationIds),
-      ...localConversationIds.map((id) => SnapShot.deleteSnapshotByConversationId(id)),
     ]);
+    // Nothing of a deleted account stays on the login screen or in the cache.
+    await Promise.all([RememberedAccounts.remove(userId), AppPin.clearPin(userId)]);
+    deleteSnapshotDatabase(userId);
   } catch (error) {
     console.error('Account deleted, but clearing local data failed:', error);
   }

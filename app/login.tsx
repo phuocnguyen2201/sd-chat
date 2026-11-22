@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Pressable } from 'react-native';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { Button, ButtonText } from '@/components/ui/button';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { FormControl } from '@/components/ui/form-control';
 import { VStack } from '@/components/ui/vstack';
 import { Heading } from '@/components/ui/heading';
@@ -21,6 +22,11 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { inputFocusClassName } from '@/constants/inputStyles';
+import { supabase } from '@/utility/connection';
+import { RememberedAccounts, type AccountCard } from '@/utility/auth/RememberedAccounts';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
+import { usePushNotifications } from '@/utility/push-notification/push-Notification';
+import { RememberedAccountsPanel } from '@/components/RememberedAccountsPanel';
 const EMAIL_NOT_CONFIRMED = 'email_not_confirmed';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Only enforced on sign-up; older accounts may have weaker passwords. Mirrors
@@ -63,6 +69,153 @@ export default function Login() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const router = useRouter();
   const { refreshProfile } = useSession();
+  const { confirmIdentity } = useConfirmIdentity();
+
+  // Remembered accounts. The form is hidden while there are any, until the
+  // user asks for it with "Sign in to another account" / "Create account".
+  const [accounts, setAccounts] = useState<AccountCard[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  // The card whose session is gone: the password box, email filled in.
+  const [passwordFor, setPasswordFor] = useState<AccountCard | null>(null);
+  const [cardPassword, setCardPassword] = useState('');
+  const [cardError, setCardError] = useState('');
+  const [cardBusy, setCardBusy] = useState(false);
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      setAccounts(await RememberedAccounts.list());
+    } catch (error) {
+      console.warn('Could not load remembered accounts:', error);
+      setAccounts([]);
+    } finally {
+      setAccountsLoaded(true);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAccounts();
+    }, [loadAccounts])
+  );
+
+  const formVisible = accountsLoaded && (accounts.length === 0 || showForm);
+
+  const currentUserId = async (): Promise<string | null> =>
+    (await supabase.auth.getSession()).data.session?.user?.id ?? null;
+
+  /*
+    Before another account takes over this device, stop the current one's
+    pushes here (needs its session, so it has to come first).
+  */
+  const releaseCurrentAccount = async (nextUserId: string): Promise<string | null> => {
+    const current = await currentUserId();
+    if (current && current !== nextUserId) {
+      await usePushNotifications.deactivateThisDevice(current);
+      return current;
+    }
+    return null;
+  };
+
+  const goIn = async () => {
+    await refreshProfile();
+    router.replace('/Bootstrap');
+  };
+
+  const openPasswordBox = (account: AccountCard) => {
+    setCardPassword('');
+    setCardError('');
+    setPasswordFor(account);
+  };
+
+  /*
+    Tapping a card. With a saved session: the account's Face ID / fingerprint,
+    else its app PIN (password as the last resort), then straight in - no
+    password. Without one (signed out, or the session was rejected): the
+    password box with the email filled in.
+  */
+  const selectAccount = async (account: AccountCard) => {
+    if (busyUserId) return;
+    setBusyUserId(account.userId);
+    let released: string | null = null;
+    let signedIn = false;
+    try {
+      const active = await currentUserId();
+      if (!account.hasSession && active !== account.userId) {
+        openPasswordBox(account);
+        return;
+      }
+
+      released = await releaseCurrentAccount(account.userId);
+      const confirmed = await confirmIdentity({
+        reason: `Sign in as ${account.displayName || account.email}`,
+        fresh: true,
+        account: { userId: account.userId, email: account.email },
+      });
+      if (!confirmed) return;
+
+      // The password fallback inside the wall may have signed it in already.
+      if ((await currentUserId()) === account.userId) {
+        signedIn = true;
+        await goIn();
+        return;
+      }
+
+      const result = await RememberedAccounts.restore(account.userId);
+      if (result === 'ok') {
+        signedIn = true;
+        await goIn();
+      } else if (result === 'needs_password') {
+        openPasswordBox({ ...account, hasSession: false });
+      } else {
+        setMessage("You're offline. Check the connection and try again.");
+      }
+    } catch (error) {
+      console.warn('Could not open the account:', error);
+      setMessage('Could not sign in to this account. Please try again.');
+    } finally {
+      if (released && !signedIn && (await currentUserId()) === released) {
+        // Still the previous account: give it its pushes back.
+        await usePushNotifications.reactivateThisDevice(released);
+      }
+      setBusyUserId(null);
+      loadAccounts();
+    }
+  };
+
+  const submitCardPassword = async () => {
+    if (!passwordFor || cardBusy) return;
+    if (!cardPassword) {
+      setCardError('Enter your password.');
+      return;
+    }
+    setCardBusy(true);
+    setCardError('');
+    const released = await releaseCurrentAccount(passwordFor.userId);
+    try {
+      const msg = await authAPI.signIn(passwordFor.email, cardPassword);
+      if (msg?.error) {
+        setCardError(
+          (msg.error as { code?: string }).code === EMAIL_NOT_CONFIRMED
+            ? 'Please confirm your email first, then try again.'
+            : msg.error.message
+        );
+        if (released) await usePushNotifications.reactivateThisDevice(released);
+        return;
+      }
+      setPasswordFor(null);
+      setCardPassword('');
+      await goIn();
+    } finally {
+      setCardBusy(false);
+    }
+  };
+
+  const removeAccount = async (account: AccountCard) => {
+    await RememberedAccounts.remove(account.userId);
+    await loadAccounts();
+  };
 
   /*
     No theme branching on this screen. gluestack's scales are mirrored - what
@@ -88,6 +241,8 @@ export default function Login() {
 
     setIsLoading(true);
     try {
+      const active = await currentUserId();
+      if (active) await usePushNotifications.deactivateThisDevice(active);
       const msg = await authAPI.signIn(email.trim(), password);
       if (msg?.error) {
         if ((msg.error as { code?: string }).code === EMAIL_NOT_CONFIRMED) {
@@ -233,6 +388,18 @@ export default function Login() {
             </AlertDialogContent>
           </AlertDialog>
 
+          {accountsLoaded && accounts.length > 0 && !showForm && (
+            <RememberedAccountsPanel
+              accounts={accounts}
+              busyUserId={busyUserId}
+              onSelect={selectAccount}
+              onRemove={removeAccount}
+              onSignIn={() => setShowForm(true)}
+              onSignUp={() => setShowForm(true)}
+            />
+          )}
+
+          {formVisible && (
           <FormControl className="p-4 border border-outline-200 rounded-lg w-full mb-6">
             <Heading className="text-typography-100" size="lg">
               Authentication
@@ -317,8 +484,56 @@ export default function Login() {
                   </Button>
                 </VStack>
               )}
+              {accounts.length > 0 && (
+                <Pressable
+                  testID={automationLocatorsDataState.loginScreen.backToAccountsLink}
+                  onPress={() => setShowForm(false)}
+                  hitSlop={8}
+                  className="items-center"
+                >
+                  <Text className="text-typography-100 font-semibold">Back to saved accounts</Text>
+                </Pressable>
+              )}
             </VStack>
           </FormControl>
+          )}
+
+          <Modal visible={passwordFor !== null} transparent animationType="fade" onRequestClose={() => setPasswordFor(null)}>
+            <Box className="flex-1 items-center justify-center px-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
+              <VStack space="md" className="w-full max-w-md rounded-2xl bg-background-0 p-6">
+                <Heading className="text-typography-950 font-semibold" size="md">
+                  {passwordFor?.displayName || 'Sign in'}
+                </Heading>
+                <Text size="sm">Your session ended. Enter the password for {passwordFor?.email}.</Text>
+                <Input>
+                  <InputField
+                    testID={automationLocatorsDataState.loginScreen.accountPasswordInput}
+                    placeholder="Password"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={cardPassword}
+                    onChangeText={setCardPassword}
+                    onSubmitEditing={submitCardPassword}
+                  />
+                </Input>
+                {cardError !== '' && <Text className="text-sm text-red-500">{cardError}</Text>}
+                <VStack className="mt-0 flex-row justify-end" style={{ gap: 8 }}>
+                  <Button variant="outline" action="secondary" size="sm" onPress={() => setPasswordFor(null)}>
+                    <ButtonText>Cancel</ButtonText>
+                  </Button>
+                  <Button
+                    testID={automationLocatorsDataState.loginScreen.accountPasswordSubmit}
+                    size="sm"
+                    onPress={submitCardPassword}
+                    isDisabled={cardBusy}
+                  >
+                    <ButtonText>{cardBusy ? 'Signing in…' : 'Login'}</ButtonText>
+                  </Button>
+                </VStack>
+              </VStack>
+            </Box>
+          </Modal>
         </Box>
       </Box>
     </Box>

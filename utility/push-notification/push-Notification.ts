@@ -20,6 +20,9 @@ Notifications.setNotificationHandler({
   },
 });
 
+// This device's Expo push token. Not a secret: it only addresses the device.
+const DEVICE_PUSH_TOKEN_KEY = 'device_push_token';
+
 export const usePushNotifications = {
     async registerForPushNotificationsAsync(): Promise<string | undefined> {
     if (Platform.OS === 'android') {
@@ -134,6 +137,45 @@ export const usePushNotifications = {
              console.log('Error updating push token to database:', error);
              return false;
         }
+    },
+
+    /**
+     * Stop this device getting the signed-in account's pushes. Runs before a
+     * switch or sign-out, while that account's session is still active (the
+     * token rows are owner-only), so only the account in use gets pushes here.
+     */
+    async deactivateThisDevice(userId: string): Promise<void> {
+        try {
+            const token = await AsyncStorage.getItem(DEVICE_PUSH_TOKEN_KEY);
+            if (!token || !userId) return;
+            const { error } = await supabase
+                .from('push_notification_tokens')
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .eq('token', token)
+                .eq('profile_id', userId);
+            if (error) console.log('Error deactivating push token:', error.message);
+        } catch (error) {
+            console.log('Error deactivating push token:', error);
+        }
+    },
+
+    /** Undo deactivateThisDevice when a switch was cancelled. */
+    async reactivateThisDevice(userId: string): Promise<void> {
+        try {
+            const token = await AsyncStorage.getItem(DEVICE_PUSH_TOKEN_KEY);
+            if (!token || !userId) return;
+            await supabase
+                .from('push_notification_tokens')
+                .update({ is_active: true, updated_at: new Date().toISOString() })
+                .eq('token', token)
+                .eq('profile_id', userId);
+        } catch (error) {
+            console.log('Error reactivating push token:', error);
+        }
+    },
+
+    async rememberDeviceToken(token: string): Promise<void> {
+        if (token) await AsyncStorage.setItem(DEVICE_PUSH_TOKEN_KEY, token);
     },
 
     async verifyPushTokenInDatabase(token: string): Promise<boolean> {

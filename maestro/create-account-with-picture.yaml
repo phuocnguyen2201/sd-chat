@@ -1,9 +1,7 @@
 appId: com.phuocng23000.sdchat
 ---
 - launchApp
-- extendedWaitUntil: 
-    visible: "Authentication.*"
-    timeout: 50000
+- runFlow: subflows/show-login-form.yaml
 - assertVisible: "Email"
 - assertVisible: "Password"
 # Register with a fresh mail.tm inbox, confirm the email, log in

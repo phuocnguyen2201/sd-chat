@@ -1,8 +1,6 @@
 appId: "com.phuocng23000.sdchat"
 ---
-- extendedWaitUntil: 
-    visible: "Authentication.*"
-    timeout: 50000
+- runFlow: subflows/show-login-form.yaml
 # Register with a fresh mail.tm inbox, confirm the email, log in
 - runFlow: subflows/new-inbox-register-and-confirm.yaml
 - extendedWaitUntil:

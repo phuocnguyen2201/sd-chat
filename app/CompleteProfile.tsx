@@ -1,5 +1,6 @@
 
 import { Heading } from '@/components/ui/heading';
+import { signOutThisDevice } from '@/utility/auth/signOutThisDevice';
 import { Text } from '@/components/ui/text';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utility/connection';
@@ -193,7 +194,7 @@ export default function CompleteProfile() {
               <VStack>
                 <Button testID={automationLocatorsDataState.completeProfileScreen.backButton} className="p-0" size='xl'  
                     onPress={async () => {
-                      await supabase.auth.signOut();
+                      await signOutThisDevice(user?.id);
                        router.push('/');
                     }}>
                 <ButtonText>Back to Home</ButtonText>

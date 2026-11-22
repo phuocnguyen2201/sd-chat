@@ -28,7 +28,15 @@ export type ConfirmOptions = {
   reason: string;
   /** Ignore the short grace window and always ask. */
   fresh?: boolean;
+  /**
+   * Confirm this account instead of the signed-in one: a remembered account's
+   * card on the login screen. Its own biometric choice and app PIN are used,
+   * and the password fallback signs that account in.
+   */
+  account?: { userId: string; email: string };
 };
+
+type Target = { userId: string; email: string };
 
 type ConfirmIdentityApi = {
   confirmIdentity: (options: ConfirmOptions) => Promise<boolean>;
@@ -46,6 +54,8 @@ type Session = {
   newPinRequired: boolean;
   // Why the wall is showing instead of Face ID / fingerprint, if it is.
   notice: string;
+  // The account being confirmed.
+  target: Target;
   resolve: (ok: boolean) => void;
 };
 
@@ -67,6 +77,8 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const userId = user?.id ?? '';
   const email = user?.email ?? '';
+  // The account the open dialog is for (the signed-in one, or a card's).
+  const target = (): Target => sessionRef.current?.target ?? { userId, email };
 
   const lastConfirmedRef = useRef<{ userId: string; at: number } | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -90,20 +102,20 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
     sessionRef.current = null;
     setSession(null);
     resetFields();
-    if (ok && userId) {
-      lastConfirmedRef.current = { userId, at: Date.now() };
+    if (ok && current?.target.userId) {
+      lastConfirmedRef.current = { userId: current.target.userId, at: Date.now() };
     }
     current?.resolve(ok);
-  }, [userId]);
+  }, []);
 
   const openDialog = useCallback(
-    (step: Step, reason: string, newPinRequired: boolean, notice = ''): Promise<boolean> => {
+    (step: Step, reason: string, newPinRequired: boolean, who: Target, notice = ''): Promise<boolean> => {
       if (sessionRef.current) {
         // One dialog at a time; a second request while one is open is refused.
         return Promise.resolve(false);
       }
       return new Promise<boolean>((resolve) => {
-        const next: Session = { step, reason, newPinRequired, notice, resolve };
+        const next: Session = { step, reason, newPinRequired, notice, target: who, resolve };
         sessionRef.current = next;
         resetFields();
         setSession(next);
@@ -122,26 +134,27 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
   };
 
   const confirmIdentity = useCallback(
-    async ({ reason, fresh }: ConfirmOptions): Promise<boolean> => {
-      if (!userId) return false;
+    async ({ reason, fresh, account }: ConfirmOptions): Promise<boolean> => {
+      const who: Target = account ?? { userId, email };
+      if (!who.userId) return false;
 
       const last = lastConfirmedRef.current;
-      if (!fresh && last && last.userId === userId && Date.now() - last.at < GRACE_MS) {
+      if (!fresh && last && last.userId === who.userId && Date.now() - last.at < GRACE_MS) {
         return true;
       }
 
-      const chosen = await hasChosenBiometrics(userId);
+      const chosen = await hasChosenBiometrics(who.userId);
       if (chosen && (await biometricCheck(reason)) === 'ok') {
-        lastConfirmedRef.current = { userId, at: Date.now() };
+        lastConfirmedRef.current = { userId: who.userId, at: Date.now() };
         return true;
       }
 
-      const length = await AppPin.getLength(userId);
+      const length = await AppPin.getLength(who.userId);
       if (length) setPinLength(length);
       const notice = chosen ? 'Face ID / fingerprint did not work.' : '';
-      return openDialog(length ? 'pin' : 'password', reason, false, notice);
+      return openDialog(length ? 'pin' : 'password', reason, false, who, notice);
     },
-    [userId, openDialog]
+    [userId, email, openDialog]
   );
 
   const managePin = useCallback(async (): Promise<boolean> => {
@@ -151,16 +164,16 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
 
     if (!length) {
       setPinLength(4);
-      return openDialog('password', 'Set up an app PIN', true);
+      return openDialog('password', 'Set up an app PIN', true, { userId, email });
     }
 
     setPinLength(length);
     const chosen = await hasChosenBiometrics(userId);
     if (chosen && (await biometricCheck(reason)) === 'ok') {
-      return openDialog('newPin', reason, true);
+      return openDialog('newPin', reason, true, { userId, email });
     }
-    return openDialog('pin', reason, true, chosen ? 'Face ID / fingerprint did not work.' : '');
-  }, [userId, openDialog]);
+    return openDialog('pin', reason, true, { userId, email }, chosen ? 'Face ID / fingerprint did not work.' : '');
+  }, [userId, email, openDialog]);
 
   const submitPin = async () => {
     const current = sessionRef.current;
@@ -170,7 +183,7 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
       return;
     }
     setBusy(true);
-    const result = await AppPin.verifyPin(userId, value);
+    const result = await AppPin.verifyPin(target().userId, value);
     if (result.ok) {
       if (current.newPinRequired) {
         goTo('newPin');
@@ -196,7 +209,7 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
   const submitPassword = async () => {
     if (!sessionRef.current || busy) return;
     setBusy(true);
-    const result = await verifyAccountPassword(email, value);
+    const result = await verifyAccountPassword(target().email, value);
     if (!result.ok) {
       setBusy(false);
       setError(result.message);
@@ -217,7 +230,7 @@ export function ConfirmIdentityProvider({ children }: { children: ReactNode }) {
     }
     setBusy(true);
     try {
-      await AppPin.setPin(userId, value, pinLength);
+      await AppPin.setPin(target().userId, value, pinLength);
       finish(true);
     } catch (e) {
       setBusy(false);
