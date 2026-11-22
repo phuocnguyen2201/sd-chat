@@ -42,6 +42,7 @@ export const automationLocatorsDataState = {
         manageKeysButton: 'manage-keys-button',
         logoutButton: 'logout-button',
         manageBiometricsButton: 'manage-biometrics-button',
+        manageAppPinButton: 'manage-app-pin-button',
     },
     chatScreen:{
         messageInput: 'message-input',

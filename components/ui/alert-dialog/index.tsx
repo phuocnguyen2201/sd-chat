@@ -61,7 +61,8 @@ const alertDialogStyle = tva({
 });
 
 const alertDialogContentStyle = tva({
-  base: 'bg-background-0 rounded-lg overflow-hidden border border-outline-100 p-6',
+  // Same spacing as the app's confirm-identity dialog: p-6, 12px between rows, 8px between buttons.
+  base: 'bg-background-0 rounded-2xl overflow-hidden border border-outline-100 p-6',
   parentVariants: {
     size: {
       xs: 'w-[60%] max-w-[360px]',
@@ -82,10 +83,10 @@ const alertDialogHeaderStyle = tva({
 });
 
 const alertDialogFooterStyle = tva({
-  base: 'flex-row justify-end items-center gap-3',
+  base: 'mt-3 flex-row justify-end items-center gap-2',
 });
 
-const alertDialogBodyStyle = tva({ base: '' });
+const alertDialogBodyStyle = tva({ base: 'mt-3' });
 
 const alertDialogBackdropStyle = tva({
   base: 'absolute left-0 top-0 right-0 bottom-0 bg-background-dark web:cursor-default',

@@ -1,0 +1,44 @@
+appId: com.phuocng23000.sdchat
+---
+# Answers the "Confirm it's you" dialog (security #21). The simulators have no
+# Face ID / fingerprint enrolled, so the app falls back to the app PIN, or to
+# the account password when no PIN is set yet, and then asks to set one.
+# Uses ${MAESTRO_PASSWORD} and the test PIN 1234. Does nothing when the dialog
+# doesn't show (a check passed in the last minute covers the next one).
+- waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "Enter your 4-digit app PIN."
+    commands:
+      - tapOn: { id: "confirm-identity-pin" }
+      - inputText: "1234"
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+# No PIN on this install yet (or it was removed after 5 wrong tries)
+- runFlow:
+    when:
+      visible: "Enter your account password."
+    commands:
+      - tapOn: { id: "confirm-identity-password" }
+      - inputText: ${MAESTRO_PASSWORD}
+      - tapOn: "Continue"
+      - extendedWaitUntil:
+          visible: "Set up an app PIN"
+          timeout: 15000
+
+- runFlow:
+    when:
+      visible: "Set up an app PIN"
+    commands:
+      - tapOn: "4 digits"
+      - tapOn: { id: "confirm-identity-new-pin" }
+      - inputText: "1234"
+      - tapOn: { id: "confirm-identity-repeat-pin" }
+      - inputText: "1234"
+      - tapOn: "Save PIN"
+      - waitForAnimationToEnd
+
+- assertNotVisible: "Confirm it's you"
+- assertNotVisible: "Set up an app PIN"

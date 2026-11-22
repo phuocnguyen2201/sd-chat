@@ -4,6 +4,7 @@ appId: com.phuocng23000.sdchat
 # ${maestro.copiedText} and returns to ManageKeys with the code still active
 # (leaving via back only stops polling; only Cancel revokes the code).
 - tapOn: "Share Keys"
+- runFlow: confirm-identity.yaml
 - assertVisible: "On your other device, tap \"Receive Keys\" and enter this code."
 - extendedWaitUntil:
     visible: '\d{4}'

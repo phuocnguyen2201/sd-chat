@@ -57,6 +57,8 @@ appId: com.phuocng23000.sdchat
 - tapOn: { id: "delete-account-button" }
 - assertVisible: "Notification"
 - tapOn: "Okay"
+# Always asked before deleting, even right after another check (security #21)
+- runFlow: subflows/confirm-identity.yaml
 
 # deleteAccount() routes back to the login screen
 - extendedWaitUntil:

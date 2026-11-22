@@ -214,10 +214,10 @@ export default function Login() {
                   Notification
                 </Heading>
               </AlertDialogHeader>
-              <AlertDialogBody className="mt-3 mb-4">
+              <AlertDialogBody>
                 <Text size="sm">{message}</Text>
               </AlertDialogBody>
-              <AlertDialogFooter className="">
+              <AlertDialogFooter>
                 <Button
                   variant="outline"
                   action="secondary"

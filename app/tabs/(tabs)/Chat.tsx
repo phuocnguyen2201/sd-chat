@@ -910,7 +910,7 @@ export default function Chat() {
               <Text>Delete chat</Text>
             </Heading>
           </AlertDialogHeader>
-          <AlertDialogBody className="mt-3 mb-4">
+          <AlertDialogBody>
             <Text size="sm">
               This removes the chat from your list. The other participant keeps their copy. Continue?
             </Text>

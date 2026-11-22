@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SessionProvider, useSession } from '@/utility/session/SessionProvider';
+import { ConfirmIdentityProvider } from '@/utility/auth/ConfirmIdentityProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Defines and registers the background task for message pushes; must load early.
 import '@/utility/push-notification/MessageNotification';
@@ -73,7 +74,9 @@ function RootLayoutNav() {
       <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
       <GluestackUIProvider mode={colorMode}>
         <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
-          <Slot />
+          <ConfirmIdentityProvider>
+            <Slot />
+          </ConfirmIdentityProvider>
         </ThemeProvider>
       </GluestackUIProvider>
     </GestureHandlerRootView>

@@ -4,6 +4,9 @@ module.exports = {
   content: [
     './app/**/*.{html,js,jsx,ts,tsx,mdx}',
     './components/**/*.{html,js,jsx,ts,tsx,mdx}',
+    // ConfirmIdentityProvider (the PIN wall) lives here; without this its
+    // classes that appear nowhere else (e.g. text-red-700) were never generated.
+    './utility/**/*.{js,jsx,ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
   important: 'html',

@@ -39,6 +39,9 @@ import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
 import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
+import { AppPin } from '@/utility/auth/AppPin';
+import { verifyAccountPassword } from '@/utility/auth/verifyAccountPassword';
 
 
 export default function Settings() {
@@ -50,6 +53,7 @@ export default function Settings() {
   const [draftDisplayName, setDraftDisplayName] = useState('');
   
 
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
@@ -61,6 +65,24 @@ export default function Settings() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile } = useSession();
+  const { confirmIdentity, managePin } = useConfirmIdentity();
+  const [hasAppPin, setHasAppPin] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    AppPin.hasPin(user.id).then(setHasAppPin).catch(() => setHasAppPin(false));
+  }, [user?.id]);
+
+  async function handleManagePin(): Promise<void> {
+    const changed = await managePin();
+    if (user?.id) {
+      setHasAppPin(await AppPin.hasPin(user.id));
+    }
+    if (changed) {
+      setSuccessMessage('App PIN saved');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
+  }
 
 
   /*
@@ -116,33 +138,51 @@ export default function Settings() {
       setTimeout(() => setSuccessMessage(''), 3000);
   }}
 
-  async function updatePassword(password: string, confirmPassword: string): Promise<void> {
-    try{   
-      setLoading(true);
-      if (password !== confirmPassword) {
-        Alert.alert('Error', 'Passwords do not match');
-        setLoading(false);
+  /*
+    The current password is checked first (security #21). Signing in with it
+    is also the "recent sign-in" that secure_password_change requires, so a
+    stolen session alone cannot set a new password.
+  */
+  async function updatePassword(current: string, password: string, confirmPassword: string): Promise<void> {
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    if (!current) {
+      Alert.alert('Error', 'Enter your current password');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const check = await verifyAccountPassword(user?.email ?? '', current);
+      if (!check.ok) {
+        Alert.alert('Error', check.message);
         return;
       }
-      
-      authAPI.updatePassword(password)
-      .catch((error) => {
-        if (error) {
-          Alert.alert('Error', 'Failed to update password');
-          throw new Error('Password update failed');
-        }
-      })
-      .finally(() => {
-        setSuccessMessage('Password updated successfully');
-        setTimeout(() => setSuccessMessage(''), 3000);
-        setActiveDialog(null);
-      });
-    }
-    catch (e) {
-      Alert.alert('Error', 'Failed to update password');
+
+      const { error } = await authAPI.updatePassword(password);
+      if (error) {
+        const needsReauth = (error as { code?: string }).code === 'reauthentication_needed';
+        Alert.alert(
+          'Error',
+          needsReauth
+            ? 'For your security, sign out and sign back in, then change your password.'
+            : error.message || 'Failed to update password'
+        );
+        return;
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setActiveDialog(null);
+      setSuccessMessage('Password updated successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (e) {
       console.warn(e);
-    }
-    finally {
+      Alert.alert('Error', 'Failed to update password');
+    } finally {
       setLoading(false);
     }
   }
@@ -153,6 +193,12 @@ export default function Settings() {
       only thing on screen and a second tap cannot start a second deletion.
     */
     setActiveDialog(null);
+
+    // Always asked, even right after another check: this cannot be undone (security #21).
+    if (!(await confirmIdentity({ reason: 'Delete your account', fresh: true }))) {
+      return;
+    }
+
     setDeletingAccount(true);
 
     const deleted = await deleteAccountAndLocalData(user?.id || '', !!profile?.avatar_url);
@@ -298,7 +344,7 @@ export default function Settings() {
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => router.push({pathname:'/tabs/managekeys/BiometricAuthentication'})}
+              onPress={() => router.push({pathname:'/tabs/managekeys/ManageKeys'})}
             >
               <ButtonText>Manage Keys</ButtonText>
             </Button>
@@ -323,6 +369,25 @@ export default function Settings() {
                 }})}
             >
               <ButtonText>Manage Biometrics</ButtonText>
+            </Button>
+          </HStack>
+        </Box>
+
+        {/* App PIN: the fallback when Face ID / fingerprint is not available */}
+        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
+          <HStack className="justify-between items-center mb-2">
+            <VStack className="flex-1">
+              <Text className="text-lg font-semibold">App PIN</Text>
+              <Text className="text-xs text-gray-500">{hasAppPin ? 'Set' : 'Not set'}</Text>
+            </VStack>
+            <Button
+              testID={automationLocatorsDataState.settingsScreen.manageAppPinButton}
+              size="sm"
+              action="primary"
+              className="bg-blue-500"
+              onPress={handleManagePin}
+            >
+              <ButtonText>{hasAppPin ? 'Change PIN' : 'Set up PIN'}</ButtonText>
             </Button>
           </HStack>
         </Box>
@@ -433,7 +498,7 @@ export default function Settings() {
 
           {activeDialog === 'displayName' && (
             <AlertDialogBody>
-              <Input className="mt-4">
+              <Input>
                 <InputField
                   placeholder="Enter new display name"
                   value={draftDisplayName}
@@ -445,7 +510,16 @@ export default function Settings() {
 
           {activeDialog === 'password' && (
             <AlertDialogBody>
-              <VStack space="md" className="mt-4">
+              <VStack space="md">
+                <Input>
+                  <InputField
+                    placeholder="Current Password"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                  />
+                </Input>
                 <Input>
                   <InputField
                     placeholder="New Password"
@@ -467,7 +541,7 @@ export default function Settings() {
           )}
 
           {activeDialog === 'deleteAccount' && (
-            <AlertDialogBody className="mt-3 mb-4">
+            <AlertDialogBody>
               <Text size="sm">
                 Delete the account cannot be undone. Are you sure you want to delete your account?
               </Text>
@@ -477,6 +551,7 @@ export default function Settings() {
             {activeDialog === 'displayName' && (
               <>
                 <Button
+                  size="sm"
                   variant="outline"
                   action="secondary"
                   onPress={() => setActiveDialog(null)}
@@ -484,6 +559,7 @@ export default function Settings() {
                   <ButtonText>Cancel</ButtonText>
                 </Button>
                 <Button
+                  size="sm"
                   className="bg-blue-500"
                   onPress={() => updateProfile()}
                   disabled={loading}
@@ -496,6 +572,7 @@ export default function Settings() {
             {activeDialog === 'password' && (
               <>
                 <Button
+                  size="sm"
                   variant="outline"
                   action="secondary"
                   onPress={() => setActiveDialog(null)}
@@ -503,8 +580,9 @@ export default function Settings() {
                   <ButtonText>Cancel</ButtonText>
                 </Button>
                 <Button
+                  size="sm"
                   className="bg-blue-500"
-                  onPress={() => updatePassword(newPassword, confirmPassword)}
+                  onPress={() => updatePassword(currentPassword, newPassword, confirmPassword)}
                   disabled={loading}
                 >
                   <ButtonText>{loading ? 'Saving...' : 'Update'}</ButtonText>

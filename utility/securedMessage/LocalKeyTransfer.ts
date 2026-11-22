@@ -65,6 +65,11 @@ export const LocalKeyTransfer = {
   },
 
   /** Returns the displayed code once and forgets it. */
+  /** Whether a code is waiting, without taking it. */
+  hasIssuedCode(): boolean {
+    return issuedCode !== null;
+  },
+
   takeIssuedCode(): string | null {
     const code = issuedCode;
     issuedCode = null;

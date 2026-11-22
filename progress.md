@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-11-23: Security #21, confirm it's you before sensitive actions
+- New `utility/auth/` (AppPin, biometricCheck, verifyAccountPassword, ConfirmIdentityProvider, mounted in `app/_layout.tsx`). The fallback is a 4 or 6 digit app PIN.
+- Gated: opening Manage Keys, the pairing code, the vault backup, account deletion (Settings + ScanningKeys). Change Password now asks for the current password, and its false "updated" message on failure is fixed. Settings has a new App PIN row.
+- `secure_password_change = true` in config.toml. 28 new Jest tests, 106/106 pass. Maestro flows updated, not run.
+- Manage Keys: the PIN wall is now inside `ManageKeys.tsx` and shows on every open (`fresh`, no grace window). Settings goes there directly. `BiometricAuthentication.tsx` and its route are removed, and Maestro `open-manage-keys` is updated.
+- Biometrics are tried only if the user turned on Touch ID / Face ID. Any failure (including cancel) shows the PIN wall with a note. The device passcode is no longer the fallback. 31 auth tests pass.
+- All alert dialogs now use the PIN dialog's spacing: set once in `components/ui/alert-dialog` (rounded-2xl, p-6, 12px between title, body and buttons, 8px between buttons). Per-screen `mt-3 mb-4` / `mt-4` overrides removed, and the footer buttons are all `sm`. Not checked on a device yet.
+
+## 2026-11-23: Security status check
+- Checked live migrations and functions (read-only). #9, #11 and #30 are live. #12/#13 migrations are not applied, and `delete-account` v3 predates the 10-26 change. Recorded in security-scan.md.
+
 ## 2026-11-02 (later): Perf checks wired into the E2E pipeline
 - `maestro-e2e.yml` now runs `build` → `unit-test` + new `perf` → `e2e`. `perf` runs the crypto bench (new `BENCH_MARKDOWN` output), Reassure against the previous commit (baseline step allowed to fail), and APK/JS bundle size from the built APK. Everything goes to the job summary and the `perf-results` artifact.
 - `e2e` installs Flashlight. `run-maestro.sh` runs `cold-start` and `search-typing` (3 iterations each) after account setup and before the flows, writing to `maestro-results/flashlight/`. A failure is a warning, and the step is skipped when flashlight isn't on PATH. `run.sh` takes `REPORTS_DIR`. `search-typing.yaml` now clears the search box at the end.

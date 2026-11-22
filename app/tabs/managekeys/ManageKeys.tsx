@@ -13,6 +13,7 @@ import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
 import { hasVaultBackup } from '@/utility/securedMessage/VaultBackup';
 import { CRYPTO_BENCH_ENABLED } from './CryptoBench';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 
 type Phase = 'idle' | 'show_sealed';
 
@@ -32,6 +33,39 @@ export default function ManageKeys() {
     const [timeLeft, setTimeLeft] = useState(QR_TTL_SECONDS);
     const autoStartedRef = useRef(false);
     const [checkingBackup, setCheckingBackup] = useState(false);
+    const { confirmIdentity } = useConfirmIdentity();
+
+    /*
+      The wall (security #21): every time this screen opens, the user confirms
+      it's them - Face ID / fingerprint, else the app PIN, else the password -
+      with no grace window. The one exception is the hand-off from
+      PairingCode, which confirmed the user itself and left an issued code;
+      a bare `autoShare=1` link without that code still meets the wall.
+    */
+    const [unlocked, setUnlocked] = useState(
+        () => autoShare === '1' && LocalKeyTransfer.hasIssuedCode()
+    );
+
+    useEffect(() => {
+        if (unlocked) return;
+        let active = true;
+        (async () => {
+            const ok = await confirmIdentity({ reason: 'Open Manage Keys', fresh: true });
+            if (!active) return;
+            if (ok) {
+                setUnlocked(true);
+            } else if (router.canGoBack()) {
+                router.back();
+            } else {
+                router.replace('/tabs/(tabs)/Settings');
+            }
+        })();
+        return () => {
+            active = false;
+        };
+        // Only on open; unlocking does not ask again while the screen stays up.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     /*
       A new backup replaces the old one, so say so before leaving this screen
@@ -131,12 +165,12 @@ export default function ManageKeys() {
     // code - skip straight into generating the QR instead of requiring
     // another tap.
     useEffect(() => {
-        if (autoShare === '1' && !autoStartedRef.current) {
+        if (unlocked && autoShare === '1' && !autoStartedRef.current) {
             autoStartedRef.current = true;
             shareKeys();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [autoShare]);
+    }, [autoShare, unlocked]);
 
     useEffect(() => {
         if (phase !== 'show_sealed') {
@@ -155,6 +189,11 @@ export default function ManageKeys() {
 
         return () => clearInterval(timer);
     }, [phase, timeLeft]);
+
+    if (!unlocked) {
+        // Nothing of the screen shows behind the wall.
+        return <Box className="flex-1 bg-white dark:bg-black" />;
+    }
 
     return (
         <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>

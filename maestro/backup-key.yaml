@@ -31,6 +31,7 @@ appId: com.phuocng23000.sdchat
 
 # "Replace my backup" when this account already has one (local fixture runs)
 - tapOn: "Back up my key|Replace my backup"
+- runFlow: subflows/confirm-identity.yaml
 - extendedWaitUntil:
     visible: "Backup saved"
     timeout: 60000

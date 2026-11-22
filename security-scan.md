@@ -1,5 +1,41 @@
 # Security Scan
 
+## 2026-11-23 — #21: confirm it's you before sensitive actions (code + unit tests, not on a device yet)
+
+**What it does:** before a sensitive action the app asks for Face ID / fingerprint, **if the user turned them on** (EnableBiometric). If they didn't turn them on, or biometrics don't work (failed match, locked out, nothing enrolled, or the user taps "Use app PIN" on the prompt), the **app PIN wall** appears, 4 or 6 digits (the user picks the length), with a note when biometrics failed. With no PIN set yet, it asks for the account password, then offers to set a PIN. The prompt's fallback is the app PIN, not the device passcode (`disableDeviceFallback: true`). Cancelling the wall itself refuses the action.
+
+| Action | Where | Rule |
+|---|---|---|
+| Open Manage Keys | `ManageKeys.tsx`, on every open | biometric, else PIN, else password, **every time, no grace window**. Nothing of the screen renders behind it, and Cancel goes back. Settings opens ManageKeys directly; the old `BiometricAuthentication` screen is removed (it failed outright with nothing enrolled). The only exception is the hand-off from PairingCode, which confirmed the user itself and left an issued code (`LocalKeyTransfer.hasIssuedCode`). |
+| Show the pairing code (key export) | `PairingCode.tsx`, before a code is made | same, with a 60 s grace window after the Manage Keys check |
+| Write or replace the vault backup | `BackupKey.tsx`, before the upload | same |
+| Delete account | `Settings.tsx`, `ScanningKeys.tsx` | same, but **always asked** (no grace window) |
+| Change password | `Settings.tsx` | new "Current Password" field, checked by signing in again |
+| Set up / change the PIN | Settings → App PIN | password to set the first one; biometric or the old PIN to change it |
+
+**The PIN:** `utility/auth/AppPin.ts`. Only a salted PBKDF2-SHA256 hash (10k rounds) is kept in Secure Store (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`), per account. After **5 wrong tries the PIN is removed** and the password is needed. The count is stored, so restarting the app doesn't reset it. The hash doesn't really protect a 4-digit PIN; the attempt limit and the Keychain do.
+
+**Server:** `secure_password_change = true` in `config.toml`. That file only affects the local stack, so **the live project needs it turned on in the dashboard** (Authentication → Email → Secure password change). The app's "Current password" sign-in is the recent sign-in it looks for.
+
+**Also fixed:** Change Password used to show "Password updated successfully" even when the update failed (the success message was in `finally`).
+
+**Tests:** 28 new Jest tests in `utility/auth/__tests__/` (PIN storage, attempt limit, salts, per-account separation; biometric cancel vs fallback; the password check). Full suite: 106/106 pass. `tsc` shows no errors in the changed files. Maestro: new `subflows/confirm-identity.yaml` (test PIN 1234) used by open-manage-keys, show-pairing-code, pairing-code-cancel, backup-key and delete-account. change-password types the current password. **The Maestro flows haven't been run yet.**
+
+**Limits:** these checks run in the app. A stolen session used outside the app gets past all of them except the password change, which the server enforces. A server-side recent-sign-in check in `delete-account` would close that for deletion.
+
+| # | Status (2026-11-23) |
+|---|---|
+| 21 | 🟡 Written, unit tests green. Pending: turn on Secure password change in the dashboard, run the Maestro flows, try it on a device with and without Face ID. |
+
+## 2026-11-23 — Status check (read-only: `supabase migration list --linked`, `supabase functions list`)
+
+- **Applied live:** every migration up to `20261026000000`, so **#9, #11 and #30 are live** (the 2026-10-26 entry below says "not applied"; that's out of date). Still to do for them: rerun the advisors and a device check of read receipts.
+- **Not applied:** `20261026000100_drop_profiles_fcm_token.sql` (#13) and `20261026000200_conversations_created_by_no_fk.sql` (#12).
+- **`delete-account` live is v3, deployed around 2026-10-10.** That predates the 2026-10-26 change, so creators of groups that still have members probably get the 409. Apply `…000200` first, then redeploy.
+- **#27 fixed by the user (2026-11-23):** the private-key byte log is gone from `secured.ts`.
+- **#12/#13 re-checked after the user's manual update (2026-11-23):** the live DB still has `profiles.fcm_token` and `conversations_created_by_fkey`, and `delete-account` is still v3. Not applied on the linked project yet.
+- **Confirmed still open in the code:** #25 (`connection.ts` uses AsyncStorage; `allowBackup="true"`), #24 (no scrypt bounds, `VaultBackup.ts:290`), #21 (`secure_password_change = false`, `config.toml:180`).
+
 ## 2026-10-26 — #11 and #30: RPCs act as the caller (written and tested, not applied)
 
 **#10 storage half is applied live** (the user applied every migration up to `20261023000000` by hand). `storage_rls.test.sql` ran for the first time today: 20/20 pass.

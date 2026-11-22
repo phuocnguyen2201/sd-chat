@@ -1,14 +1,13 @@
 appId: com.phuocng23000.sdchat
 ---
 # Chat -> Settings -> Manage Keys -> ManageKeys screen.
-# BiometricAuthentication's "Back" button pushes ManageKeys directly
-# (BiometricAuthentication.tsx), which is the only way past the biometric
-# gate without an enrolled fingerprint.
+# The wall shows every time ManageKeys opens. Without an enrolled fingerprint
+# it asks for the app PIN or the account password (security #21);
+# confirm-identity.yaml answers it.
 - tapOn: "Settings"
 - scrollUntilVisible:
     element: "Manage Keys"
 - tapOn: "Manage Keys"
-- assertVisible: "Enable Biometric"
-- tapOn: "Back"
+- runFlow: confirm-identity.yaml
 - assertVisible: "Share Keys"
 - assertVisible: "Receive Keys"

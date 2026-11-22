@@ -1,5 +1,12 @@
 # In Progress / Open Items
 
+## #21 re-authentication (2026-11-23): code + unit tests done, not on a device
+1. **Manual:** turn on "Secure password change" in the Supabase dashboard (Authentication → Email). `config.toml` only covers the local stack.
+2. Run the Maestro flows touched: open-manage-keys (all pairing flows), backup-key, delete-account, change-password, pairing-code-cancel. They use `subflows/confirm-identity.yaml` (PIN 1234).
+3. Device check: with Face ID (cancel must refuse), without (PIN path, 5 wrong tries removes the PIN, then the password), the 4 vs 6 digit choice, and Settings → App PIN change.
+4. Optional: a server-side recent-sign-in check in `delete-account`.
+5. `utility/biometricsSecurity/biometricSecurity.ts` has no callers now. Delete it if nothing else is planned for it.
+
 ## App performance testing (2026-11-02): tools set up, device runs pending
 Details in `documentation/testing/performance.md`.
 1. Run `npx expo start` once so `.expo/types` picks up the new `CryptoBench` route (clears the tsc error in ManageKeys.tsx).
@@ -10,7 +17,7 @@ Details in `documentation/testing/performance.md`.
 5. Not started: a perf test for `components/EncryptedAttachment.tsx` (it needs expo-file-system mocks).
 6. Possible fixes the measurements point at (not started; measure before and after): debounce or memoize the chat list search; move decryption out of render and the composer into its own component; switch the room to FlatList/FlashList; import lucide icons per file; lazy-load the emoji picker.
 
-## RPC caller identity (#11, #30, 2026-10-26): written, tests green locally, not applied
+## RPC caller identity (#11, #30, 2026-10-26): APPLIED LIVE (seen in `migration list`, 2026-11-23); advisor rerun + device check pending
 1. Apply: `supabase db push` (only `20261026000000_rpc_caller_identity.sql` should be pending). Then check that `select has_function_privilege('anon', 'public.create_conversation_with_participants(text, uuid, uuid[])', 'execute');` returns false, and rerun the security advisors (3 fewer mutable `search_path` warnings).
 2. On device: create a group and a DM, then open a chat as the other member and check that the sender's messages get `read_by` filled in.
 3. Next: the rest of #14, #21 (re-auth), #22 (`wrapped_by`), #24 (KDF bounds), #25 (session storage), #27 (delete the key-byte log). Pass 4 is now in security-scan.md.

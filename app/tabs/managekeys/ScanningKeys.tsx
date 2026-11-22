@@ -24,6 +24,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { VStack } from '@/components/ui/vstack';
 import { AlertDialogBody } from '@/components/ui/alert-dialog';
 import { deleteAccountAndLocalData } from '@/utility/account/deleteAccount';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 import { DevicePairing, isPairDataPayload } from '@/utility/securedMessage/DevicePairing';
 import { LocalKeyTransfer, isLegacyPlaintextPayload } from '@/utility/securedMessage/LocalKeyTransfer';
 import { verifyAndImportIdentityKey } from '@/utility/securedMessage/ImportScannedIdentityKey';
@@ -61,8 +62,13 @@ export default function ScanningKeys() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deletingAccount, setDeletingAccount] = useState(false);
 
+    const { confirmIdentity } = useConfirmIdentity();
+
     const handleDeleteAccount = async () => {
         setShowDeleteDialog(false);
+        if (!(await confirmIdentity({ reason: 'Delete your account', fresh: true }))) {
+            return;
+        }
         setDeletingAccount(true);
 
         const deleted = await deleteAccountAndLocalData(user?.id || '', !!profile?.avatar_url);
@@ -288,6 +294,7 @@ export default function ScanningKeys() {
                                 <Button
                                 variant="outline"
                                 action="secondary"
+                                size="sm"
                                 onPress={() => router.replace({pathname:'/tabs/(tabs)/Settings'})}
                                 >
                                 <ButtonText>Ok</ButtonText>
@@ -306,7 +313,7 @@ export default function ScanningKeys() {
                     <AlertDialogHeader>
                         <Heading size="md">Delete this account</Heading>
                     </AlertDialogHeader>
-                    <AlertDialogBody className="mt-3 mb-4">
+                    <AlertDialogBody>
                         <Text size="sm">
                             This cannot be undone. Your profile and your messages are removed;
                             conversations you shared with other people stay with them.

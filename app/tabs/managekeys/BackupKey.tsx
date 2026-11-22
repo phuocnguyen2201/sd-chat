@@ -11,6 +11,7 @@ import { VStack } from '@/components/ui/vstack';
 import { router } from 'expo-router';
 import { useSession } from '@/utility/session/SessionProvider';
 import { backupIdentityKey, hasVaultBackup } from '@/utility/securedMessage/VaultBackup';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 
 /*
   Sealing the key behind a passphrase and sending it to the vault.
@@ -26,6 +27,7 @@ const MIN_PASSPHRASE_LENGTH = 10;
 
 export default function BackupKey() {
     const { user } = useSession();
+    const { confirmIdentity } = useConfirmIdentity();
 
     const [passphrase, setPassphrase] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -52,6 +54,10 @@ export default function BackupKey() {
         }
         if (passphrase !== confirmation) {
             Alert.alert('Error', 'The two passphrases do not match');
+            return;
+        }
+        // A new backup replaces the old one, so whoever writes it decides who can recover the key.
+        if (!(await confirmIdentity({ reason: replacingExisting ? 'Replace your key backup' : 'Back up your key' }))) {
             return;
         }
 

@@ -9,6 +9,7 @@ import { useSession } from '@/utility/session/SessionProvider';
 import { DeviceIdentity } from '@/utility/securedMessage/DeviceIdentity';
 import { LocalPairingCode } from '@/utility/securedMessage/LocalPairingCode';
 import { LocalKeyTransfer } from '@/utility/securedMessage/LocalKeyTransfer';
+import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 
 type Phase = 'loading' | 'showing' | 'expired';
 
@@ -23,6 +24,7 @@ const POLL_INTERVAL_MS = 2000;
 export default function PairingCode() {
     const insets = useSafeAreaInsets();
     const { user } = useSession();
+    const { confirmIdentity } = useConfirmIdentity();
 
     const [phase, setPhase] = useState<Phase>('loading');
     const [code, setCode] = useState('');
@@ -66,6 +68,13 @@ export default function PairingCode() {
         let mounted = true;
 
         (async () => {
+            // The code is what lets another device receive every key (security #21).
+            const confirmed = await confirmIdentity({ reason: 'Share your keys with another device' });
+            if (!mounted) return;
+            if (!confirmed) {
+                router.replace('/tabs/(tabs)/Settings');
+                return;
+            }
             try {
                 const deviceRowId = await DeviceIdentity.registerCurrentDevice(user.id);
                 if (!mounted) return;

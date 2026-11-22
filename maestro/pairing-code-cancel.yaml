@@ -8,6 +8,7 @@ appId: com.phuocng23000.sdchat
 - runFlow: subflows/open-manage-keys.yaml
 
 - tapOn: "Share Keys"
+- runFlow: subflows/confirm-identity.yaml
 - extendedWaitUntil:
     visible: '\d{4}'
     timeout: 20000

@@ -114,13 +114,13 @@ export default function EnableBiometric() {
                         <AlertDialogHeader>
                             <Heading className="font-semibold text-xl text-gray-900 dark:text-gray-100">{activeDialogData?.title ?? 'Notification'}</Heading>
                         </AlertDialogHeader>
-                        <AlertDialogBody className="mt-3 mb-4">
+                        <AlertDialogBody>
                             <Text size="sm" className="text-gray-700 dark:text-gray-300">
                                 {activeDialogData?.message ?? 'Allow biometric authentication to secure your keys and enhance security.'}
                             </Text>
                         </AlertDialogBody>
-                        <AlertDialogFooter className="flex-row space-x-3">
-                            <Button size="sm" onPress={activeDialogData?.onConfirm} className="bg-blue-600 dark:bg-blue-500 rounded-md py-2 px-4">
+                        <AlertDialogFooter>
+                            <Button size="sm" onPress={activeDialogData?.onConfirm} className="bg-blue-500">
                                 <ButtonText className="text-white">Allow</ButtonText>
                             </Button>
                             <Button
@@ -128,7 +128,6 @@ export default function EnableBiometric() {
                                 action="secondary"
                                 onPress={() => setActiveDialog(null)}
                                 size="sm"
-                                className="border border-gray-300 dark:border-gray-700 rounded-md py-2 px-4"
                             >
                                 <ButtonText>Cancel</ButtonText>
                             </Button>

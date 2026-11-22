@@ -340,7 +340,6 @@ export class MessageEncryption {
   }
   if (senderPrivateKey.length !== this.KEY_SIZE) {
     console.error('Invalid sender private key size:', senderPrivateKey.length, 'expected 32');
-    console.error('Sender private key (first 10 bytes):', senderPrivateKey.slice(0, 10));
     throw new Error(`Invalid sender private key size: ${senderPrivateKey.length}, expected ${this.KEY_SIZE}`);
   }
   

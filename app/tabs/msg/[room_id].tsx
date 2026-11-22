@@ -973,7 +973,7 @@ export default function ChatScreen() {
                 <Text>Notification</Text>
               </Heading>
             </AlertDialogHeader>
-            <AlertDialogBody className="mt-3 mb-4">
+            <AlertDialogBody>
               <Text size="sm">
                 Delete the message cannot be undone. Are you sure you want to delete the message?
               </Text>
