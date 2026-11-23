@@ -42,6 +42,7 @@ import { automationLocatorsDataState } from '@/constants/automationLocatorsDataS
 import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 import { AppPin } from '@/utility/auth/AppPin';
 import { verifyAccountPassword } from '@/utility/auth/verifyAccountPassword';
+import { newPasswordProblem } from '@/utility/auth/passwordPolicy';
 
 
 export default function Settings() {
@@ -158,6 +159,13 @@ export default function Settings() {
       const check = await verifyAccountPassword(user?.email ?? '', current);
       if (!check.ok) {
         Alert.alert('Error', check.message);
+        return;
+      }
+
+      // Same rules as sign-up, then known breaches (security #14).
+      const problem = await newPasswordProblem(password);
+      if (problem) {
+        Alert.alert('Error', problem);
         return;
       }
 
