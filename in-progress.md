@@ -1,5 +1,22 @@
 # In Progress / Open Items
 
+## #14 search_path + leaked passwords (2026-11-23): code + tests done, migration NOT applied
+1. `supabase db push` (sends `20261123000000` #18 and `20261123000100` #14, plus #12/#13 if still pending), then `supabase functions deploy delete-account`.
+2. After the push, open Advisors → Security in the dashboard: no "Function Search Path Mutable" warnings should remain. Leaked-password protection will still show as off; that's expected on Free.
+3. Check that the CI secret `MAESTRO_PASSWORD` isn't a breached password. If it is, sign-up flows (register-and-confirm, signup-unconfirmed, create-account-*) will now stop at "This password has appeared in a data breach". To check, print the hash prefix with `python3 -c "import hashlib,getpass;print(hashlib.sha1(getpass.getpass().encode()).hexdigest().upper()[:5])"`, open `https://api.pwnedpasswords.com/range/<prefix>`, and look for the rest of the hash.
+4. Device check: sign up with `Password1!` (refused as breached), and change your password to a breached one (refused).
+
+## #18 masked usernames (2026-11-23): migration written, local tests pass, NOT applied
+1. `supabase db push`. This also pushes `20261026000100`/`000200` (#12/#13) if they're still pending; then `supabase functions deploy delete-account`.
+2. Check live: `select count(*) from profiles p join auth.users u on u.id = p.id where p.username = split_part(u.email, '@', 1);` should be 0.
+3. In the app: the `@…` under names in New Group and Forward should show masked names.
+4. Later: drop the `profiles_seed_users_select` policy (anon can read the two seeded test profiles) once CI doesn't need it.
+
+## #24 KDF bounds (2026-11-23): code + unit tests done
+1. Run `python3 documentation/backlog/sync_github_project.py` to close SEC-24 on the GitHub board.
+2. Optional device check: run `maestro/recover-key-from-backup.yaml` to confirm a normal backup still opens.
+3. Security items still open: #14 (rest), #22 (`wrapped_by`), #18, #28 (vault container hardening, npm audit), #23 (when remote pairing gets a UI).
+
 ## #25 / #26 / remembered accounts (2026-11-23): code + unit tests done, not on a device
 1. **Native rebuild** (dev client / EAS): `android.allowBackup: false` only takes effect in a new build.
 2. Restart Metro with `npx expo start -c` (the Tailwind config changed too).

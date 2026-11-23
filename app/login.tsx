@@ -27,29 +27,12 @@ import { RememberedAccounts, type AccountCard } from '@/utility/auth/RememberedA
 import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
 import { usePushNotifications } from '@/utility/push-notification/push-Notification';
 import { RememberedAccountsPanel } from '@/components/RememberedAccountsPanel';
+import { newPasswordProblem } from '@/utility/auth/passwordPolicy';
 const EMAIL_NOT_CONFIRMED = 'email_not_confirmed';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Only enforced on sign-up; older accounts may have weaker passwords. Mirrors
-// the project's Auth policy (length + lower/upper/digit/symbol) so users get a
-// readable message instead of the server's character list.
-const MIN_PASSWORD_LENGTH = 8;
 const RESEND_COOLDOWN_SECONDS = 60;
 const SIGN_UP_SENT_MESSAGE =
   "Registration received! If this email can be registered, we've sent a confirmation link to it. Open the link, then come back and log in.";
-const PASSWORD_RULES: { test: RegExp; label: string }[] = [
-  { test: /[a-z]/, label: 'a lowercase letter' },
-  { test: /[A-Z]/, label: 'an uppercase letter' },
-  { test: /[0-9]/, label: 'a number' },
-  { test: /[^A-Za-z0-9]/, label: 'a symbol' },
-];
-
-function passwordProblem(password: string): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
-  }
-  const missing = PASSWORD_RULES.filter((rule) => !rule.test.test(password)).map((rule) => rule.label);
-  return missing.length ? `Password must include ${missing.join(', ')}` : null;
-}
 
 /**
  * Login Screen
@@ -277,14 +260,14 @@ export default function Login() {
       setMessage('Please enter a valid email address');
       return;
     }
-    const problem = passwordProblem(password);
-    if (problem) {
-      setMessage(problem);
-      return;
-    }
-
     setIsLoading(true);
     try {
+      // The rules, then known breaches (security #14).
+      const problem = await newPasswordProblem(password);
+      if (problem) {
+        setMessage(problem);
+        return;
+      }
       const masterKey = await MessageEncryption.generateKeyPair();
       const msg = await authAPI.signUp(trimmedEmail, password, masterKey.publicKey);
       if (msg?.error) {

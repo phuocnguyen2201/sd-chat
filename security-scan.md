@@ -1,5 +1,84 @@
 # Security Scan
 
+## 2026-11-23 — #14: pinned `search_path` everywhere, leaked-password check in the app (migration tested locally, not applied)
+
+**Database half.** Migration `supabase/migrations/20261123000100_pin_search_path.sql`:
+
+| Function | Before | Now |
+|---|---|---|
+| `messages_notify_new()` | SECURITY DEFINER, no `search_path`, callable by anon and authenticated. No trigger uses it (left over from an old realtime design). | **Dropped.** |
+| `get_conversation_between_users(uuid,uuid)` | Unqualified table name, no `search_path`, anon could call it. | Rewritten with `public.` names, `search_path=''`, anon revoked. |
+| `get_messages_with_reactions(uuid)` | No `search_path`, anon could call it. | `search_path=''`, anon revoked. |
+| `set_updated_at()`, `set_key_backups_updated_at()` | No `search_path`, callable by clients. | `search_path=''`. EXECUTE revoked from clients (triggers don't check it). |
+| `is_conversation_member(uuid)` | SECURITY DEFINER with `search_path=public`. | `search_path=''`, anon revoked. |
+
+The two caller-run RPCs are still limited by RLS. New pgTAP `supabase/tests/search_path.test.sql` (12 checks):
+- every function in `public`/`private` pins `search_path`, and every SECURITY DEFINER one uses `''`;
+- `messages_notify_new` is gone and anon is revoked;
+- both RPCs still work for a member, and an outsider still gets nothing;
+- the `updated_at` trigger still fires for a signed-in user.
+
+Local results: DB tests 120/120. `supabase db lint` shows only the two known unused `p_user_id` parameters (#11).
+
+**Leaked-password half.** Supabase's "Prevent use of leaked passwords" needs the Pro plan, and the project is on Free. So the app checks new passwords itself against the same list, Have I Been Pwned.
+- `utility/auth/leakedPassword.ts` sends only the first 5 characters of the password's SHA-1 to `api.pwnedpasswords.com/range/…`, with `Add-Padding: true`, and compares the rest of the hash locally.
+- If the service is offline or slow (5 s timeout), the password is let through rather than blocking sign-up.
+- `utility/auth/passwordPolicy.ts` now holds the password rules, moved out of `login.tsx`, plus `newPasswordProblem()`: the rules first, then the breach check.
+- Sign-up and **Change Password** both use it. Before this, Change Password didn't check the rules on the client at all, and the server's character list was the only message.
+
+**Tests.** `__tests__/leakedPassword.test.ts`, 14 tests:
+- the hash split, using the real SHA-1 of "password";
+- padding entries ignored;
+- only the prefix is sent, and the padding header is set;
+- leaked, not found, offline, server error, the 5 s timeout;
+- the rules are checked before any lookup.
+
+A live request for prefix `5BAA6` confirmed the response format: "password" is found (52 million breaches), with 137 padding lines. Jest 163/163, no new tsc errors.
+
+**Limits.** It only protects people using the app. A client calling Supabase Auth directly can still set a leaked password that meets the server's character rules. Server-side enforcement on Free would need sign-up and password change to go through our own Edge Function. Supabase's password hook isn't available on Free.
+
+## 2026-11-23 — #18: usernames stored masked (migration written and tested locally, not applied)
+
+**Fix.** Migration `supabase/migrations/20261123000000_mask_usernames.sql`:
+- New `public.mask_email_local(text)` keeps only the ends of the email's local part, with exactly two stars so the length doesn't show:
+
+  | Length of the part before @ | Rule | Example |
+  |---|---|---|
+  | 1–2 | first character + `**` | `ab` → `a**` |
+  | 3–5 | first + `**` + last | `alice` → `a**e` |
+  | 6–9 | first 2 + `**` + last 2 | `johnsmith` → `jo**th` |
+  | 10+ | first 3 + `**` + last 3 | `phuocnguyen` → `phu**yen` |
+
+  Empty gives `user`. It counts characters, not bytes, so Vietnamese names mask correctly. anon can't call it.
+- `handle_new_user` stores the masked name at sign-up.
+- Every existing profile is rewritten from `auth.users.email`, not from the current username, so old collision suffixes (`john_1a2b3c4d`) disappear too.
+- `profiles_username_key` (UNIQUE) is dropped. Masked names collide often (`john@` and `jordan@` are both `j**n`). Nothing looks a profile up by username: the app only shows it as `@…` next to the display name. Dropping it also removes the old "this name is taken" signal at sign-up.
+
+The mask is applied in the database, not in the app, because the app could only hide the name on screen. `profiles` stays readable through the API by any signed-in user.
+
+**Tests.** New `supabase/tests/username_mask.test.sql` (13 checks): the masking rule, masked sign-up, two sign-ups with the same mask, the UNIQUE constraint gone, no username equal to an email local part, function privileges. Local `supabase db reset` + `supabase test db`: 108/108 pass. The rewrite of existing rows was also checked by hand (`john`, `john_62222222` → `j**n`).
+
+**Not covered.**
+- A user can still set their own username to anything through the profile UPDATE policy. That only affects their own row.
+- The `profiles_seed_users_select` policy lets **anon** read the two seeded test profiles (`Testing`, `Android Simulator`). Their usernames are masked now too, but the policy should go once CI no longer needs it.
+- The domain was never stored, so it isn't exposed.
+
+**To apply:** `supabase db push`. It also pushes `20261026000100`/`000200` (#12/#13) if they're still pending. Deploy `delete-account` after it.
+
+## 2026-11-23 — #24: key-backup recovery refuses scrypt settings it didn't write (code + unit tests)
+
+**Fix.** New `utility/securedMessage/VaultKdfParams.ts`. `recoverIdentityKey` (`VaultBackup.ts`) now checks the `key_backups` row **before** it downloads the blob or runs scrypt:
+- `kdf` must be `scrypt`.
+- `kdf_n` must be a power of two between 2^14 and 2^17, `kdf_r` between 1 and 16, and `kdf_p` between 1 and 4, all whole numbers.
+- scrypt's memory (128·N·r) must be at most 64 MiB. Backups are written at N=2^15, r=8, p=1 (32 MiB), so there's room to double it later.
+- The salt must be 16 bytes and the nonce 12, as written, and both must be valid base64.
+
+Anything else throws `UnsupportedBackupError`. RecoverKey shows "This backup cannot be opened" and changes nothing on the device. Backups made by the app are not affected.
+
+**Tests.** `__tests__/VaultKdfParams.test.ts`, 19 tests. They cover the accepted edges and 14 refused cases (huge N, non-power-of-two N, r/p out of range, 128 MiB, strings, fractions, Infinity, missing values, another KDF, bad salt and nonce lengths). A tampered row is refused with **no** fetch and **no** scrypt call. Full Jest suite: 149/149. tsc: no new errors.
+
+**Not covered.** The vault service's own blob size limit is a separate check (in `sd-chat-vault`). A DB-level attacker who can write `key_backups` can still delete or replace the backup, which this fix can't prevent (it's a denial of service, not a key leak: the AEAD and the `profiles.public_key` check still refuse a foreign key).
+
 ## 2026-11-23 — #25 session storage, #26 per-account cache, remembered accounts on the login screen (code + unit tests, not on a device yet)
 
 **#25: the session is no longer stored in plaintext.** `utility/auth/SecureSessionStorage.ts` is the Supabase client's `auth.storage` now. A random 32-byte key sits in SecureStore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`: never in a backup, never moved to another phone). Every value is sealed with tweetnacl secretbox, and only ciphertext goes into AsyncStorage under `enc:<name>`. Without the key a copy opens nothing, and the value reads as missing (sign in again). The old plaintext session moves over on first read, then the plaintext is deleted, so signed-in users stay signed in. `app.json` has `android.allowBackup: false` (needs a new native build).
@@ -194,7 +273,7 @@ Full suite **130/130**, and `tsc` shows no new errors. Maestro:
 | 21 | Medium | No re-authentication for sensitive actions: `secure_password_change = false` (a stolen session can change the password), and key export (ManageKeys / PairingCode), vault backup overwrite (BackupKey) and account deletion need no biometric or password re-check. The biometric screen's Back button used to skip straight to ManageKeys. | `supabase/config.toml:180`, `app/tabs/managekeys/*` | 🟡 Back button fixed (`8552bef`). The rest is 🔴 open. |
 | 22 | Low | Group key pinning is keyed by `conversations.created_by`, not by the member who actually wrapped the row. A group row backfilled by another member (`backfillMissingWrappedKeys`) opens with that member's key, which is then checked against the creator's pin. That gives a false "key changed" dialog, or pins the wrong key on first use. Fix: record `wrapped_by` on the row and pin against it. | `ConversationKeyResolver.ts:43` (`findKeyWrapperPeerId`) | 🔴 Open. The #12 decision keeps `created_by` for the same reason, so a `wrapped_by` column would cover both. |
 | 23 | Low | Remote (server-relayed) pairing gate. The detail was lost. The remote flow still has no UI, and `create` requires a verified local code (#6). | `supabase/functions/device-pairing/index.ts` | ❔ Re-check when the remote pairing UI is built. |
-| 24 | Low | Vault recovery feeds `kdf_n` / `kdf_r` / `kdf_p` from the `key_backups` row straight into scrypt with no bounds. A huge `N` written to the row (owner-only RLS, so the owner or a DB-level attacker) hangs or crashes the app at recovery. Fix: refuse values outside a fixed range (e.g. `N` ≤ 2^17, `r` ≤ 16, `p` ≤ 4). | `utility/securedMessage/VaultBackup.ts:289-293` | 🔴 Open. |
+| 24 | Low | Vault recovery feeds `kdf_n` / `kdf_r` / `kdf_p` from the `key_backups` row straight into scrypt with no bounds. A huge `N` written to the row (owner-only RLS, so the owner or a DB-level attacker) hangs or crashes the app at recovery. Fix: refuse values outside a fixed range (e.g. `N` ≤ 2^17, `r` ≤ 16, `p` ≤ 4). | `utility/securedMessage/VaultBackup.ts:289-293` | ✅ Fixed in code 2026-11-23 (`VaultKdfParams.ts`, see the entry at the top). |
 | 25 | Low | The Supabase session (with its refresh token) is kept in AsyncStorage, which is unencrypted, and Android has `allowBackup="true"`, so it can end up in device backups. Fix: SecureStore-backed session storage, or `allowBackup=false`. | `utility/connection.ts:11`, `android/app/src/main/AndroidManifest.xml` | 🔴 Open. |
 | 26 | Info | The local snapshot SQLite DB is one file for every account on the device, not namespaced per user like SecureStore keys, so switching accounts can show the previous account's cached data. | `utility/localstorage/snapshot.ts:4` | 🔴 Open. |
 | 27 | Info | `secured.ts` logs the first 10 bytes of the **sender private key** when its size is wrong. Rare, but it's key material in device logs. | `utility/securedMessage/secured.ts:340` | 🔴 Open (delete the line). |
@@ -259,7 +338,7 @@ The link opens `confirm-page/` in the browser and the user logs in afterwards. T
 | 15 | **Critical** | **The local `.env` gives the app's main client a secret key.** `EXPO_PUBLIC_SUPABASE_KEY` starts with `sb_secret_`. `eas.json` and CI use a publishable key, but every local build (`expo run:*`, the `build-*.apk` files) bundles a key that bypasses all RLS. It also hides RLS bugs in local testing: the broken sign-up (#16) would have "worked" locally. | `.env` (gitignored; not in git history: `git log -S` only matches doc text) |  ✅ **Resolved (2026-09-28).** `.env` now uses the publishable key (checked). Rotation reported by the user. |
 | 16 | High (availability) | **Sign-up broke once "Confirm email" was turned on.** `signUp` returns no session, so the app's `profiles` insert fails RLS (`auth.uid() = id`). The user sees an error although the account exists and the email was sent. Confirmed live: the probe users have no profile. | `utility/messages.ts` (old `signUp`) |  ✅ **Resolved (2026-09-28, checked live).** The trigger `on_auth_user_created → handle_new_user` is applied; EXECUTE only for postgres and service_role. |
 | 17 | Medium | **Username collision fails sign-up and leaks existence.** `profiles.username` is `UNIQUE` and derived from the email's local part, so `john@a.com` then `john@b.com` failed. With the trigger, that would be a 500 "Database error saving new user", an oracle for whether a local part is taken. | `profiles_username_key` |  ✅ **Resolved (2026-09-28, checked live).** The deployed function contains the collision fallback and the key-format check. |
-| 18 | Low | **Email local parts are world-readable.** `username` = the email local part, and `profiles` SELECT is `true`, so every user can list other users' email prefixes (helps targeting and phishing). | live `profiles` RLS | 🔴 **Open** (pre-existing behaviour kept). Consider a random or user-chosen handle, or fold into #13. |
+| 18 | Low | **Email local parts are world-readable.** `username` = the email local part, and `profiles` SELECT is `true`, so every user can list other users' email prefixes (helps targeting and phishing). | live `profiles` RLS | 🟡 **Fixed in a migration 2026-11-23** (`20261123000000_mask_usernames.sql`: stored masked, e.g. `jo**th`). Tested locally, **not applied**. See the entry at the top. |
 | 19 | Info | Live password policy is lower + upper + digit + symbol. The client now checks the same rules on sign-up, with readable messages. `minimum_password_length` is 8 in config.toml; check that the dashboard matches. | `app/login.tsx`, `supabase/config.toml` | ✅ |
 
 ~~Left in the live project by this pass: two probe users~~ **Deleted by the user (checked 2026-09-28).** Separately, one legacy user (created 2026-01-14) has no profile row. It predates the trigger; note only.
@@ -284,7 +363,7 @@ The link opens `confirm-page/` in the browser and the user logs in afterwards. T
 | 11 | High | **`create_conversation_with_participants` trusts the caller's `p_user_id` and can be called without signing in.** It is `SECURITY DEFINER`, `anon` and `authenticated` have EXECUTE, and it uses `p_user_id` as the creator and a member instead of `auth.uid()`. With just the public publishable key, anyone can create group chats "owned" by any user and put any users in them. **Fix:** use `auth.uid()`, reject a null caller, `REVOKE EXECUTE … FROM anon`, and set `search_path`. | live function `public.create_conversation_with_participants` (called from `utility/messages.ts:361`) |  🔴 **Open (re-checked 2026-09-28):** the advisor still flags anon EXECUTE on this function and on `create_dm_conversation`. |
 | 12 | Medium | **`delete-account` deletes whole conversations for every member.** It deletes every conversation the caller was in, and `messages`, `reactions` and `files` cascade from `conversations`. So deleting your account wipes group chats and DMs for everyone else too. Combined with #9, any user could join any conversation and then delete their own account to destroy it. The function isn't deployed yet, so this is latent. **Fix:** delete only the caller's participant rows, and delete a conversation only when it has no members left. Fix #9 before deploying. | `supabase/functions/delete-account/index.ts:59-86` |  🔴 **Open, now LIVE (2026-09-28).** `delete-account` was deployed without this fix: any user who deletes their account wipes every shared conversation for all members. **Fix written 2026-10-09, not deployed.** Open decision: group creators (see the 2026-10-09 section). |
 | 13 | Medium | **Too much metadata is readable by every user.** `profiles` SELECT is `true`, including `fcm_token` and `public_key`. `reactions` SELECT is `true` across all conversations, so anyone can see who reacted to which message, when. **Fix:** move `fcm_token` out of `profiles`, or expose profiles through a view without it. Scope `reactions` SELECT to conversation members. | live RLS on `profiles` and `reactions` | 🔴 **Open** |
-| 14 | Low | **Supabase advisors:** 8 functions have a mutable `search_path`, which matters most for the `SECURITY DEFINER` ones (#11, `create_dm_conversation`, `messages_notify_new`). `messages_notify_new` (a trigger function) can be called by `authenticated`. Leaked-password protection (HaveIBeenPwned) is off. `device_pairing_requests` and `local_pairing_codes` have RLS with no policies, which is fine because only the Edge Function uses them. Separately, and not a security issue: `realtime.messages` has RLS on with no policies, so no client can join the private `user:<id>:notifications` channels that `messages_notify_new` sends to. | live advisors |  🔴 **Open (re-checked 2026-09-28):** still 8 functions with a mutable `search_path`; leaked-password protection still off (may need the Pro plan). |
+| 14 | Low | **Supabase advisors:** 8 functions have a mutable `search_path`, which matters most for the `SECURITY DEFINER` ones (#11, `create_dm_conversation`, `messages_notify_new`). `messages_notify_new` (a trigger function) can be called by `authenticated`. Leaked-password protection (HaveIBeenPwned) is off. `device_pairing_requests` and `local_pairing_codes` have RLS with no policies, which is fine because only the Edge Function uses them. Separately, and not a security issue: `realtime.messages` has RLS on with no policies, so no client can join the private `user:<id>:notifications` channels that `messages_notify_new` sends to. | live advisors | 🟡 **Fixed 2026-11-23, not applied:** `20261123000100_pin_search_path.sql` pins the rest and drops `messages_notify_new`. Leaked-password protection needs Pro, so the app checks Have I Been Pwned itself. See the entry at the top. |
 
 ### Pass 2 status summary
 - **Resolved:** #2.

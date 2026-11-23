@@ -16,6 +16,7 @@ import {
     WrongPassphraseError,
     VaultUnreachableError,
     IdentityMismatchError,
+    UnsupportedBackupError,
 } from '@/utility/securedMessage/VaultBackup';
 
 /*
@@ -61,6 +62,13 @@ export default function RecoverKey() {
                 title: 'This backup does not match this account',
                 message:
                     'The recovered key belongs to a different identity, so it was not installed. Nothing on this device was changed.',
+            };
+        }
+        if (error instanceof UnsupportedBackupError) {
+            return {
+                title: 'This backup cannot be opened',
+                message:
+                    'The backup settings are not ones this app writes, so it was not tried. Nothing on this device was changed. Make a new backup from a device that still holds your key.',
             };
         }
         return {

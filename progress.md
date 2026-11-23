@@ -1,5 +1,23 @@
 # Progress Log
 
+## 2026-11-23 (later): #14, pinned search_path, leaked-password check in the app
+- Migration `20261123000100_pin_search_path.sql`: drops the unused SECURITY DEFINER `messages_notify_new`, pins `search_path=''` on the 5 remaining functions (rewriting `get_conversation_between_users` with `public.` names), and revokes anon. New pgTAP `search_path.test.sql` (12 checks). DB tests 120/120.
+- The dashboard leaked-password option needs Pro, so `utility/auth/leakedPassword.ts` checks Have I Been Pwned with only the 5-character hash prefix and padding. `utility/auth/passwordPolicy.ts` holds the shared rules. Sign-up and Change Password both use it, so Change Password now checks the rules too. 14 new tests, Jest 163/163.
+
+## 2026-11-23 (later): Descriptions on every open backlog task
+- All 46 open task issues now have What / Why / Where / Steps / Done when, taken from in-progress.md and security-scan.md. They live as a third field on each task in `backlog.json`, so re-syncs keep them.
+- S7.1 order fixed before syncing: an inserted task would have renamed #114 (Rerun advisors). New task #165 "Apply `20261123000000_mask_usernames.sql` live". #113 and #123 renamed to match the finished work.
+- Script: tasks can be `[title, status, description]`; it now records renames. Tasks are matched by position, so new tasks go at the end of a story.
+- Board: 83 Done, 31 In Progress, 47 Todo, no duplicate titles.
+
+## 2026-11-23 (later): #18, usernames stored masked
+- Migration `20261123000000_mask_usernames.sql`: `mask_email_local()` keeps 1–3 characters at each end, depending on length (`johnsmith` → `jo**th`). Sign-up uses it, every existing profile is rewritten from its email, and the UNIQUE constraint on `username` is dropped (masks collide, and nothing looks a profile up by username).
+- New pgTAP `username_mask.test.sql` (13 checks). Local DB tests 108/108. No app code changed: the app only shows `@username`.
+
+## 2026-11-23 (later): #24, scrypt settings limited on key-backup recovery
+- `VaultKdfParams.ts` checks the backup row's scrypt settings (N 2^14–2^17 and a power of two, r 1–16, p 1–4, at most 64 MiB, a 16-byte salt and a 12-byte nonce) before recovery downloads or derives anything. RecoverKey shows "This backup cannot be opened" for a refused row.
+- 19 new tests. Jest 149/149, no new tsc errors. Backlog task "Bound scrypt KDF params on recovery (SEC-24)" set to done in `backlog.json` (not synced to GitHub yet).
+
 ## 2026-11-23 (later): Backlog updated for remembered accounts, SEC-25, SEC-26
 - New story S1.5 "Switch between accounts saved on this phone" under the Accounts & Authentication epic: #154, tasks #155–#162 (6 done, 2 to do: Maestro run, device test).
 - S7.3 (#122): SEC-25 (#123) and SEC-26 (#124) closed as Done. New open tasks: #163 regenerate the Android project (`android/app/src/main/AndroidManifest.xml` still has `allowBackup="true"`, only `app.json` was changed), #164 device test.
