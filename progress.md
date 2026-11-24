@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-11-24: Bug fix, group chat sender names vanish on live updates
+- Symptom: in a group, the sender name showed on loaded messages but not on new ones (or vanished later); refreshing fixed it.
+- Cause (`app/tabs/msg/[room_id].tsx`, realtime handlers): INSERT used `refreshMessage`, which nests the name at `profiles.displayname`, while the UI reads `m.displayname` (flat, only from `get_messages_with_reactions`). UPDATE replaced the message with the bare `payload.new` row, dropping `displayname`, `files` and `reactions`, and it fires on every `read_by` change.
+- Fix: INSERT maps `profiles.displayname` to `displayname` and skips a message already in the list; UPDATE merges `{ ...msg, ...updatedMsg }`. tsc shows no errors in the file.
+
+## 2026-11-24: Bug fix, chat list empty after SEC-22
+- Symptom: the Chat tab list showed no conversations, though opening a user directly still showed the messages.
+- Cause: migration `20261124000100_participants_wrapped_by.sql` added `conversation_participants.wrapped_by -> profiles(id)`, a second FK to `profiles`. PostgREST then rejects the embed `conversation_participants(profiles(...))` with PGRST201 (ambiguous relationship). `fetchChatRooms` ignores the error, so the list was empty. Reproduced against the live REST API.
+- Fix (`utility/messages.ts`): the three embeds now name the FK, `profiles!conversation_participants_user_id_fkey(...)`: `getConversations` (chat list), `getCurrentConversation` (room / key resolver's DM peer lookup), and the realtime new-conversation fetch. The response key is still `profiles`.
+- Rule for later: any new column that references `profiles` needs every `profiles(...)` embed from that table to name its FK.
+
 ## 2026-11-24: Question on how the app PIN is built
 - Answered only, no code changed. The app PIN is the app's own code (`utility/auth/AppPin.ts` + `ConfirmIdentityProvider.tsx`), not the OS passcode. It is built on device and library parts: SecureStore (Keychain/Keystore), expo-crypto random salt, @noble/hashes PBKDF2.
 - SEC-8c (GitHub #70) implemented, code + unit tests:

@@ -280,7 +280,13 @@ export default function ChatScreen() {
         (payload) => {
            messageAPI.refreshMessage(payload.new.id).then((newMsg) => {
             if(newMsg?.data){
-              setMessages((prev) => [...prev, newMsg.data as unknown as Message]);
+              // refreshMessage nests the sender under `profiles`; the initial load
+              // (get_messages_with_reactions) has `displayname` on the message itself.
+              const row = newMsg.data as Message & { profiles?: { displayname?: string | null } };
+              const msg: Message = { ...row, displayname: row.profiles?.displayname ?? '' };
+              setMessages((prev) =>
+                prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
+              );
             }
           });
         }
@@ -294,9 +300,11 @@ export default function ChatScreen() {
           filter: `conversation_id=eq.${conversation_id}`,
         },
         (payload) => {
+          // payload.new is the bare messages row: merge it so the fields only the
+          // initial load provides (displayname, files, reactions) are kept.
           const updatedMsg = payload.new as Message;
           setMessages((prev) =>
-            prev.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
+            prev.map((msg) => (msg.id === updatedMsg.id ? { ...msg, ...updatedMsg } : msg))
           );
         }
       )
