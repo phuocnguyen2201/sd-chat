@@ -1,0 +1,1131 @@
+{
+  "issues": {
+    "E1": {
+      "number": 5,
+      "id": 6547198883,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/5",
+      "title": "[Epic] Accounts & Authentication",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9CpU"
+    },
+    "S1.1": {
+      "number": 6,
+      "id": 6547200310,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/6",
+      "title": "[Story] Sign up with email confirmation",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Cvg"
+    },
+    "S1.1.1": {
+      "number": 7,
+      "id": 6547201907,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/7",
+      "title": "Email/password sign-up with live password policy check",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9C2Y"
+    },
+    "S1.1.2": {
+      "number": 8,
+      "id": 6547203537,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/8",
+      "title": "Create profile in `on_auth_user_created` trigger (username collision safe, SEC-16 SEC-17)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9C8c"
+    },
+    "S1.1.3": {
+      "number": 9,
+      "id": 6547205248,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/9",
+      "title": "Browser confirmation page `confirm-page/` (verify on tap, strict CSP)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DCs"
+    },
+    "S1.1.4": {
+      "number": 10,
+      "id": 6547206697,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/10",
+      "title": "Resend confirmation email with 60 s cooldown",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DHk"
+    },
+    "S1.2": {
+      "number": 11,
+      "id": 6547208216,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/11",
+      "title": "[Story] Sign in and complete my profile",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DMo"
+    },
+    "S1.2.1": {
+      "number": 12,
+      "id": 6547209590,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/12",
+      "title": "Login screen with clear `email_not_confirmed` handling",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DTI"
+    },
+    "S1.2.2": {
+      "number": 13,
+      "id": 6547211163,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/13",
+      "title": "CompleteProfile screen (display name, avatar)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DZU"
+    },
+    "S1.2.3": {
+      "number": 14,
+      "id": 6547212683,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/14",
+      "title": "Bootstrap routing for session, key and profile states",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DeI"
+    },
+    "S1.3": {
+      "number": 15,
+      "id": 6547214202,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/15",
+      "title": "[Story] Change my password securely",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9DjE"
+    },
+    "S1.3.1": {
+      "number": 16,
+      "id": 6547215643,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/16",
+      "title": "Ask for current password; fix false 'updated' message on failure",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Dok"
+    },
+    "S1.3.2": {
+      "number": 17,
+      "id": 6547217192,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/17",
+      "title": "Turn on Secure password change in the Supabase dashboard (live)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Duo"
+    },
+    "S1.3.3": {
+      "number": 18,
+      "id": 6547233184,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/18",
+      "title": "Run `change-password` Maestro flow",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Etg"
+    },
+    "S1.4": {
+      "number": 19,
+      "id": 6547234768,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/19",
+      "title": "[Story] Delete my account without breaking others' chats",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9EyE"
+    },
+    "S1.4.1": {
+      "number": 20,
+      "id": 6547236084,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/20",
+      "title": "`delete-account` removes only the caller's rows, keeps groups with members",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9E3o"
+    },
+    "S1.4.2": {
+      "number": 21,
+      "id": 6547237703,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/21",
+      "title": "Drop unused `profiles.fcm_token` (SEC-13) in code",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9E9E"
+    },
+    "S1.4.3": {
+      "number": 22,
+      "id": 6547239339,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/22",
+      "title": "Apply `20261026000100` and `20261026000200` migrations to the live project",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9FCk"
+    },
+    "S1.4.4": {
+      "number": 23,
+      "id": 6547240863,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/23",
+      "title": "Redeploy `delete-account` edge function (live is v3)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9FKA"
+    },
+    "S1.4.5": {
+      "number": 24,
+      "id": 6547242446,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/24",
+      "title": "Device test: delete a group creator account with members left",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9FPA"
+    },
+    "S1.4.6": {
+      "number": 25,
+      "id": 6547243872,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/25",
+      "title": "Server-side recent sign-in check in `delete-account`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9FV4"
+    },
+    "E2": {
+      "number": 26,
+      "id": 6547245207,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/26",
+      "title": "[Epic] Messaging",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Fbc"
+    },
+    "S2.1": {
+      "number": 27,
+      "id": 6547246709,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/27",
+      "title": "[Story] Start direct and group conversations",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9FhU"
+    },
+    "S2.1.1": {
+      "number": 28,
+      "id": 6547248053,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/28",
+      "title": "User search and DM creation (`create_dm_conversation`)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Fnw"
+    },
+    "S2.1.2": {
+      "number": 29,
+      "id": 6547249526,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/29",
+      "title": "Group creation, rename and group avatar (ChatRoomEditing)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Fuc"
+    },
+    "S2.1.3": {
+      "number": 30,
+      "id": 6547250966,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/30",
+      "title": "Chat list with last message preview and search",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9F0I"
+    },
+    "S2.1.4": {
+      "number": 31,
+      "id": 6547252465,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/31",
+      "title": "Delete chat from the chat list",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9F6I"
+    },
+    "S2.2": {
+      "number": 32,
+      "id": 6547253887,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/32",
+      "title": "[Story] Send and manage messages in real time",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9F_4"
+    },
+    "S2.2.1": {
+      "number": 33,
+      "id": 6547255431,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/33",
+      "title": "Realtime subscription for new messages",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GHQ"
+    },
+    "S2.2.2": {
+      "number": 34,
+      "id": 6547256862,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/34",
+      "title": "Edit and delete own messages (ownership checked, SEC-2)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GMA"
+    },
+    "S2.2.3": {
+      "number": 35,
+      "id": 6547258270,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/35",
+      "title": "Reactions, members only",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GQs"
+    },
+    "S2.2.4": {
+      "number": 36,
+      "id": 6547259806,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/36",
+      "title": "Forward a message to another chat",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GWo"
+    },
+    "S2.2.5": {
+      "number": 37,
+      "id": 6547261292,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/37",
+      "title": "Device check: forward-cancel no longer opens edit",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GcY"
+    },
+    "S2.3": {
+      "number": 38,
+      "id": 6547262880,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/38",
+      "title": "[Story] See when my messages are read",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GiI"
+    },
+    "S2.3.1": {
+      "number": 39,
+      "id": 6547264310,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/39",
+      "title": "`mark_messages_as_read` as SECURITY DEFINER, members only (SEC-30)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GnU"
+    },
+    "S2.3.2": {
+      "number": 40,
+      "id": 6547265885,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/40",
+      "title": "Device check: `read_by` is filled for the sender's messages",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9GsE"
+    },
+    "S2.4": {
+      "number": 41,
+      "id": 6547267216,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/41",
+      "title": "[Story] Share images and files",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Gv4"
+    },
+    "S2.4.1": {
+      "number": 42,
+      "id": 6547268544,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/42",
+      "title": "Upload images/files and full-screen image zoom",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9G0I"
+    },
+    "S2.4.2": {
+      "number": 43,
+      "id": 6547269959,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/43",
+      "title": "Images & Files gallery in chat settings",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9G40"
+    },
+    "S2.4.3": {
+      "number": 44,
+      "id": 6547271441,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/44",
+      "title": "Show the real file name and keep the extension on save/share",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9G9c"
+    },
+    "S2.4.4": {
+      "number": 45,
+      "id": 6547272972,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/45",
+      "title": "Android 'Save to device' through the system folder picker",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HDM"
+    },
+    "S2.4.5": {
+      "number": 46,
+      "id": 6547274386,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/46",
+      "title": "Device test: save and share files on Android and iOS",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HH0"
+    },
+    "S2.5": {
+      "number": 47,
+      "id": 6547275773,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/47",
+      "title": "[Story] Consistent, polished UI",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HLg"
+    },
+    "S2.5.1": {
+      "number": 48,
+      "id": 6547277270,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/48",
+      "title": "Shared alert dialog spacing in `components/ui/alert-dialog`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HPo"
+    },
+    "S2.5.2": {
+      "number": 49,
+      "id": 6547278554,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/49",
+      "title": "Dark mode support (QR quiet zone fixed)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HUE"
+    },
+    "S2.5.3": {
+      "number": 50,
+      "id": 6547279967,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/50",
+      "title": "Device check of the new dialog spacing",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HYU"
+    },
+    "E3": {
+      "number": 51,
+      "id": 6547281246,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/51",
+      "title": "[Epic] End-to-end Encryption",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Hbs"
+    },
+    "S3.1": {
+      "number": 52,
+      "id": 6547282293,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/52",
+      "title": "[Story] Own a private identity key on my device",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HgE"
+    },
+    "S3.1.1": {
+      "number": 53,
+      "id": 6547283568,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/53",
+      "title": "X25519 key pair on registration, SecureStore per user",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Hmk"
+    },
+    "S3.1.2": {
+      "number": 54,
+      "id": 6547284997,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/54",
+      "title": "Migrate legacy single-slot key to the per-user slot",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HrQ"
+    },
+    "S3.1.3": {
+      "number": 55,
+      "id": 6547286394,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/55",
+      "title": "Remove private-key byte log in `secured.ts` (SEC-27)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9HvQ"
+    },
+    "S3.2": {
+      "number": 56,
+      "id": 6547287716,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/56",
+      "title": "[Story] Encrypt every conversation with its own key",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Hzg"
+    },
+    "S3.2.1": {
+      "number": 57,
+      "id": 6547289110,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/57",
+      "title": "Per-conversation ChaCha20-Poly1305 key wrapped per participant",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9H4E"
+    },
+    "S3.2.2": {
+      "number": 58,
+      "id": 6547290367,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/58",
+      "title": "Fix conversation key divergence (re-keying bug)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9H84"
+    },
+    "S3.2.3": {
+      "number": 59,
+      "id": 6547291747,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/59",
+      "title": "Keyless new device no longer creates orphan chats",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IBY"
+    },
+    "S3.2.4": {
+      "number": 60,
+      "id": 6547293040,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/60",
+      "title": "Two-device check of the key divergence fix",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IF8"
+    },
+    "S3.2.5": {
+      "number": 61,
+      "id": 6547294228,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/61",
+      "title": "Resolve legacy conversations that still cannot be opened",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IKg"
+    },
+    "S3.3": {
+      "number": 62,
+      "id": 6547295612,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/62",
+      "title": "[Story] Encrypt attachments end to end (SEC-5)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IPo"
+    },
+    "S3.3.1": {
+      "number": 63,
+      "id": 6547296983,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/63",
+      "title": "Per-file key, ciphertext under an opaque path, encrypted descriptor",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IVY"
+    },
+    "S3.3.2": {
+      "number": 64,
+      "id": 6547298407,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/64",
+      "title": "Forward re-seals the descriptor for the target room",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9IcM"
+    },
+    "S3.3.3": {
+      "number": 65,
+      "id": 6547299624,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/65",
+      "title": "Device check after dev-client rebuild (`expo-sharing`)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Ig8"
+    },
+    "S3.4": {
+      "number": 66,
+      "id": 6547301204,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/66",
+      "title": "[Story] Detect changed peer keys",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Ins"
+    },
+    "S3.4.1": {
+      "number": 67,
+      "id": 6547302550,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/67",
+      "title": "Trust-on-first-use peer key pins and 'Security key changed' dialog (SEC-7)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Iuc"
+    },
+    "S3.4.2": {
+      "number": 68,
+      "id": 6547303948,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/68",
+      "title": "RFC 5869 HKDF with legacy fallback (SEC-8b)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9I0Q"
+    },
+    "S3.4.3": {
+      "number": 69,
+      "id": 6547305252,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/69",
+      "title": "Pin group keys to the wrapping member (`wrapped_by`, SEC-22)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9I5M"
+    },
+    "S3.4.4": {
+      "number": 70,
+      "id": 6547306811,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/70",
+      "title": "Per-sender message signatures inside a conversation (SEC-8c)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9I9U"
+    },
+    "E4": {
+      "number": 71,
+      "id": 6547308218,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/71",
+      "title": "[Epic] Multi-device Key Sharing",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JCc"
+    },
+    "S4.1": {
+      "number": 72,
+      "id": 6547309451,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/72",
+      "title": "[Story] Share my keys to a new device over QR",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JHg"
+    },
+    "S4.1.1": {
+      "number": 73,
+      "id": 6547310781,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/73",
+      "title": "4-digit pairing code enforced on the server (SEC-6)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JL0"
+    },
+    "S4.1.2": {
+      "number": 74,
+      "id": 6547312410,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/74",
+      "title": "Sealed `pair_data` QR with a one-time X25519 key (SEC-4)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JPM"
+    },
+    "S4.1.3": {
+      "number": 75,
+      "id": 6547313770,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/75",
+      "title": "Verify a scanned key against the profile before installing (SEC-8a)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JTk"
+    },
+    "S4.1.4": {
+      "number": 76,
+      "id": 6547315245,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/76",
+      "title": "Two-device end-to-end test of the sealed QR, both platforms",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JYo"
+    },
+    "S4.1.5": {
+      "number": 77,
+      "id": 6547316622,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/77",
+      "title": "Compact binary QR payload for more than ~20 chats",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JdU"
+    },
+    "S4.2": {
+      "number": 78,
+      "id": 6547318215,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/78",
+      "title": "[Story] Recover a device that has no key",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Jg4"
+    },
+    "S4.2.1": {
+      "number": 79,
+      "id": 6547319553,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/79",
+      "title": "Route keyless device to ScanningKeys recovery mode",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JmE"
+    },
+    "S4.2.2": {
+      "number": 80,
+      "id": 6547321086,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/80",
+      "title": "Back navigation from EnterPairingCode to the options",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JsY"
+    },
+    "S4.2.3": {
+      "number": 81,
+      "id": 6547322604,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/81",
+      "title": "Simulator and Maestro check of all recovery paths",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9JxM"
+    },
+    "S4.3": {
+      "number": 82,
+      "id": 6547324051,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/82",
+      "title": "[Story] Pair a device remotely through the server",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9J1Y"
+    },
+    "S4.3.1": {
+      "number": 83,
+      "id": 6547325625,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/83",
+      "title": "`device-pairing` function and `RemoteDevicePairing` client",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9J4g"
+    },
+    "S4.3.2": {
+      "number": 84,
+      "id": 6547326997,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/84",
+      "title": "New-device request screen (create, poll, confirm, unwrap)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9J8s"
+    },
+    "S4.3.3": {
+      "number": 85,
+      "id": 6547328590,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/85",
+      "title": "Old-device approval screen",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KBY"
+    },
+    "S4.3.4": {
+      "number": 86,
+      "id": 6547330165,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/86",
+      "title": "Review the remote pairing gate (SEC-23)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KHg"
+    },
+    "E5": {
+      "number": 87,
+      "id": 6547331677,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/87",
+      "title": "[Epic] Key Backup Vault",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KL0"
+    },
+    "S5.1": {
+      "number": 88,
+      "id": 6547333027,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/88",
+      "title": "[Story] Run a self-hosted backup vault",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KQA"
+    },
+    "S5.1.1": {
+      "number": 89,
+      "id": 6547334581,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/89",
+      "title": "Vault service on the Pi behind a Cloudflare tunnel",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KVQ"
+    },
+    "S5.1.2": {
+      "number": 90,
+      "id": 6547336149,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/90",
+      "title": "Traefik with load-balanced vault replicas",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Kaw"
+    },
+    "S5.1.3": {
+      "number": 91,
+      "id": 6547337628,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/91",
+      "title": "Harden the vault container like Traefik (SEC-28)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KeQ"
+    },
+    "S5.1.4": {
+      "number": 92,
+      "id": 6547339072,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/92",
+      "title": "Supabase to Pi replication",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Kks"
+    },
+    "S5.2": {
+      "number": 93,
+      "id": 6547340564,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/93",
+      "title": "[Story] Back up and restore my identity key",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Ko4"
+    },
+    "S5.2.1": {
+      "number": 94,
+      "id": 6547341971,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/94",
+      "title": "BackupKey screen with passphrase (scrypt)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9KsY"
+    },
+    "S5.2.2": {
+      "number": 95,
+      "id": 6547343354,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/95",
+      "title": "RecoverKey screen with passphrase show/hide",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Kw0"
+    },
+    "S5.2.3": {
+      "number": 96,
+      "id": 6547344683,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/96",
+      "title": "Existing-backup notice with Replace option",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9K14"
+    },
+    "S5.2.4": {
+      "number": 97,
+      "id": 6547346166,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/97",
+      "title": "Bound scrypt KDF params on recovery (SEC-24)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9K68"
+    },
+    "E6": {
+      "number": 98,
+      "id": 6547347580,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/98",
+      "title": "[Epic] Push Notifications",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9K_E"
+    },
+    "S6.1": {
+      "number": 99,
+      "id": 6547348919,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/99",
+      "title": "[Story] Get notified about new messages",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LDM"
+    },
+    "S6.1.1": {
+      "number": 100,
+      "id": 6547350365,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/100",
+      "title": "Push edge function accepts only authenticated senders (SEC-3)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LH0"
+    },
+    "S6.1.2": {
+      "number": 101,
+      "id": 6547351909,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/101",
+      "title": "Tap a notification to open the conversation",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LMg"
+    },
+    "S6.1.3": {
+      "number": 102,
+      "id": 6547353558,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/102",
+      "title": "Decrypted message text in Android notifications",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LRk"
+    },
+    "S6.1.4": {
+      "number": 103,
+      "id": 6547355058,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/103",
+      "title": "Deactivate only my own other tokens (SEC-20)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LVw"
+    },
+    "S6.1.5": {
+      "number": 104,
+      "id": 6547356742,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/104",
+      "title": "Device test: Android notification text and two-device tokens",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LaA"
+    },
+    "E7": {
+      "number": 105,
+      "id": 6547358251,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/105",
+      "title": "[Epic] Security Hardening",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Ldc"
+    },
+    "S7.1": {
+      "number": 106,
+      "id": 6547359396,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/106",
+      "title": "[Story] Only members can reach a conversation's data",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LiU"
+    },
+    "S7.1.1": {
+      "number": 107,
+      "id": 6547360945,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/107",
+      "title": "Remove service-role key from builds and `.env` (SEC-1, SEC-15)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Lm4"
+    },
+    "S7.1.2": {
+      "number": 108,
+      "id": 6547362570,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/108",
+      "title": "Baseline schema and ownership RLS (files, messages, reactions, SEC-29)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LrI"
+    },
+    "S7.1.3": {
+      "number": 109,
+      "id": 6547363898,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/109",
+      "title": "`conversation_participants` RLS (SEC-9)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Lvg"
+    },
+    "S7.1.4": {
+      "number": 110,
+      "id": 6547365220,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/110",
+      "title": "Storage bucket ownership RLS (SEC-10)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9LzA"
+    },
+    "S7.1.5": {
+      "number": 111,
+      "id": 6547366734,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/111",
+      "title": "RPCs act as the caller (SEC-11)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9L28"
+    },
+    "S7.1.6": {
+      "number": 112,
+      "id": 6547367962,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/112",
+      "title": "Pin remaining mutable `search_path`, enable leaked-password protection (SEC-14)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9L7Y"
+    },
+    "S7.1.7": {
+      "number": 113,
+      "id": 6547369253,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/113",
+      "title": "Store usernames masked (jo**th), drop the UNIQUE constraint (SEC-18)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9L_g"
+    },
+    "S7.1.8": {
+      "number": 114,
+      "id": 6547370619,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/114",
+      "title": "Rerun Supabase advisors after the live migrations",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9ME4"
+    },
+    "S7.2": {
+      "number": 115,
+      "id": 6547372178,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/115",
+      "title": "[Story] Confirm it's me before sensitive actions (SEC-21)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MJU"
+    },
+    "S7.2.1": {
+      "number": 116,
+      "id": 6547373650,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/116",
+      "title": "App PIN (PBKDF2, 5-try limit) and ConfirmIdentityProvider",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MN4"
+    },
+    "S7.2.2": {
+      "number": 117,
+      "id": 6547375195,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/117",
+      "title": "Gate Manage Keys, pairing code, vault backup and account deletion",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MR8"
+    },
+    "S7.2.3": {
+      "number": 118,
+      "id": 6547376652,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/118",
+      "title": "App PIN row in Settings",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MXA"
+    },
+    "S7.2.4": {
+      "number": 119,
+      "id": 6547378069,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/119",
+      "title": "Run Maestro flows using `confirm-identity` subflow",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9McM"
+    },
+    "S7.2.5": {
+      "number": 120,
+      "id": 6547379468,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/120",
+      "title": "Device test with and without Face ID",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MhE"
+    },
+    "S7.2.6": {
+      "number": 121,
+      "id": 6547381059,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/121",
+      "title": "Remove unused `biometricSecurity.ts`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Mk4"
+    },
+    "S7.3": {
+      "number": 122,
+      "id": 6547382514,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/122",
+      "title": "[Story] Protect data stored on the device",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9MqY"
+    },
+    "S7.3.1": {
+      "number": 123,
+      "id": 6547384015,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/123",
+      "title": "Move the Supabase session to encrypted SecureStore, set `allowBackup: false` in app.json (SEC-25)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Mvs"
+    },
+    "S7.3.2": {
+      "number": 124,
+      "id": 6547385489,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/124",
+      "title": "Namespace the snapshot SQLite DB per user (SEC-26)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9M0A"
+    },
+    "E8": {
+      "number": 125,
+      "id": 6547386830,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/125",
+      "title": "[Epic] Testing & CI",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9M6A"
+    },
+    "S8.1": {
+      "number": 126,
+      "id": 6547388045,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/126",
+      "title": "[Story] Unit tests for crypto and key logic",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9M-M"
+    },
+    "S8.1.1": {
+      "number": 127,
+      "id": 6547389385,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/127",
+      "title": "Fix Jest config for crypto libs and `jest-expo`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NDg"
+    },
+    "S8.1.2": {
+      "number": 128,
+      "id": 6547390983,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/128",
+      "title": "Key, pairing, vault and auth unit tests (106 passing)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NIE"
+    },
+    "S8.1.3": {
+      "number": 129,
+      "id": 6547392560,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/129",
+      "title": "Chat logic unit tests (API layer with mocked Supabase, key cache)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NNE"
+    },
+    "S8.2": {
+      "number": 130,
+      "id": 6547394077,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/130",
+      "title": "[Story] Database security tests",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NR8"
+    },
+    "S8.2.1": {
+      "number": 131,
+      "id": 6547395590,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/131",
+      "title": "pgTAP tests for RLS, RPCs and storage (95 checks)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NWY"
+    },
+    "S8.2.2": {
+      "number": 132,
+      "id": 6547397129,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/132",
+      "title": "`rls-tests.yml` workflow",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9NcI"
+    },
+    "S8.2.3": {
+      "number": 133,
+      "id": 6547398597,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/133",
+      "title": "First green run of `rls-tests.yml` on GitHub",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Nho"
+    },
+    "S8.3": {
+      "number": 134,
+      "id": 6547399885,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/134",
+      "title": "[Story] End-to-end tests with Maestro",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Nng"
+    },
+    "S8.3.1": {
+      "number": 135,
+      "id": 6547401157,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/135",
+      "title": "Maestro flows with email-confirmation subflows",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Nqo"
+    },
+    "S8.3.2": {
+      "number": 136,
+      "id": 6547402510,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/136",
+      "title": "`maestro-e2e.yml` with a mail.tm inbox per run",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Nv0"
+    },
+    "S8.3.3": {
+      "number": 137,
+      "id": 6547403976,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/137",
+      "title": "Run the full suite on a device and fix selector drift",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9N0c"
+    },
+    "S8.3.4": {
+      "number": 138,
+      "id": 6547405503,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/138",
+      "title": "Remove the seeded 'Android Simulator' fixture dependency",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9N4o"
+    },
+    "S8.3.5": {
+      "number": 139,
+      "id": 6547406867,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/139",
+      "title": "iOS support for `open-manage-keys` and `show-pairing-code`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9N9Y"
+    },
+    "S8.3.6": {
+      "number": 140,
+      "id": 6547408195,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/140",
+      "title": "EAS Workflows Maestro run: env vars and first run",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9ODU"
+    },
+    "E9": {
+      "number": 141,
+      "id": 6547409535,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/141",
+      "title": "[Epic] Performance",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OHM"
+    },
+    "S9.1": {
+      "number": 142,
+      "id": 6547410805,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/142",
+      "title": "[Story] Measure performance on every change",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OLM"
+    },
+    "S9.1.1": {
+      "number": 143,
+      "id": 6547412112,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/143",
+      "title": "Crypto benchmark in Node and on-device screen",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OSE"
+    },
+    "S9.1.2": {
+      "number": 144,
+      "id": 6547413609,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/144",
+      "title": "Reassure render tests and `perf-render.yml`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OYo"
+    },
+    "S9.1.3": {
+      "number": 145,
+      "id": 6547415056,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/145",
+      "title": "Flashlight runtime flows wired into `maestro-e2e.yml`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OdM"
+    },
+    "S9.1.4": {
+      "number": 146,
+      "id": 6547416484,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/146",
+      "title": "Bundle analysis with `expo-atlas`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Oik"
+    },
+    "S9.1.5": {
+      "number": 147,
+      "id": 6547417803,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/147",
+      "title": "Record device numbers (Flashlight, Hermes crypto bench)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9Oos"
+    },
+    "S9.1.6": {
+      "number": 148,
+      "id": 6547419320,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/148",
+      "title": "Perf test for `EncryptedAttachment`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9OuY"
+    },
+    "S9.2": {
+      "number": 149,
+      "id": 6547420764,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/149",
+      "title": "[Story] Fast chats and a smaller app",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9O1E"
+    },
+    "S9.2.1": {
+      "number": 150,
+      "id": 6547422197,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/150",
+      "title": "Replace the lucide barrel import with per-icon imports",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9O68"
+    },
+    "S9.2.2": {
+      "number": 151,
+      "id": 6547423399,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/151",
+      "title": "Keep `emoji-mart-native` out of the bundle",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9O_Y"
+    },
+    "S9.2.3": {
+      "number": 152,
+      "id": 6547424718,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/152",
+      "title": "Virtualize the message list and move decryption out of render",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9PFQ"
+    },
+    "S9.2.4": {
+      "number": 153,
+      "id": 6547426130,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/153",
+      "title": "Cut chat list search re-renders per keystroke",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK9PKM"
+    },
+    "S1.5": {
+      "number": 154,
+      "id": 6549261442,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/154",
+      "title": "[Story] Switch between accounts saved on this phone",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_A-A"
+    },
+    "S1.5.1": {
+      "number": 155,
+      "id": 6549262835,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/155",
+      "title": "Saved-account cards on the login screen (avatar, name, 2x2 pages, swipe, dots)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BB4"
+    },
+    "S1.5.2": {
+      "number": 156,
+      "id": 6549264378,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/156",
+      "title": "'Sign in to another account' / 'Create account' / 'Back to saved accounts' switching",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BFw"
+    },
+    "S1.5.3": {
+      "number": 157,
+      "id": 6549265723,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/157",
+      "title": "Card sign-in: that account's biometrics, then app PIN, then password, then restore the saved session",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BL4"
+    },
+    "S1.5.4": {
+      "number": 158,
+      "id": 6549267265,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/158",
+      "title": "Ended session (Sign Out or server rejected): password box with the email filled in",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BRM"
+    },
+    "S1.5.5": {
+      "number": 159,
+      "id": 6549268680,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/159",
+      "title": "'Remove from this device' deletes the card, saved session and avatar",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BWc"
+    },
+    "S1.5.6": {
+      "number": 160,
+      "id": 6549270112,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/160",
+      "title": "Unit tests for remembered accounts and secure session storage (24 new, 130 passing)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BbQ"
+    },
+    "S1.5.7": {
+      "number": 161,
+      "id": 6549271427,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/161",
+      "title": "Run `remembered-account.yaml` and the updated login Maestro flows",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_BfQ"
+    },
+    "S1.5.8": {
+      "number": 162,
+      "id": 6549272839,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/162",
+      "title": "Device test: switch between two saved accounts, expired session, remove card",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_Bjc"
+    },
+    "S7.3.3": {
+      "number": 163,
+      "id": 6549321855,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/163",
+      "title": "Regenerate the Android project so the manifest drops `allowBackup=\"true\"`",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_E_k"
+    },
+    "S7.3.4": {
+      "number": 164,
+      "id": 6549322967,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/164",
+      "title": "Device test: existing users keep their session after upgrade, caches stay per account",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_FDk"
+    },
+    "S7.1.9": {
+      "number": 165,
+      "id": 6549852721,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/165",
+      "title": "Apply `20261123000000_mask_usernames.sql` to the live project (SEC-18)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_iFE"
+    }
+  }
+}

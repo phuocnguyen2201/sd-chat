@@ -1,5 +1,12 @@
 # In Progress / Open Items
 
+## Group chat sender-name fix (2026-11-24): code done, device check pending
+1. In a 3-person group, with the room open on one device, send from the other two: each new message shows its sender name, and it stays after the message is read (read_by update). Images and reactions also stay after a read.
+
+## Chat list PGRST201 fix (2026-11-24): code done, device check pending
+1. Reload the app: the Chat tab should list conversations again; open a DM and a group; create a new DM from another account and check that it appears live.
+2. Commit the `utility/messages.ts` change on `security/sec-22-wrapped-by` (it fixes a regression from that branch's commit).
+
 ## SEC-22 wrapped_by (2026-11-24): code + tests done, migration not applied
 1. `supabase db push` applies `20261124000100_participants_wrapped_by.sql` (together with SEC-8c's `20261124000000`).
 2. Device test: in a 3-person group, let a non-creator member's device backfill a new member's row, then open the group on the new member's device. There should be no "Security key changed" dialog.

@@ -332,7 +332,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
         .select(`
           *,
           conversation_participants!inner(
-            profiles(id, username, displayname, avatar_url, public_key, files_profiles(*))
+            profiles!conversation_participants_user_id_fkey(id, username, displayname, avatar_url, public_key, files_profiles(*))
           ),
           files_group(*),
           messages(
@@ -522,7 +522,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
       .select(`*, 
         files_group(*), 
         conversation_participants(
-          profiles(id, files_profiles(*))
+          profiles!conversation_participants_user_id_fkey(id, files_profiles(*))
         )`)
       .eq('id', conversation_id).single()
 
@@ -813,7 +813,7 @@ export const realtimeAPI = {
               .select(`
                 *,
                 conversation_participants!inner(
-                  profiles(id, username, displayname, avatar_url)
+                  profiles!conversation_participants_user_id_fkey(id, username, displayname, avatar_url)
                 )
               `)
               .eq('id', payload.new.conversation_id)
