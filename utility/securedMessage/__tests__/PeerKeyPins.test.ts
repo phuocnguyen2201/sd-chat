@@ -496,3 +496,107 @@ describe('backfillMissingWrappedKeys with peer pinning', () => {
     expect(mockedConversationAPI.fillMissingConversationKey).not.toHaveBeenCalled();
   });
 });
+
+/*
+  Security #22: a group row can be filled by any member's device, not only the
+  creator's. The database records who wrote the wrapped key in `wrapped_by`,
+  and the key the row records is checked against that member's pin.
+*/
+describe('resolveConversationKey with wrapped_by (security #22)', () => {
+  const CREATOR = 'dddddddd-0000-4000-8000-000000000004';
+  const MEMBER = 'eeeeeeee-0000-4000-8000-000000000005';
+
+  async function groupRowWrappedBy(wrapperId: string, extra: Record<string, unknown> = {}) {
+    const me = await MessageEncryption.generateKeyPair();
+    const creator = await MessageEncryption.generateKeyPair();
+    const member = await MessageEncryption.generateKeyPair();
+    const conversationKey = await MessageEncryption.createConversationKey();
+
+    // The member's device backfilled this user's empty row.
+    const wrapped = await wrapAs(MEMBER, MessageEncryption.base64ToBytes(member.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: member.publicKey,
+        wrapped_by: wrapperId,
+        ...extra,
+      }],
+    });
+    // What Chat.tsx passes for a group: the creator.
+    const creatorHint = { peerId: CREATOR, publicKey: creator.publicKey };
+    return { me, creator, member, conversationKey, creatorHint };
+  }
+
+  it('checks a backfilled row against the member who wrapped it, not the creator', async () => {
+    const { creator, member, conversationKey, creatorHint } = await groupRowWrappedBy(MEMBER);
+    await PeerKeyPins.checkPeerKey(ME, CREATOR, creator.publicKey);
+
+    const lookup = await resolveConversationKey(CONVO, ME, creatorHint);
+
+    expect(lookup).toEqual({ status: 'found', key: conversationKey });
+    expect(mockedAlert).not.toHaveBeenCalled();
+    // Pinned under the member; the creator's pin is untouched.
+    expect(await PeerKeyPins.checkPeerKey(ME, MEMBER, member.publicKey)).toEqual({ state: 'match', pinned: member.publicKey });
+    expect(await PeerKeyPins.checkPeerKey(ME, CREATOR, creator.publicKey)).toEqual({ state: 'match', pinned: creator.publicKey });
+    expect(mockedConversationAPI.getCurrentConversation).not.toHaveBeenCalled();
+  });
+
+  it('still falls back to the creator for a row from before wrapped_by (the old false warning)', async () => {
+    const { creator, member, creatorHint } = await groupRowWrappedBy(null as unknown as string);
+    await PeerKeyPins.checkPeerKey(ME, CREATOR, creator.publicKey);
+
+    const lookup = await resolveConversationKey(CONVO, ME, creatorHint);
+
+    // This is the bug #22 fixes for rows that carry wrapped_by.
+    expect(lookup).toMatchObject({ status: 'peer_key_changed', peerId: CREATOR, newKey: member.publicKey });
+  });
+
+  it("reports a changed key for the wrapping member when it differs from that member's pin", async () => {
+    const { member, creatorHint } = await groupRowWrappedBy(MEMBER);
+    const oldMemberKey = (await MessageEncryption.generateKeyPair()).publicKey;
+    await PeerKeyPins.checkPeerKey(ME, MEMBER, oldMemberKey);
+
+    const lookup = await resolveConversationKey(CONVO, ME, creatorHint);
+
+    expect(lookup).toMatchObject({ status: 'peer_key_changed', peerId: MEMBER, pinnedKey: oldMemberKey, newKey: member.publicKey });
+    expect(mockedConversationAPI.storeConversationKey).not.toHaveBeenCalled();
+    expect(await ConversationKeyManager.getKey(ME, CONVO)).toBeNull();
+  });
+
+  it('ignores wrapped_by equal to this user and falls back to the hint', async () => {
+    const { creator, member, creatorHint } = await groupRowWrappedBy(ME);
+    await PeerKeyPins.checkPeerKey(ME, CREATOR, creator.publicKey);
+
+    const lookup = await resolveConversationKey(CONVO, ME, creatorHint);
+
+    expect(lookup).toMatchObject({ status: 'peer_key_changed', peerId: CREATOR, newKey: member.publicKey });
+  });
+
+  it("checks the caller's fallback key against the caller's peer, not wrapped_by", async () => {
+    // The row records a wrong key; only the hint key opens it.
+    const me = await MessageEncryption.generateKeyPair();
+    const creator = await MessageEncryption.generateKeyPair();
+    const unrelated = await MessageEncryption.generateKeyPair();
+    const conversationKey = await MessageEncryption.createConversationKey();
+    const wrapped = await wrapAs(CREATOR, MessageEncryption.base64ToBytes(creator.privateKey), MessageEncryption.base64ToBytes(me.publicKey), conversationKey);
+    MessageEncryption.setPrivateKey(ME, MessageEncryption.base64ToBytes(me.privateKey));
+    mockedConversationAPI.getWrappedKeyCurrent.mockResolvedValue({
+      data: [{
+        wrapped_key: MessageEncryption.bytesToBase64(wrapped.wrappedKey),
+        key_nonce: MessageEncryption.bytesToBase64(wrapped.nonce),
+        other_party_pub_key: unrelated.publicKey,
+        wrapped_by: MEMBER,
+      }],
+    });
+
+    const lookup = await resolveConversationKey(CONVO, ME, { peerId: CREATOR, publicKey: creator.publicKey });
+
+    expect(lookup.status).toBe('found');
+    expect(await PeerKeyPins.checkPeerKey(ME, CREATOR, creator.publicKey)).toEqual({ state: 'match', pinned: creator.publicKey });
+    // Nothing was pinned for the member: probing it is a first use.
+    expect(await PeerKeyPins.checkPeerKey(ME, MEMBER, 'probe')).toEqual({ state: 'new', pinned: 'probe' });
+  });
+});

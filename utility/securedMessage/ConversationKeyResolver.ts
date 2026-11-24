@@ -106,8 +106,31 @@ export async function resolveConversationKey(
   }
 
   const myPublicKey = await MessageEncryption.derivePublicKey(userId);
-  let peerId = wrapper?.peerId ?? null;
-  let peerIdLookedUp = false;
+
+  /*
+    Whose pin a candidate key is checked against (security #22):
+    - the key the row records was written by `wrapped_by`, set by the database
+      to whoever wrote the wrapped key. In a group that is often not the
+      creator: any member's device can fill an empty row.
+    - the caller's hint key belongs to the caller's hint peer.
+    Rows from before `wrapped_by` existed (or written without a signed-in
+    user) fall back to the hint, then to the creator / other DM participant.
+    `wrapped_by` equal to this user tells us nothing about a peer, so it is
+    treated the same as missing.
+  */
+  const recordedWrapper =
+    wrappedKeyRow.wrapped_by && wrappedKeyRow.wrapped_by !== userId ? (wrappedKeyRow.wrapped_by as string) : null;
+  let lookedUpPeerId: string | null | undefined;
+  const peerFor = async (candidate: string): Promise<string | null> => {
+    if (candidate === wrappedKeyRow.other_party_pub_key && recordedWrapper) {
+      return recordedWrapper;
+    }
+    if (wrapper?.peerId) return wrapper.peerId;
+    if (lookedUpPeerId === undefined) {
+      lookedUpPeerId = await findKeyWrapperPeerId(conversationId, userId);
+    }
+    return lookedUpPeerId;
+  };
 
   for (const candidate of candidatePublicKeys) {
     try {
@@ -123,10 +146,7 @@ export async function resolveConversationKey(
       const isSelfWrapped = !!myPublicKey && candidate === myPublicKey;
 
       if (!isSelfWrapped) {
-        if (!peerId && !peerIdLookedUp) {
-          peerId = await findKeyWrapperPeerId(conversationId, userId);
-          peerIdLookedUp = true;
-        }
+        const peerId = await peerFor(candidate);
 
         if (!peerId) {
           // The row opened, but there is nobody identified to vouch for that

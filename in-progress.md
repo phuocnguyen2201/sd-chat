@@ -1,5 +1,10 @@
 # In Progress / Open Items
 
+## SEC-22 wrapped_by (2026-11-24): code + tests done, migration not applied
+1. `supabase db push` applies `20261124000100_participants_wrapped_by.sql` (together with SEC-8c's `20261124000000`).
+2. Device test: in a 3-person group, let a non-creator member's device backfill a new member's row, then open the group on the new member's device. There should be no "Security key changed" dialog.
+3. Commit with SEC-8c or on its own branch, then close GitHub #69 after the device test.
+
 ## SEC-8c message signatures (2026-11-24): code + unit tests done, not deployed or on a device
 0. **Before `db push`:** `git pull --ff-only origin main` (brings `20261123000100_pin_search_path.sql`) and `git checkout backup/sec-24-18-14 -- supabase/migrations/20261123000000_mask_usernames.sql`. The rest of `backup/sec-24-18-14` (SEC-24 `VaultKdfParams`, SEC-18 tests, `backlog.json`) is still unmerged although its username-mask migration is live: decide whether to merge it.
 1. **Apply `supabase/migrations/20261124000000_message_signatures.sql`.** The columns already exist live; the RPC change is what matters. Until it's applied the chat screen gets no `signature`, so signed messages look unsigned (no warning, no protection).
