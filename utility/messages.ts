@@ -475,7 +475,7 @@ const { data, error } = await supabase.rpc('get_conversation_between_users', {
     try {
       const { data, error } = await supabase
         .from('conversation_participants')
-        .select('wrapped_key, key_nonce, other_party_pub_key')
+        .select('wrapped_key, key_nonce, other_party_pub_key, wrapped_by')
         .eq('conversation_id', conversationId)
         .eq('user_id', currentUser)
       

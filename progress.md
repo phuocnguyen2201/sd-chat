@@ -13,6 +13,10 @@
 - The signatures migration now keeps `search_path = ''` on the recreated `get_messages_with_reactions`; otherwise it would have undone #14 for that function. Checked live, read-only: both columns are nullable text, and the 2 existing `signing_public_key` values pass the new format check.
 - Docs updated: `documentation/testing/README.md`, `testing/performance.md`, `app/tabs/msg/room_id.md`, `utility/README.md`, `supabase/README.md`. New tests no longer mock the whole `react-native` module (README rule). `backlog.json` is not on `main` (only on `backup/sec-24-18-14`), so SEC-8c's status there isn't updated.
 - Branch `security/sec-8c` was pushed by mistake (one commit with everything, made from the old local `main` without #14). Deleted locally and on GitHub; PR #168 closed. The code is back as uncommitted changes on `main`, now at `origin/main` (with #14). 174/174 Jest. `supabase migration list` now matches except `20261124000000`, which is local only, as expected.
+- SEC-22 (GitHub #69) implemented:
+  - Migration `20261124000100_participants_wrapped_by.sql`: `wrapped_by` column; a trigger sets it to `auth.uid()` when the wrapped key is written, and clients have no grant on it; existing rows filled from `other_party_pub_key` (29/34 live).
+  - Resolver checks the row's recorded key against `wrapped_by`, and the caller's hint key against the caller's peer; falls back to the old `created_by` logic.
+  - 5 Jest tests + pgTAP `wrapped_by.test.sql`. 179/179 Jest; 6/6 pgTAP on the local database (local migrations applied with `migration up --local --include-all`).
 
 ## 2026-11-23 (later): Backlog updated for remembered accounts, SEC-25, SEC-26
 - New story S1.5 "Switch between accounts saved on this phone" under the Accounts & Authentication epic: #154, tasks #155–#162 (6 done, 2 to do: Maestro run, device test).

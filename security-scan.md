@@ -1,5 +1,24 @@
 # Security Scan
 
+## 2026-11-24 — #22 pin group keys to the member who wrapped the row (code + tests, not deployed)
+
+**The problem:** when a row's key opened, the resolver checked it against the pin for "the wrapper". For a group, the app always took that to be `conversations.created_by`, through the caller's hint in `Chat.tsx` or `findKeyWrapperPeerId`. But any member's device fills empty rows (`backfillMissingWrappedKeys`). So a row backfilled by member M was checked against the creator's pin. That gave a false "Security key changed" dialog, or on first use it pinned M's key under the creator's id, and the real creator's key later looked "changed".
+
+**The fix:**
+- **Recording the wrapper:** new column `conversation_participants.wrapped_by`, with a foreign key to `profiles` (`on delete set null`). A `BEFORE INSERT OR UPDATE` trigger sets it to `auth.uid()` whenever `wrapped_key` or `key_nonce` is written. Any other update keeps the old value, such as the reader correcting `other_party_pub_key`. A write without a signed-in user (service role, SQL editor) leaves it null.
+- **Clients can't set it:** they have no UPDATE grant on the column. I chose a trigger instead of the RLS check the task suggested: an RLS rule `wrapped_by = auth.uid()` would block the reader's own `other_party_pub_key` correction, and it would still let a client pick the value.
+- **Existing rows:** filled in once from `other_party_pub_key`, matched to the single profile holding that public key. Live, read-only: 29 of 34 wrapped rows can be matched, and no public key is shared by two profiles. No live group row currently has this problem, so the fix is preventive.
+- **Resolver:** the key the row records is checked against `wrapped_by`. The caller's fallback key is checked against the caller's peer. If `wrapped_by` is missing, or equals the reader, the resolver falls back to the old creator / other-DM-participant logic.
+
+**Residual risk:** `wrapped_by` is server data. A database-level attacker can name any member, but the key still has to match that member's pin. A member who has never been pinned is trusted on first use, the same as #7 and the same as the old `created_by` check.
+
+**Tests:**
+- 5 new Jest tests in `PeerKeyPins.test.ts`: a backfilled group row, a pre-#22 row (shows the old false warning), a changed member key, `wrapped_by` equal to self, and the fallback key.
+- New pgTAP `supabase/tests/wrapped_by.test.sql` (11 checks).
+- 179/179 Jest, and all 6 pgTAP suites pass on the local database.
+
+**Pending:** `supabase db push` (`20261124000100_participants_wrapped_by.sql`). No function deploy is needed.
+
 ## 2026-11-24 — #8c per-sender message signatures (code + unit tests, not deployed or tested on a device)
 
 **The problem:** every member of a chat holds the same conversation key, so the AEAD tag only proves "someone in this chat wrote this". The `messages` RLS already requires `sender_id = auth.uid()` on insert and update, so a member can't post as someone else through the API. The remaining risk was a database-level attacker (leaked service key, or the server itself) together with anyone holding the conversation key.
@@ -221,7 +240,7 @@ Full suite **130/130**, and `tsc` shows no new errors. Maestro:
 |---|---|---|---|---|
 | 20 | Medium | `updateTokenStatus` deactivated tokens with `.neq('profile_id', user.id)`: other users' tokens instead of this user's other devices. Owner-only RLS probably made it a no-op, so a user's old devices were never deactivated either. | `utility/push-notification/push-Notification.ts:124` | 🟡 Fixed in code 2026-10-26. |
 | 21 | Medium | No re-authentication for sensitive actions: `secure_password_change = false` (a stolen session can change the password), and key export (ManageKeys / PairingCode), vault backup overwrite (BackupKey) and account deletion need no biometric or password re-check. The biometric screen's Back button used to skip straight to ManageKeys. | `supabase/config.toml:180`, `app/tabs/managekeys/*` | 🟡 Back button fixed (`8552bef`). The rest is 🔴 open. |
-| 22 | Low | Group key pinning is keyed by `conversations.created_by`, not by the member who actually wrapped the row. A group row backfilled by another member (`backfillMissingWrappedKeys`) opens with that member's key, which is then checked against the creator's pin. That gives a false "key changed" dialog, or pins the wrong key on first use. Fix: record `wrapped_by` on the row and pin against it. | `ConversationKeyResolver.ts:43` (`findKeyWrapperPeerId`) | 🔴 Open. The #12 decision keeps `created_by` for the same reason, so a `wrapped_by` column would cover both. |
+| 22 | Low | Group key pinning is keyed by `conversations.created_by`, not by the member who actually wrapped the row. A group row backfilled by another member (`backfillMissingWrappedKeys`) opens with that member's key, which is then checked against the creator's pin. That gives a false "key changed" dialog, or pins the wrong key on first use. Fix: record `wrapped_by` on the row and pin against it. | `ConversationKeyResolver.ts:43` (`findKeyWrapperPeerId`) | 🟡 **Fixed in code (2026-11-24),** see the entry at the top of this file. Migration not applied yet. |
 | 23 | Low | Remote (server-relayed) pairing gate. The detail was lost. The remote flow still has no UI, and `create` requires a verified local code (#6). | `supabase/functions/device-pairing/index.ts` | ❔ Re-check when the remote pairing UI is built. |
 | 24 | Low | Vault recovery feeds `kdf_n` / `kdf_r` / `kdf_p` from the `key_backups` row straight into scrypt with no bounds. A huge `N` written to the row (owner-only RLS, so the owner or a DB-level attacker) hangs or crashes the app at recovery. Fix: refuse values outside a fixed range (e.g. `N` ≤ 2^17, `r` ≤ 16, `p` ≤ 4). | `utility/securedMessage/VaultBackup.ts:289-293` | 🔴 Open. |
 | 25 | Low | The Supabase session (with its refresh token) is kept in AsyncStorage, which is unencrypted, and Android has `allowBackup="true"`, so it can end up in device backups. Fix: SecureStore-backed session storage, or `allowBackup=false`. | `utility/connection.ts:11`, `android/app/src/main/AndroidManifest.xml` | 🔴 Open. |
