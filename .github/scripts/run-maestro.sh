@@ -54,6 +54,7 @@ FLOWS=(
   maestro/interactive-users.yaml
   maestro/search-bar.yaml
   maestro/toggle-darkmode.yaml
+  maestro/security-backup.yaml
   maestro/change-display-name.yaml
   maestro/change-password.yaml
 )

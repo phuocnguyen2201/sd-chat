@@ -40,7 +40,6 @@ import { Files } from '@/utility/types/supabse';
 import { Switch } from '@/components/ui/switch';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { useConfirmIdentity } from '@/utility/auth/ConfirmIdentityProvider';
-import { AppPin } from '@/utility/auth/AppPin';
 import { verifyAccountPassword } from '@/utility/auth/verifyAccountPassword';
 import { newPasswordProblem } from '@/utility/auth/passwordPolicy';
 
@@ -66,25 +65,7 @@ export default function Settings() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const { user, profile, isDarkMode, setDarkMode, fetchThemeMode, refreshProfile, logout } = useSession();
-  const { confirmIdentity, managePin } = useConfirmIdentity();
-  const [hasAppPin, setHasAppPin] = useState(false);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    AppPin.hasPin(user.id).then(setHasAppPin).catch(() => setHasAppPin(false));
-  }, [user?.id]);
-
-  async function handleManagePin(): Promise<void> {
-    const changed = await managePin();
-    if (user?.id) {
-      setHasAppPin(await AppPin.hasPin(user.id));
-    }
-    if (changed) {
-      setSuccessMessage('App PIN saved');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    }
-  }
-
+  const { confirmIdentity } = useConfirmIdentity();
 
   /*
     Keyed on the account, not on avatar/displayName: re-running whenever those
@@ -341,61 +322,21 @@ export default function Settings() {
           </HStack>
         </Box>
 
-        {/* Key management */}
+        {/* Security & Backup: keys, biometrics and app PIN live on their own screen */}
         <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
-          <HStack className="justify-between items-center mb-2">
-            <VStack className="flex-1">
-              <Text className="text-lg font-semibold">Key Management</Text>
+          <HStack className="justify-between items-center">
+            <VStack className="flex-1 pr-3">
+              <Text className="text-lg font-semibold">Security & Backup</Text>
+              <Text className="text-xs text-gray-500">Keys, biometrics and app PIN</Text>
             </VStack>
             <Button
-              testID={automationLocatorsDataState.settingsScreen.manageKeysButton}
+              testID={automationLocatorsDataState.settingsScreen.securityBackupButton}
               size="sm"
               action="primary"
               className="bg-blue-500"
-              onPress={() => router.push({pathname:'/tabs/managekeys/ManageKeys'})}
+              onPress={() => router.push({pathname:'/tabs/managekeys/SecurityBackup'})}
             >
-              <ButtonText>Manage Keys</ButtonText>
-            </Button>
-          </HStack>
-        </Box>
-
-           {/* Biometric authentication */}
-        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
-          <HStack className="justify-between items-center mb-2">
-            <VStack className="flex-1">
-              <Text className="text-lg font-semibold">Biometric Authentication</Text>
-            </VStack>
-            <Button
-              testID={automationLocatorsDataState.settingsScreen.manageBiometricsButton}
-              size="sm"
-              action="primary"
-              className="bg-blue-500"
-              onPress={() => router.push({
-                pathname:'/tabs/managekeys/EnableBiometric',
-                params:{
-                  previousScreen: 'setting'
-                }})}
-            >
-              <ButtonText>Manage Biometrics</ButtonText>
-            </Button>
-          </HStack>
-        </Box>
-
-        {/* App PIN: the fallback when Face ID / fingerprint is not available */}
-        <Box className={`mb-6 p-4 ${isDarkMode == "dark"? 'bg-black border-white':'bg-white border-gray-200'} rounded-lg border`}>
-          <HStack className="justify-between items-center mb-2">
-            <VStack className="flex-1">
-              <Text className="text-lg font-semibold">App PIN</Text>
-              <Text className="text-xs text-gray-500">{hasAppPin ? 'Set' : 'Not set'}</Text>
-            </VStack>
-            <Button
-              testID={automationLocatorsDataState.settingsScreen.manageAppPinButton}
-              size="sm"
-              action="primary"
-              className="bg-blue-500"
-              onPress={handleManagePin}
-            >
-              <ButtonText>{hasAppPin ? 'Change PIN' : 'Set up PIN'}</ButtonText>
+              <ButtonText>Open</ButtonText>
             </Button>
           </HStack>
         </Box>

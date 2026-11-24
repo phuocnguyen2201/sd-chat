@@ -1,5 +1,10 @@
 # In Progress / Open Items
 
+## Settings Security & Backup group (2026-11-24): code done, device check pending
+0. Run `npx expo start` once so `.expo/types` knows `/tabs/managekeys/SecurityBackup` (clears TS2820 in Settings.tsx).
+1. On a device, in light and dark mode: Settings → Open goes to Security & Backup, each of the three buttons works, and Back returns each time (including from Enable Biometric).
+2. Run Maestro on Android: `toggle-darkmode.yaml`, `security-backup.yaml` (new), and one flow using `open-manage-keys.yaml` (e.g. `backup-key.yaml`). Maestro couldn't drive the iOS simulator this session ("Device became unreachable during deviceInfo").
+
 ## Group chat sender-name fix (2026-11-24): code done, device check pending
 1. In a 3-person group, with the room open on one device, send from the other two: each new message shows its sender name, and it stays after the message is read (read_by update). Images and reactions also stay after a read.
 

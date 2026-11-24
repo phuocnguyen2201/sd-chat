@@ -1,10 +1,12 @@
 appId: com.phuocng23000.sdchat
 ---
-# Chat -> Settings -> Manage Keys -> ManageKeys screen.
+# Chat -> Settings -> Security & Backup -> Manage Keys -> ManageKeys screen.
+# Manage Keys is on the Security & Backup screen, opened from Settings.
 # The wall shows every time ManageKeys opens. Without an enrolled fingerprint
 # it asks for the app PIN or the account password (security #21);
 # confirm-identity.yaml answers it.
 - tapOn: "Settings"
+- tapOn: { id: "security-backup-button" }
 - scrollUntilVisible:
     element: "Manage Keys"
 - tapOn: "Manage Keys"

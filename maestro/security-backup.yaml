@@ -1,0 +1,38 @@
+appId: com.phuocng23000.sdchat
+---
+# Covers: Settings -> Security & Backup screen shows its three options
+# (Key Management, Biometric Authentication, App PIN), Manage Biometrics opens
+# Enable Biometric, and Back returns to Security & Backup, then to Settings.
+# Manage Keys itself is covered by the flows using subflows/open-manage-keys.yaml.
+# The PIN button is only checked for, not tapped: it opens the PIN setup that
+# confirm-identity.yaml relies on (PIN 1234).
+# Android only (like show-pairing-code.yaml): `back` is the system Back key.
+- launchApp
+- extendedWaitUntil:
+    visible: "Chat.*"
+    timeout: 50000
+- tapOn: "Settings"
+- assertVisible: "Security & Backup"
+- assertNotVisible: "Manage Keys"
+- tapOn: { id: "security-backup-button" }
+
+# Security & Backup screen
+- assertVisible: "Protect your account and the keys that unlock your chats"
+- assertVisible: "Key Management"
+- assertVisible: { id: "manage-keys-button" }
+- assertVisible: "Biometric Authentication"
+- assertVisible: { id: "manage-biometrics-button" }
+- assertVisible: "App PIN"
+- assertVisible: "Set|Not set"
+- assertVisible: { id: "manage-app-pin-button" }
+- assertVisible: "Set up PIN|Change PIN"
+
+# Opened from settings, Enable Biometric stays put (no redirect to Chat)
+- tapOn: { id: "manage-biometrics-button" }
+- assertVisible: "Enable Biometric"
+- assertVisible: "Enable Touch ID"
+- back
+- assertVisible: "Protect your account and the keys that unlock your chats"
+
+- back
+- assertVisible: "Manage your profile and account"

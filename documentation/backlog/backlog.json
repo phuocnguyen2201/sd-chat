@@ -1,0 +1,831 @@
+{
+  "project": "SD Chat Roadmap",
+  "updated": "2026-11-23",
+  "note": "Status per task: done | in_progress | todo. Story and epic status are derived from their tasks. Security numbers (#N) refer to security-scan.md.",
+  "epics": [
+    {
+      "id": "E1",
+      "title": "Accounts & Authentication",
+      "area": "auth",
+      "summary": "Sign up, sign in, profile, password and account lifecycle.",
+      "stories": [
+        {
+          "id": "S1.1",
+          "title": "Sign up with email confirmation",
+          "story": "As a new user, I want to register with my email and confirm it from a link, so that only I can own the account.",
+          "tasks": [
+            [
+              "Email/password sign-up with live password policy check",
+              "done"
+            ],
+            [
+              "Create profile in `on_auth_user_created` trigger (username collision safe, SEC-16 SEC-17)",
+              "done"
+            ],
+            [
+              "Browser confirmation page `confirm-page/` (verify on tap, strict CSP)",
+              "done"
+            ],
+            [
+              "Resend confirmation email with 60 s cooldown",
+              "done"
+            ]
+          ]
+        },
+        {
+          "id": "S1.2",
+          "title": "Sign in and complete my profile",
+          "story": "As a registered user, I want to sign in and set my display name and avatar, so that contacts recognise me.",
+          "tasks": [
+            [
+              "Login screen with clear `email_not_confirmed` handling",
+              "done"
+            ],
+            [
+              "CompleteProfile screen (display name, avatar)",
+              "done"
+            ],
+            [
+              "Bootstrap routing for session, key and profile states",
+              "done"
+            ]
+          ]
+        },
+        {
+          "id": "S1.3",
+          "title": "Change my password securely",
+          "story": "As a user, I want password changes to require my current password, so that a stolen session cannot take over my account.",
+          "tasks": [
+            [
+              "Ask for current password; fix false 'updated' message on failure",
+              "done"
+            ],
+            [
+              "Turn on Secure password change in the Supabase dashboard (live)",
+              "todo",
+              "### What\nTurn on the Secure password change setting on the live Supabase project.\n\n### Why\n`config.toml` has `secure_password_change = true`, but that file only affects the local stack. Until this is on live, a stolen session can change the password without the current one (SEC-21).\n\n### Where\n- Supabase dashboard → Authentication → Email → Secure password change\n\n### Steps\n1. Open the live project in the Supabase dashboard.\n2. Authentication → Email: turn on Secure password change and save.\n3. In the app: Settings → Change Password with a wrong current password, then with the right one.\n\n### Done when\n- [ ] Setting is on in the live project\n- [ ] Wrong current password is refused, right one works"
+            ],
+            [
+              "Run `change-password` Maestro flow",
+              "todo",
+              "### What\nRun the change-password Maestro flow against a build that has the new Current Password field.\n\n### Why\nThe flow was updated for the re-authentication change (current password + confirm-identity) but has never been run.\n\n### Where\n- `maestro/change-password.yaml`\n- `maestro/subflows/confirm-identity.yaml` (test PIN 1234)\n\n### Steps\n1. Do the live dashboard switch first (Secure password change).\n2. Boot an emulator/simulator with a current dev build.\n3. `maestro test maestro/change-password.yaml`\n4. Fix any selector drift, re-run until green.\n\n### Done when\n- [ ] Flow passes on Android\n- [ ] Flow passes on iOS (or the iOS gap is written down)"
+            ]
+          ]
+        },
+        {
+          "id": "S1.4",
+          "title": "Delete my account without breaking others' chats",
+          "story": "As a user, I want to delete my account and data, so that I leave no trace, while other members keep their group chats (SEC-12).",
+          "tasks": [
+            [
+              "`delete-account` removes only the caller's rows, keeps groups with members",
+              "done"
+            ],
+            [
+              "Drop unused `profiles.fcm_token` (SEC-13) in code",
+              "done"
+            ],
+            [
+              "Apply `20261026000100` and `20261026000200` migrations to the live project",
+              "todo",
+              "### What\nApply the two pending migrations to the live database: drop `profiles.fcm_token` (SEC-13) and drop the `conversations.created_by` foreign key (SEC-12).\n\n### Why\nWithout the FK drop, `delete-account` cannot keep a group whose creator leaves, and the old `fcm_token` column leaks stale tokens to every user.\n\n### Where\n- `supabase/migrations/20261026000100_drop_profiles_fcm_token.sql`\n- `supabase/migrations/20261026000200_conversations_created_by_no_fk.sql`\n\n### Steps\n1. Optional check first: `select count(*) from public.profiles where fcm_token is not null;`\n2. `supabase migration list --linked` — only these two (plus any newer ones) should be pending.\n3. `supabase db push`\n4. Check: `profiles.fcm_token` is gone and `conversations_created_by_fkey` no longer exists.\n\n### Done when\n- [ ] Both migrations show as applied in `migration list --linked`\n- [ ] Column and FK are gone in the live DB"
+            ],
+            [
+              "Redeploy `delete-account` edge function (live is v3)",
+              "todo",
+              "### What\nDeploy the current `delete-account` function. Live is still v3 from around 2026-10-10.\n\n### Why\nv3 returns 409 for creators of groups that still have members and still clears `created_by`. The new code removes only the caller's rows.\n\n### Where\n- `supabase/functions/delete-account/`\n\n### Steps\n1. Apply the two pending migrations first (the new code expects the FK to be gone).\n2. `supabase functions deploy delete-account`\n3. `supabase functions list` shows a new version.\n\n### Done when\n- [ ] New version is live\n- [ ] Deleting a test account returns 200"
+            ],
+            [
+              "Device test: delete a group creator account with members left",
+              "todo",
+              "### What\nOn a device, delete a throwaway account that created a group with other members still in it.\n\n### Why\nConfirms SEC-12 end to end: the others keep the group and its history.\n\n### Where\n- Settings → Delete account\n- `supabase/functions/delete-account/`\n\n### Steps\n1. Account A creates a group with B and C and sends a few messages.\n2. A deletes the account (goes through the identity check).\n3. B and C: the group is still there, messages still decrypt, also on a fresh install after key sync.\n4. Also: a DM where both sides delete → the conversation is removed.\n\n### Done when\n- [ ] Group survives for remaining members\n- [ ] No 409 and no error shown to A"
+            ],
+            [
+              "Server-side recent sign-in check in `delete-account`",
+              "todo",
+              "### What\nMake `delete-account` refuse unless the caller signed in recently (e.g. JWT `iat` / `auth.sessions` within a few minutes), or require the password in the request.\n\n### Why\nThe PIN/biometric gate is in the app only. A stolen access token used outside the app can still delete the account.\n\n### Where\n- `supabase/functions/delete-account/index.ts`\n- `utility/account/deleteAccount.ts`\n- `utility/auth/verifyAccountPassword`\n\n### Steps\n1. Pick the check: recent `last_sign_in_at` vs password re-check in the function.\n2. Implement it, return 401 with a clear message when too old.\n3. In the app, re-sign-in with the password before calling when needed.\n4. Add a test (Deno or pgTAP) for the refusal.\n\n### Done when\n- [ ] An old token cannot delete the account\n- [ ] Normal in-app deletion still works"
+            ]
+          ]
+        },
+        {
+          "id": "S1.5",
+          "title": "Switch between accounts saved on this phone",
+          "story": "As someone who uses more than one account on this phone, I want each account saved as a card on the login screen, so that I can switch accounts without typing a password every time.",
+          "tasks": [
+            [
+              "Saved-account cards on the login screen (avatar, name, 2x2 pages, swipe, dots)",
+              "done"
+            ],
+            [
+              "'Sign in to another account' / 'Create account' / 'Back to saved accounts' switching",
+              "done"
+            ],
+            [
+              "Card sign-in: that account's biometrics, then app PIN, then password, then restore the saved session",
+              "done"
+            ],
+            [
+              "Ended session (Sign Out or server rejected): password box with the email filled in",
+              "done"
+            ],
+            [
+              "'Remove from this device' deletes the card, saved session and avatar",
+              "done"
+            ],
+            [
+              "Unit tests for remembered accounts and secure session storage (24 new, 130 passing)",
+              "done"
+            ],
+            [
+              "Run `remembered-account.yaml` and the updated login Maestro flows",
+              "todo",
+              "### What\nRun the new remembered-accounts flow and every login flow changed for the card screen.\n\n### Why\nThe login form is now hidden behind the saved-account cards, so all login flows changed. None have been run.\n\n### Where\n- `maestro/remembered-account.yaml` (new)\n- `maestro/subflows/show-login-form.yaml` (new)\n- Changed: `login-errors`, `sign-out`, `signup-unconfirmed`, `delete-account`, `create-account-*`, `subflows/login-with-fixture`, `subflows/register-and-confirm`, `ci/teardown-account`\n\n### Steps\n1. Build a dev client with the feature.\n2. Run `remembered-account.yaml`, then each changed flow.\n3. Fix selector drift; re-run until green.\n\n### Done when\n- [ ] All listed flows pass on Android\n- [ ] iOS run done or gaps noted"
+            ],
+            [
+              "Device test: switch between two saved accounts, expired session, remove card",
+              "todo",
+              "### What\nHand-test the remembered-accounts login screen on a real phone.\n\n### Why\nCovers what unit tests can't: biometrics per account, swipe paging, session restore.\n\n### Where\n- `components/RememberedAccountsPanel.tsx`\n- `utility/auth/RememberedAccounts.ts`\n- `utility/auth/SecureSessionStorage.ts`\n- `app/login.tsx`\n\n### Steps\n1. Sign in with account A, then B: two cards, form hidden.\n2. Tap A: Face ID → signed in without password. Cancel Face ID → PIN → password fallback.\n3. Sign Out of A: card stays; tap it → password box with email filled.\n4. Add 5+ accounts: 2×2 pages, swipe, dots.\n5. ⋯ → Remove from this device: card, session and avatar gone; account still works with password.\n6. Settings → Switch Account; push goes to the active account.\n\n### Done when\n- [ ] Every step behaves as described\n- [ ] No other account's chats show after switching"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "Messaging",
+      "area": "messaging",
+      "summary": "Direct and group chats, real-time messages, attachments and receipts.",
+      "stories": [
+        {
+          "id": "S2.1",
+          "title": "Start direct and group conversations",
+          "story": "As a user, I want to find people and start a direct or group chat, so that I can talk to them.",
+          "tasks": [
+            [
+              "User search and DM creation (`create_dm_conversation`)",
+              "done"
+            ],
+            [
+              "Group creation, rename and group avatar (ChatRoomEditing)",
+              "done"
+            ],
+            [
+              "Chat list with last message preview and search",
+              "done"
+            ],
+            [
+              "Delete chat from the chat list",
+              "done"
+            ]
+          ]
+        },
+        {
+          "id": "S2.2",
+          "title": "Send and manage messages in real time",
+          "story": "As a user, I want messages to arrive instantly and to edit, delete, react to and forward them, so that conversations feel live.",
+          "tasks": [
+            [
+              "Realtime subscription for new messages",
+              "done"
+            ],
+            [
+              "Edit and delete own messages (ownership checked, SEC-2)",
+              "done"
+            ],
+            [
+              "Reactions, members only",
+              "done"
+            ],
+            [
+              "Forward a message to another chat",
+              "done"
+            ],
+            [
+              "Device check: forward-cancel no longer opens edit",
+              "todo",
+              "### What\nConfirm the 2026-09-26 fix: cancelling Forward no longer leaves the composer in edit mode.\n\n### Why\nBefore the fix, sending after a cancelled forward edited the original message.\n\n### Where\n- `app/tabs/msg/[room_id].tsx`\n- `maestro/forward-cancel-then-send.yaml` (never run)\n\n### Steps\n1. Forward → tap one recipient (`Forward (1)`) → Cancel → type and send.\n2. A new message appears; the original is unchanged.\n3. Android: no leftover bottom padding on the input bar. If there is, try `KeyboardAvoidingView behavior=\"height\"`.\n4. Edit still works and \"Editing message · Cancel\" cancels it.\n5. Run `forward-cancel-then-send.yaml`.\n\n### Done when\n- [ ] Repro no longer edits the original\n- [ ] Maestro flow passes"
+            ]
+          ]
+        },
+        {
+          "id": "S2.3",
+          "title": "See when my messages are read",
+          "story": "As a sender, I want read receipts, so that I know my message was seen.",
+          "tasks": [
+            [
+              "`mark_messages_as_read` as SECURITY DEFINER, members only (SEC-30)",
+              "done"
+            ],
+            [
+              "Device check: `read_by` is filled for the sender's messages",
+              "todo",
+              "### What\nCheck read receipts now that `mark_messages_as_read` is SECURITY DEFINER and live (SEC-30).\n\n### Why\nBefore, RLS blocked marking the other person's messages, so receipts never updated.\n\n### Where\n- `supabase/migrations/20261026000000_rpc_caller_identity.sql`\n- `utility/messages.ts`\n\n### Steps\n1. A sends to B in a DM and in a group.\n2. B opens the chat.\n3. Check `messages.read_by` contains B, and A's UI shows read.\n\n### Done when\n- [ ] `read_by` fills in DM and group\n- [ ] An outsider calling the RPC changes nothing"
+            ]
+          ]
+        },
+        {
+          "id": "S2.4",
+          "title": "Share images and files",
+          "story": "As a user, I want to send, view and save images and files, so that I can share more than text.",
+          "tasks": [
+            [
+              "Upload images/files and full-screen image zoom",
+              "done"
+            ],
+            [
+              "Images & Files gallery in chat settings",
+              "done"
+            ],
+            [
+              "Show the real file name and keep the extension on save/share",
+              "done"
+            ],
+            [
+              "Android 'Save to device' through the system folder picker",
+              "done"
+            ],
+            [
+              "Device test: save and share files on Android and iOS",
+              "todo",
+              "### What\nTest saving and sharing encrypted attachments on both platforms.\n\n### Why\nThe file-name fix and Android Save to device (SAF picker) are untested on hardware.\n\n### Where\n- `components/EncryptedAttachment.tsx`\n\n### Steps\n1. Send a PDF and an image.\n2. Before decrypting, the bubble shows \"Loading…\", then the real file name.\n3. Android: tap → Save to device → pick a folder → file has its real name and opens. Share also works.\n4. iOS: share sheet → Save to Files keeps the name and extension.\n\n### Done when\n- [ ] Real names and extensions on both platforms\n- [ ] Android save works without storage permission"
+            ]
+          ]
+        },
+        {
+          "id": "S2.5",
+          "title": "Consistent, polished UI",
+          "story": "As a user, I want screens and dialogs to look consistent in light and dark mode, so that the app feels trustworthy.",
+          "tasks": [
+            [
+              "Shared alert dialog spacing in `components/ui/alert-dialog`",
+              "done"
+            ],
+            [
+              "Dark mode support (QR quiet zone fixed)",
+              "done"
+            ],
+            [
+              "Device check of the new dialog spacing",
+              "todo",
+              "### What\nLook at every alert dialog after the shared spacing change.\n\n### Why\nPer-screen margins were removed in favour of `components/ui/alert-dialog`; nothing was checked on a device.\n\n### Where\n- `components/ui/alert-dialog`\n\n### Steps\n1. Open: PIN dialog, delete chat, delete account, existing-backup notice, peer key changed, sign out.\n2. Check 12px gaps, rounded-2xl, buttons not clipped, in light and dark mode, small and large phone.\n\n### Done when\n- [ ] All dialogs look consistent\n- [ ] No clipped text or buttons"
+            ],
+            [
+              "Settings: group Manage Keys, biometrics and App PIN under a Security & Backup screen",
+              "done"
+            ],
+            [
+              "Run `security-backup.yaml` and the updated Settings flows, check the new screen on a device",
+              "todo",
+              "### What\nRun the Maestro flows changed by the Settings redesign and look at the new Security & Backup screen on a device.\n\n### Why\nManage Keys, Biometric Authentication and App PIN moved from Settings to a new screen, so every flow that opens Manage Keys now has an extra step. None of the changed flows has been run.\n\n### Where\n- `app/tabs/(tabs)/Settings.tsx` (one \"Security & Backup\" row, testID `security-backup-button`)\n- `app/tabs/managekeys/SecurityBackup.tsx` (new screen, registered in `app/tabs/_layout.tsx`)\n- `maestro/security-backup.yaml` (new), `maestro/subflows/open-manage-keys.yaml`, `maestro/toggle-darkmode.yaml`\n\n### Steps\n1. Run `npx expo start` once so `.expo/types` picks up the new route (clears the TS2820 error).\n2. Run `maestro test maestro/security-backup.yaml`, then `toggle-darkmode.yaml` and a flow that uses `open-manage-keys` (e.g. `backup-key.yaml`).\n3. On a device: Settings → Security & Backup → each of the three options opens and works; back returns to Settings; App PIN set/change still works; light and dark mode.\n\n### Done when\n- [ ] The three flows pass\n- [ ] All three options work from the new screen\n- [ ] No TS2820 error after types regenerate"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "End-to-end Encryption",
+      "area": "crypto",
+      "summary": "Identity keys, conversation keys, encrypted attachments and peer key trust.",
+      "stories": [
+        {
+          "id": "S3.1",
+          "title": "Own a private identity key on my device",
+          "story": "As a user, I want a key pair made on my device and kept in secure storage, so that only I can decrypt my messages.",
+          "tasks": [
+            [
+              "X25519 key pair on registration, SecureStore per user",
+              "done"
+            ],
+            [
+              "Migrate legacy single-slot key to the per-user slot",
+              "done"
+            ],
+            [
+              "Remove private-key byte log in `secured.ts` (SEC-27)",
+              "done"
+            ]
+          ]
+        },
+        {
+          "id": "S3.2",
+          "title": "Encrypt every conversation with its own key",
+          "story": "As a user, I want each chat to use its own key wrapped for each member, so that one leaked key exposes one chat only.",
+          "tasks": [
+            [
+              "Per-conversation ChaCha20-Poly1305 key wrapped per participant",
+              "done"
+            ],
+            [
+              "Fix conversation key divergence (re-keying bug)",
+              "done"
+            ],
+            [
+              "Keyless new device no longer creates orphan chats",
+              "done"
+            ],
+            [
+              "Two-device check of the key divergence fix",
+              "todo",
+              "### What\nVerify on two devices that opening a chat from a different entry point no longer re-keys it.\n\n### Why\nThe 2026-09-17 fix stopped a path that minted a new conversation key and split the thread.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts`\n- `app/tabs/(tabs)/Chat.tsx`\n\n### Steps\n1. Fresh accounts A and B. A taps B in the avatar list and sends.\n2. B opens from the chat list and reads it.\n3. B taps A in the avatar list: the thread still decrypts both ways.\n4. B deletes the chat, reopens via A's avatar: B recovers its key, A reads every message.\n\n### Done when\n- [ ] No 'Key unwrapping failed' anywhere\n- [ ] Single thread on both devices"
+            ],
+            [
+              "Resolve legacy conversations that still cannot be opened",
+              "todo",
+              "### What\nSome conversations created before the 2026-09-17 key fixes fail with `no candidate public key could unwrap this row`. Find the cause and pick a remedy.\n\n### Why\nThis is old data, not a current logic bug. Fresh accounts work.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts`\n- `app/Bootstrap.tsx` (identity key guard)\n\n### Steps\n1. Reproduce on an affected account. The deciding check: does the key derived from this device's private key match that user's `profiles.public_key`?\n2. If they differ → a keypair changed after the chat was made; no client fallback can fix it.\n3. Choose: (a) accept and document that those chats must be recreated, (b) build a re-share flow where a member who still has the key re-wraps it.\n\n### Done when\n- [ ] Cause confirmed\n- [ ] Remedy chosen and done (or documented as won't fix)"
+            ]
+          ]
+        },
+        {
+          "id": "S3.3",
+          "title": "Encrypt attachments end to end (SEC-5)",
+          "story": "As a user, I want images and files encrypted before upload, so that the server only stores ciphertext.",
+          "tasks": [
+            [
+              "Per-file key, ciphertext under an opaque path, encrypted descriptor",
+              "done"
+            ],
+            [
+              "Forward re-seals the descriptor for the target room",
+              "done"
+            ],
+            [
+              "Device check after dev-client rebuild (`expo-sharing`)",
+              "todo",
+              "### What\nRebuild the dev client and test encrypted attachments end to end.\n\n### Why\nSEC-5 added the native module `expo-sharing`; nothing has been tested on a device.\n\n### Where\n- `components/EncryptedAttachment.tsx`\n- `utility/handleStorage.ts`\n- `utility/securedMessage/secured.ts` (encryptAttachment)\n\n### Steps\n1. Rebuild the dev client.\n2. Send an image and a file.\n3. In Storage, the object is opaque ciphertext under a uuid path.\n4. Image renders; file opens via share. Forward to another chat still opens.\n5. Old (pre-SEC-5) attachments still show.\n\n### Done when\n- [ ] Storage holds only ciphertext\n- [ ] New, forwarded and legacy attachments all open"
+            ]
+          ]
+        },
+        {
+          "id": "S3.4",
+          "title": "Detect changed peer keys",
+          "story": "As a user, I want to be warned when a contact's key changes, so that a server-side key swap cannot read my chats.",
+          "tasks": [
+            [
+              "Trust-on-first-use peer key pins and 'Security key changed' dialog (SEC-7)",
+              "done"
+            ],
+            [
+              "RFC 5869 HKDF with legacy fallback (SEC-8b)",
+              "done"
+            ],
+            [
+              "Pin group keys to the wrapping member (`wrapped_by`, SEC-22)",
+              "todo",
+              "### What\nRecord who wrapped each conversation-key row (`wrapped_by`) and check the pin against that member, not `conversations.created_by`.\n\n### Why\nA row backfilled by another member is checked against the creator's pin, giving a false \"key changed\" dialog or pinning the wrong key.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts` (`findKeyWrapperPeerId`)\n- `backfillMissingWrappedKeys`\n- new migration on `conversation_participants`\n\n### Steps\n1. Migration: add `wrapped_by uuid` (nullable), RLS so it must equal `auth.uid()` on write.\n2. Write it on every wrap and backfill.\n3. Resolver: use `wrapped_by` when present, fall back to `created_by`.\n4. Unit tests + pgTAP check.\n\n### Done when\n- [ ] Backfilled rows no longer trigger a false warning\n- [ ] Tests pass"
+            ],
+            [
+              "Per-sender message signatures inside a conversation (SEC-8c)",
+              "todo",
+              "### What\nSign each message with a per-user signing key so members can tell who really sent it.\n\n### Why\nAll members share one symmetric key, so the AEAD tag only proves \"some member sent this\". A member could forge another member's message.\n\n### Where\n- `utility/securedMessage/ConversationKeyManagement.ts` (documents the limitation)\n- `secured.ts`\n- `messages` table (new signature column)\n\n### Steps\n1. Design: Ed25519 key per user, published like `public_key` and pinned like SEC-7.\n2. Sign `(conversation_id, sender_id, nonce, ciphertext)`; verify on read and show a warning on failure.\n3. Forwarding re-signs as the forwarder.\n4. Migration + tests.\n\n### Done when\n- [ ] Forged sender shows a warning\n- [ ] Old unsigned messages still display"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "Multi-device Key Sharing",
+      "area": "keys",
+      "summary": "Move keys to a new device and recover a device that has none.",
+      "stories": [
+        {
+          "id": "S4.1",
+          "title": "Share my keys to a new device over QR",
+          "story": "As a user with a new phone, I want to move my keys from my old phone with a code and QR, so that I can read my existing chats.",
+          "tasks": [
+            [
+              "4-digit pairing code enforced on the server (SEC-6)",
+              "done"
+            ],
+            [
+              "Sealed `pair_data` QR with a one-time X25519 key (SEC-4)",
+              "done"
+            ],
+            [
+              "Verify a scanned key against the profile before installing (SEC-8a)",
+              "done"
+            ],
+            [
+              "Two-device end-to-end test of the sealed QR, both platforms",
+              "todo",
+              "### What\nRun the full key sharing flow between two real devices.\n\n### Why\nThe old device's sealing path has never run on a device.\n\n### Where\n- `app/tabs/managekeys/PairingCode.tsx`, `EnterPairingCode.tsx`, `ManageKeys.tsx`, `ScanningKeys.tsx`\n- `supabase/functions/device-pairing`\n\n### Steps\n1. Make sure `device-pairing` is the current version live.\n2. Old device: Settings → Manage Keys → Share → code.\n3. New device: Receive → enter code → scanner shows a pairing check; old device shows the same 4-hex check and the QR.\n4. Scan: chats decrypt on the new device.\n5. Failure paths: wrong code, 5 wrong tries (lockout), code expiry, QR expiry, Cancel on each screen.\n6. Do Android→iOS and iOS→Android, in light and dark mode.\n\n### Done when\n- [ ] Both directions work\n- [ ] Pairing checks match\n- [ ] Failure paths behave"
+            ],
+            [
+              "Compact binary QR payload for more than ~20 chats",
+              "todo",
+              "### What\nShrink the sealed QR payload so it fits more conversation keys.\n\n### Why\nThe QR is capped at ~2,900 characters (about 20 conversations). Past that the app sends users to the vault backup.\n\n### Where\n- `utility/securedMessage/KeySyncPayload.ts`\n- `DevicePairing.sealForPeer`\n- `ManageKeys.tsx`\n\n### Steps\n1. Encode each entry as 16-byte uuid + 32-byte key (about 2× more).\n2. Version the payload so old builds refuse cleanly.\n3. Unit tests for encode/decode and the size limit.\n\n### Done when\n- [ ] ~40 conversations fit in one QR\n- [ ] Old payload still accepted or refused with a clear message"
+            ]
+          ]
+        },
+        {
+          "id": "S4.2",
+          "title": "Recover a device that has no key",
+          "story": "As a user signing in on a wiped device, I want clear recovery options, so that I am never stuck.",
+          "tasks": [
+            [
+              "Route keyless device to ScanningKeys recovery mode",
+              "done"
+            ],
+            [
+              "Back navigation from EnterPairingCode to the options",
+              "done"
+            ],
+            [
+              "Simulator and Maestro check of all recovery paths",
+              "todo",
+              "### What\nCheck what a keyless (or wrong-key) device sees after sign-in.\n\n### Why\nIt now lands on ScanningKeys in recovery mode; nothing has been run since the change.\n\n### Where\n- `app/tabs/managekeys/ScanningKeys.tsx`\n- `routeToKeyRecovery()`\n- `maestro/recover-key-from-backup.yaml`\n\n### Steps\n1. Simulator: sign in on a wiped install → alert → ScanningKeys with no camera.\n2. Each option works: Enter pairing code (back arrow returns), Recover from backup, Delete account.\n3. Run `backup-key.yaml`, then `recover-key-from-backup.yaml`.\n\n### Done when\n- [ ] All three exits work\n- [ ] Maestro flows pass"
+            ]
+          ]
+        },
+        {
+          "id": "S4.3",
+          "title": "Pair a device remotely through the server",
+          "story": "As a user without both phones in hand, I want to approve a new device remotely, so that I can pair at a distance.",
+          "tasks": [
+            [
+              "`device-pairing` function and `RemoteDevicePairing` client",
+              "done"
+            ],
+            [
+              "New-device request screen (create, poll, confirm, unwrap)",
+              "todo",
+              "### What\nBuild the screen a new device uses to ask for keys remotely.\n\n### Why\nRemote pairing is built on the server and in `RemoteDevicePairing.ts`, but no screen calls it.\n\n### Where\n- `utility/securedMessage/RemoteDevicePairing.ts`, `DeviceIdentity.ts`\n- `supabase/functions/device-pairing`\n- Entry point: ScanningKeys recovery options\n\n### Steps\n1. Add \"Pair with a device that isn't here\" to the recovery options.\n2. Call `createRequest()` (needs a verified local code, SEC-6), poll `status()`.\n3. Enter the code shown on the old device via `confirm()`, then `fetchAndUnwrap()` and install keys.\n4. Handle expiry, refusal and errors. Maestro flow.\n\n### Done when\n- [ ] New device gets working keys without a QR\n- [ ] Expired/refused requests are handled"
+            ],
+            [
+              "Old-device approval screen",
+              "todo",
+              "### What\nBuild the screen where an existing device sees and approves a pairing request.\n\n### Why\nThe other half of remote pairing.\n\n### Where\n- `RemoteDevicePairing.approve()`\n- Settings → Manage Keys\n\n### Steps\n1. List pending requests (device name, time).\n2. Gate with the identity check (PIN/biometrics).\n3. Show the one-time code, call `approve()`; Deny removes the request.\n\n### Done when\n- [ ] Approve and deny both work\n- [ ] Requires identity check"
+            ],
+            [
+              "Review the remote pairing gate (SEC-23)",
+              "todo",
+              "### What\nRe-review the server-side gate for remote pairing once the screens exist.\n\n### Why\nThe original finding's detail was lost. `create` requires a verified local code (SEC-6), but the full flow has never been reviewed with a UI.\n\n### Where\n- `supabase/functions/device-pairing/index.ts`\n\n### Steps\n1. Walk the flow as an attacker with a stolen session: can they create, approve or fetch?\n2. Check rate limits, expiry and one-use codes.\n3. Write the result into security-scan.md (SEC-23).\n\n### Done when\n- [ ] Review written down\n- [ ] Any new issue filed"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "Key Backup Vault",
+      "area": "vault",
+      "summary": "Self-hosted, passphrase-protected identity key backup.",
+      "stories": [
+        {
+          "id": "S5.1",
+          "title": "Run a self-hosted backup vault",
+          "story": "As the operator, I want a reliable vault on my own hardware, so that backups do not depend on Supabase alone.",
+          "tasks": [
+            [
+              "Vault service on the Pi behind a Cloudflare tunnel",
+              "done"
+            ],
+            [
+              "Traefik with load-balanced vault replicas",
+              "done"
+            ],
+            [
+              "Harden the vault container like Traefik (SEC-28)",
+              "todo",
+              "### What\nGive the vault service the same container hardening Traefik already has.\n\n### Why\nTraefik runs read-only, non-root, with capabilities dropped; the vault (which holds key backups) doesn't.\n\n### Where\n- `sd-chat-vault/docker-compose.yml`\n- `sd-chat-vault/vault-service/`\n\n### Steps\n1. Add `read_only: true` (+ `tmpfs` for /tmp if needed), `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, a non-root `user`.\n2. Make sure the data volume is still writable by that user.\n3. Redeploy on the Pi; backup and recover from the app still work.\n4. Also look at `npm audit` (24 high, build tooling only) and note which can be bumped.\n\n### Done when\n- [ ] Vault runs hardened\n- [ ] Backup/recover still work"
+            ],
+            [
+              "Supabase to Pi replication",
+              "todo",
+              "### What\nKeep a copy of the Supabase data on the Pi. Start with a cold backup (scheduled `pg_dump` + storage sync).\n\n### Why\nToday the only copy is Supabase. The vault holds keys but not chats.\n\n### Where\n- `sd-chat-vault/docker-compose.yml`\n- new backup job on the Pi\n\n### Steps\n1. Decide the goal: cold backup (recommended first), warm standby, or failover.\n2. Get a DB connection string (session pooler on port 5432 from home; direct is IPv6 only).\n3. Nightly `pg_dump` of `public` with `--no-owner --no-acl`; rclone the storage buckets with S3 keys.\n4. Put it on a USB SSD, encrypted at rest; set retention (deleted accounts stay in old dumps).\n5. Test a restore.\n\n### Done when\n- [ ] Nightly backups run\n- [ ] A restore has been tested\n- [ ] Retention and encryption in place"
+            ]
+          ]
+        },
+        {
+          "id": "S5.2",
+          "title": "Back up and restore my identity key",
+          "story": "As a user, I want to back up my key with a passphrase, so that I can recover it when no paired device is left.",
+          "tasks": [
+            [
+              "BackupKey screen with passphrase (scrypt)",
+              "done"
+            ],
+            [
+              "RecoverKey screen with passphrase show/hide",
+              "done"
+            ],
+            [
+              "Existing-backup notice with Replace option",
+              "done"
+            ],
+            [
+              "Bound scrypt KDF params on recovery (SEC-24)",
+              "done"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "Push Notifications",
+      "area": "notifications",
+      "summary": "Reliable, private message notifications.",
+      "stories": [
+        {
+          "id": "S6.1",
+          "title": "Get notified about new messages",
+          "story": "As a user, I want a notification for new messages that opens the chat, so that I don't miss anything.",
+          "tasks": [
+            [
+              "Push edge function accepts only authenticated senders (SEC-3)",
+              "done"
+            ],
+            [
+              "Tap a notification to open the conversation",
+              "done"
+            ],
+            [
+              "Decrypted message text in Android notifications",
+              "done"
+            ],
+            [
+              "Deactivate only my own other tokens (SEC-20)",
+              "done"
+            ],
+            [
+              "Device test: Android notification text and two-device tokens",
+              "todo",
+              "### What\nTest decrypted notifications on Android and the push-token fix (SEC-20).\n\n### Why\nBoth were built but never run on a device.\n\n### Where\n- `utility/push-notification/push-Notification.ts`\n- `supabase/functions/push`\n\n### Steps\n1. Android: app killed / backgrounded / open → decrypted text, one notification, tap opens the room.\n2. No local key, >3 KB message, image/file → \"New message\". iOS → \"New message\", never ciphertext.\n3. One account on two devices: only the latest device keeps an active token.\n4. Switch accounts (remembered accounts): pushes follow the active account.\n5. Known gap: group chats get no push (`push` uses `.single()`); file a follow-up if still true.\n\n### Done when\n- [ ] All cases behave as listed\n- [ ] Group-chat gap tracked"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "Security Hardening",
+      "area": "security",
+      "summary": "Access control, re-authentication and local data protection (security-scan.md).",
+      "stories": [
+        {
+          "id": "S7.1",
+          "title": "Only members can reach a conversation's data",
+          "story": "As a user, I want the database to block anyone outside my chats, so that my data stays private even to other users.",
+          "tasks": [
+            [
+              "Remove service-role key from builds and `.env` (SEC-1, SEC-15)",
+              "done"
+            ],
+            [
+              "Baseline schema and ownership RLS (files, messages, reactions, SEC-29)",
+              "done"
+            ],
+            [
+              "`conversation_participants` RLS (SEC-9)",
+              "done"
+            ],
+            [
+              "Storage bucket ownership RLS (SEC-10)",
+              "done"
+            ],
+            [
+              "RPCs act as the caller (SEC-11)",
+              "done"
+            ],
+            [
+              "Pin remaining mutable `search_path`, leaked-password check in the app (SEC-14)",
+              "done",
+              "### What\nPin `search_path` on every remaining function and replace the dashboard leaked-password option (Pro only) with a check in the app.\n\n### Done (2026-11-23)\n- `20261123000100_pin_search_path.sql`: drops unused `messages_notify_new`, pins `search_path=''` on 5 functions, revokes anon.\n- `utility/auth/leakedPassword.ts` + `passwordPolicy.ts`: Have I Been Pwned range check (5-char prefix, padding) on sign-up and Change Password.\n- Tests: `supabase/tests/search_path.test.sql` (12), `utility/auth/__tests__/leakedPassword.test.ts` (14).\n\n### Done when\n- [x] Migration + tests written (DB 120/120, Jest 163/163)\n- [x] Leaked passwords refused in the app\n- [ ] Applied live (separate task)"
+            ],
+            [
+              "Store usernames masked (jo**th), drop the UNIQUE constraint (SEC-18)",
+              "done"
+            ],
+            [
+              "Rerun Supabase advisors after the live migrations",
+              "todo",
+              "### What\nRun the Security and Performance advisors on the live project after the pending migrations are applied.\n\n### Why\nSeveral migrations went live by hand; nobody has re-checked the advisors since.\n\n### Where\n- Supabase dashboard → Advisors (or `get_advisors` via the Supabase MCP)\n\n### Steps\n1. After the SEC-12/13 and username-mask migrations are applied, run both advisors.\n2. Record the results in security-scan.md.\n3. File a task for anything new.\n\n### Done when\n- [ ] Results recorded\n- [ ] New findings filed"
+            ],
+            [
+              "Apply `20261123000000_mask_usernames.sql` to the live project (SEC-18)",
+              "todo",
+              "### What\nApply the username-mask migration live.\n\n### Why\nUsernames are the email's local part and readable by every user. The migration stores them masked (`johnsmith` → `jo**th`) and drops the UNIQUE constraint.\n\n### Where\n- `supabase/migrations/20261123000000_mask_usernames.sql`\n- `supabase/tests/username_mask.test.sql`\n\n### Steps\n1. `supabase test db` locally (108/108 expected).\n2. `supabase db push`.\n3. Check: `select username from profiles limit 5;` shows masked names; sign-up of a new user gets a masked name.\n4. In the app, @usernames show masked and nothing breaks.\n\n### Done when\n- [ ] Migration applied live\n- [ ] Existing and new usernames are masked"
+            ],
+            [
+              "Apply `20261123000100_pin_search_path.sql` to the live project (SEC-14)",
+              "todo",
+              "### What\nApply the search_path migration live.\n\n### Where\n- `supabase/migrations/20261123000100_pin_search_path.sql`\n- `supabase/tests/search_path.test.sql`\n\n### Steps\n1. `supabase test db` locally (120/120 expected).\n2. `supabase db push`.\n3. Dashboard → Advisors → Security: no \"Function Search Path Mutable\" left (leaked-password stays off on Free, expected).\n4. Open a chat and start a DM in the app to confirm both RPCs still work.\n\n### Done when\n- [ ] Migration applied live\n- [ ] Advisors show no mutable search_path"
+            ]
+          ]
+        },
+        {
+          "id": "S7.2",
+          "title": "Confirm it's me before sensitive actions (SEC-21)",
+          "story": "As a user, I want biometrics or an app PIN before key export, backup or deletion, so that someone holding my unlocked phone cannot do them.",
+          "tasks": [
+            [
+              "App PIN (PBKDF2, 5-try limit) and ConfirmIdentityProvider",
+              "done"
+            ],
+            [
+              "Gate Manage Keys, pairing code, vault backup and account deletion",
+              "done"
+            ],
+            [
+              "App PIN row in Settings",
+              "done"
+            ],
+            [
+              "Run Maestro flows using `confirm-identity` subflow",
+              "todo",
+              "### What\nRun every flow touched by the re-authentication change.\n\n### Why\nThey now pass through the PIN wall (`confirm-identity`, PIN 1234) but have never been run.\n\n### Where\n- `maestro/subflows/confirm-identity.yaml`\n- open-manage-keys and all pairing flows, `backup-key`, `delete-account`, `change-password`, `pairing-code-cancel`\n\n### Steps\n1. Dev build with the PIN feature.\n2. Run each flow; fix drift.\n3. iOS: `open-manage-keys` / `show-pairing-code` still Android-only (separate task).\n\n### Done when\n- [ ] All listed flows pass on Android"
+            ],
+            [
+              "Device test with and without Face ID",
+              "todo",
+              "### What\nHand-test the identity check before sensitive actions.\n\n### Why\nBiometric cancel vs fallback and the PIN limits only run on real hardware.\n\n### Where\n- `utility/auth/` (AppPin, biometricCheck, ConfirmIdentityProvider)\n- `ManageKeys.tsx`, `PairingCode.tsx`, `BackupKey.tsx`, Settings\n\n### Steps\n1. With Face ID on: Manage Keys asks every time; cancel shows the PIN wall with a note.\n2. Without biometrics: PIN path; 5 wrong tries removes the PIN, then the password is asked.\n3. Set up a 4-digit and a 6-digit PIN; change it in Settings → App PIN.\n4. Pairing code, backup and delete account are gated; delete always asks.\n\n### Done when\n- [ ] Every gate behaves as described\n- [ ] Cancel never lets the action through"
+            ],
+            [
+              "Remove unused `biometricSecurity.ts`",
+              "todo",
+              "### What\nDelete `utility/biometricsSecurity/biometricSecurity.ts`.\n\n### Why\nNothing calls it since `utility/auth/biometricCheck` replaced it.\n\n### Where\n- `utility/biometricsSecurity/biometricSecurity.ts`\n\n### Steps\n1. `grep -rn biometricSecurity app components utility` → no imports.\n2. Delete the file (and the folder if empty).\n3. `npx tsc --noEmit` and `npx jest`.\n\n### Done when\n- [ ] File gone\n- [ ] tsc and tests unchanged"
+            ]
+          ]
+        },
+        {
+          "id": "S7.3",
+          "title": "Protect data stored on the device",
+          "story": "As a user, I want my session and cache protected on the device, so that backups or a second account cannot expose them.",
+          "tasks": [
+            [
+              "Move the Supabase session to encrypted SecureStore, set `allowBackup: false` in app.json (SEC-25)",
+              "done"
+            ],
+            [
+              "Namespace the snapshot SQLite DB per user (SEC-26)",
+              "done"
+            ],
+            [
+              "Regenerate the Android project so the manifest drops `allowBackup=\"true\"`",
+              "todo",
+              "### What\nMake the native Android project match `app.json`'s `allowBackup: false`.\n\n### Why\n`app.json` was changed but the checked-in `android/app/src/main/AndroidManifest.xml` still has `android:allowBackup=\"true\"`, so builds still allow backups (SEC-25 isn't fully closed on Android).\n\n### Where\n- `android/app/src/main/AndroidManifest.xml`\n- `app.json`\n\n### Steps\n1. `npx expo prebuild --platform android` (review the diff, keep custom changes) or set `android:allowBackup=\"false\"` by hand.\n2. Rebuild and check the merged manifest: `aapt dump xmltree app.apk AndroidManifest.xml | grep allowBackup`.\n\n### Done when\n- [ ] Built APK has allowBackup=false"
+            ],
+            [
+              "Device test: existing users keep their session after upgrade, caches stay per account",
+              "todo",
+              "### What\nTest the SEC-25/26 changes on a phone that has an old build installed.\n\n### Why\nThe old plaintext session moves to encrypted storage automatically, and the message cache is now per account. Both only show on an upgrade.\n\n### Where\n- `utility/auth/SecureSessionStorage.ts`\n- `utility/connection.ts`\n- `utility/localstorage/snapshot.ts`\n\n### Steps\n1. Install the previous build, sign in, open some chats.\n2. Install the new build over it: still signed in, no login prompt.\n3. AsyncStorage no longer has the plaintext session.\n4. Sign in to a second account: no chats from the first show, even offline.\n5. Background the app for a long time: token refresh works; a revoked session signs out cleanly.\n\n### Done when\n- [ ] Upgrade keeps the session\n- [ ] Caches never mix between accounts"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "Testing & CI",
+      "area": "testing",
+      "summary": "Unit, database and end-to-end tests running in CI.",
+      "stories": [
+        {
+          "id": "S8.1",
+          "title": "Unit tests for crypto and key logic",
+          "story": "As a developer, I want fast unit tests, so that crypto changes cannot silently break chats.",
+          "tasks": [
+            [
+              "Fix Jest config for crypto libs and `jest-expo`",
+              "done"
+            ],
+            [
+              "Key, pairing, vault and auth unit tests (106 passing)",
+              "done"
+            ],
+            [
+              "Chat logic unit tests (API layer with mocked Supabase, key cache)",
+              "todo",
+              "### What\nAdd unit tests for the chat code, not just crypto.\n\n### Why\nMessages, conversations and the key cache have no tests; bugs there showed up only on devices.\n\n### Where\n- `utility/messages.ts`\n- `utility/securedMessage/ConversationKeyResolver.ts` (cache)\n- screen logic in `app/tabs/msg/[room_id].tsx`, `Chat.tsx`\n\n### Steps\n1. Mock the Supabase client (chainable query builder).\n2. Test send/edit/delete/forward calls and their filters (owner checks).\n3. Test the key cache: hit, miss, peer_key_changed.\n4. Move pure logic out of screens where it helps testing.\n\n### Done when\n- [ ] Tests in `npm test`\n- [ ] Covers send, edit, delete, forward and key cache"
+            ]
+          ]
+        },
+        {
+          "id": "S8.2",
+          "title": "Database security tests",
+          "story": "As a developer, I want RLS and RPC tests on every DB change, so that access rules never regress.",
+          "tasks": [
+            [
+              "pgTAP tests for RLS, RPCs and storage (95 checks)",
+              "done"
+            ],
+            [
+              "`rls-tests.yml` workflow",
+              "done"
+            ],
+            [
+              "First green run of `rls-tests.yml` on GitHub",
+              "todo",
+              "### What\nGet the RLS test workflow to run and pass on GitHub.\n\n### Why\nIt has never run. It starts a local Supabase and runs `supabase test db` (no secrets needed).\n\n### Where\n- .github/workflows/rls-tests.yml\n- `supabase/tests/*.test.sql`\n\n### Steps\n1. Push a branch or PR that touches `supabase/**`.\n2. Check the Actions run; fix CLI version or Docker issues.\n3. Add a status badge if useful.\n\n### Done when\n- [ ] Workflow is green on a PR"
+            ]
+          ]
+        },
+        {
+          "id": "S8.3",
+          "title": "End-to-end tests with Maestro",
+          "story": "As a developer, I want the main user flows tested on an emulator in CI, so that releases are safe.",
+          "tasks": [
+            [
+              "Maestro flows with email-confirmation subflows",
+              "done"
+            ],
+            [
+              "`maestro-e2e.yml` with a mail.tm inbox per run",
+              "done"
+            ],
+            [
+              "Run the full suite on a device and fix selector drift",
+              "todo",
+              "### What\nRun every Maestro flow on an emulator and fix what fails.\n\n### Why\nMany flows (create/rename group, edit/delete message, delete chat/account, forward-cancel…) were written but never run.\n\n### Where\n- `maestro/`\n- `constants/automationLocatorsDataState.ts` (testIDs)\n\n### Steps\n1. `maestro test maestro/` on Android.\n2. Fix fragile taps (`point:` coordinates, `below:` selectors, anchored regexes).\n3. Prefer testIDs; add missing ones.\n4. Note flows that are iOS-incompatible.\n\n### Done when\n- [ ] Full Android suite green"
+            ],
+            [
+              "Remove the seeded 'Android Simulator' fixture dependency",
+              "todo",
+              "### What\nStop flows from depending on hand-made accounts (\"Android Simulator\", \"Testing\") and a \"Testing message\".\n\n### Why\nAbout 8 flows break with confusing errors whenever the database is reset.\n\n### Where\n- `maestro/` chat flows\n- `maestro/scripts/`\n- `maestro/ci/setup-account.yaml`\n\n### Steps\n1. Add a setup script (`runScript` + http) that creates the peer accounts and the first message.\n2. Teardown removes them.\n3. Point the flows at the created names.\n\n### Done when\n- [ ] Suite passes on an empty database"
+            ],
+            [
+              "iOS support for `open-manage-keys` and `show-pairing-code`",
+              "todo",
+              "### What\nMake the two Android-only flows work on iOS.\n\n### Why\nThey tap the \"Settings\" tab text and use `back`, which don't exist on iOS.\n\n### Where\n- `maestro/subflows/open-manage-keys.yaml`\n- `maestro/show-pairing-code.yaml`\n\n### Steps\n1. Use the tab's testID (or `Settings, tab, …`) instead of its text.\n2. Replace `back` with a header back button tap.\n3. Run on an iOS simulator.\n\n### Done when\n- [ ] Both flows pass on iOS and Android"
+            ],
+            [
+              "EAS Workflows Maestro run: env vars and first run",
+              "todo",
+              "### What\nMake `.eas/workflows/e2e-test-android.yml` runnable and run it once.\n\n### Why\nIt needs EAS env vars and committed config files; it has never run.\n\n### Where\n- `.eas/workflows/e2e-test-android.yml`\n- `eas.json`, `app.config.js` (untracked)\n\n### Steps\n1. Commit `eas.json`, `app.config.js`, `.eas/`.\n2. In the EAS preview environment create `GOOGLE_SERVICES_JSON` (file, secret), `MAESTRO_PASSWORD` and every `EXPO_PUBLIC_*` the GitHub workflow sets.\n3. `eas workflow:run .eas/workflows/e2e-test-android.yml`.\n4. Check teardown still runs after a failed flow (else an `sdchat-eas-*` account is left).\n\n### Done when\n- [ ] One green EAS run\n- [ ] No leftover test accounts"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "Performance",
+      "area": "performance",
+      "summary": "Measure and improve app speed and bundle size.",
+      "stories": [
+        {
+          "id": "S9.1",
+          "title": "Measure performance on every change",
+          "story": "As a developer, I want crypto, render, runtime and bundle numbers reported, so that regressions are visible.",
+          "tasks": [
+            [
+              "Crypto benchmark in Node and on-device screen",
+              "done"
+            ],
+            [
+              "Reassure render tests and `perf-render.yml`",
+              "done"
+            ],
+            [
+              "Flashlight runtime flows wired into `maestro-e2e.yml`",
+              "done"
+            ],
+            [
+              "Bundle analysis with `expo-atlas`",
+              "done"
+            ],
+            [
+              "Record device numbers (Flashlight, Hermes crypto bench)",
+              "todo",
+              "### What\nMeasure on a real mid-range Android phone and fill in the tables in performance.md.\n\n### Why\nOnly Node numbers exist; Hermes on a phone is much slower.\n\n### Where\n- `documentation/testing/performance.md`\n- `perf/flashlight/run.sh`\n- Manage Keys → Crypto benchmark\n\n### Steps\n1. Install Flashlight (`curl https://get.flashlight.dev | bash`).\n2. Release APK with `EXPO_PUBLIC_PERF_BENCH=1`, sign in.\n3. Run `perf/flashlight/run.sh`; run the crypto benchmark screen.\n4. Write both result sets into performance.md.\n\n### Done when\n- [ ] Runtime and crypto tables filled in"
+            ],
+            [
+              "Perf test for `EncryptedAttachment`",
+              "todo",
+              "### What\nAdd a Reassure test for `components/EncryptedAttachment.tsx`.\n\n### Why\nIt decrypts files in the component; heavy re-renders would be expensive.\n\n### Where\n- `components/EncryptedAttachment.tsx`\n- `perf/render/`\n\n### Steps\n1. Mock `expo-file-system` and the decrypt calls.\n2. Scenarios: image, file, loading → loaded.\n3. Add to `npm run perf:render`.\n\n### Done when\n- [ ] Test runs in `perf-render.yml`"
+            ]
+          ]
+        },
+        {
+          "id": "S9.2",
+          "title": "Fast chats and a smaller app",
+          "story": "As a user, I want chats to scroll and type smoothly, so that the app feels instant.",
+          "tasks": [
+            [
+              "Replace the lucide barrel import with per-icon imports",
+              "todo",
+              "### What\nImport each lucide icon by path, not from the package root.\n\n### Why\nThe barrel pulls in all 1,598 icons (~3.1 MB of source) into the 11.7 MB bundle.\n\n### Where\n- every `from 'lucide-react-native'` (e.g. `EncryptedAttachment.tsx`, `[room_id].tsx`, `Chat.tsx`)\n\n### Steps\n1. Switch to per-icon imports (or a babel plugin that does it).\n2. Rebuild with expo-atlas; compare bundle size.\n\n### Done when\n- [ ] Bundle size drop recorded in performance.md"
+            ],
+            [
+              "Keep `emoji-mart-native` out of the bundle",
+              "todo",
+              "### What\nStop `emoji-mart-native` (~0.9 MB) from shipping.\n\n### Why\nIt's a devDependency but still gets bundled because something imports it.\n\n### Where\n- `package.json`\n- whatever imports it (grep)\n\n### Steps\n1. Find the import; remove it or replace with a lighter picker (or lazy-load).\n2. Check with expo-atlas that it's gone.\n\n### Done when\n- [ ] Not in the bundle"
+            ],
+            [
+              "Virtualize the message list and move decryption out of render",
+              "todo",
+              "### What\nUse a virtualized list for messages and decrypt outside render.\n\n### Why\nReassure showed the room decrypts every message on each render and re-renders twice per keystroke; long chats will lag.\n\n### Where\n- `app/tabs/msg/[room_id].tsx`\n- `perf/render/RoomScreen.perf-test.tsx`\n\n### Steps\n1. Move the message list to FlatList/FlashList/LegendList (inverted).\n2. Decrypt once per message into a memo/cache keyed by message id.\n3. Keep the composer's state out of the list's render.\n4. Compare Reassure numbers.\n\n### Done when\n- [ ] Typing doesn't re-render the list\n- [ ] Render time down in Reassure"
+            ],
+            [
+              "Cut chat list search re-renders per keystroke",
+              "todo",
+              "### What\nMake the chat list search cheaper.\n\n### Why\nAbout 250 ms of render per keystroke, 2 renders per key.\n\n### Where\n- `app/tabs/(tabs)/Chat.tsx`\n- `perf/render/ChatListScreen.perf-test.tsx`\n\n### Steps\n1. Debounce the query (~150 ms) or use `useDeferredValue`.\n2. Memo the row component.\n3. Compare Reassure numbers.\n\n### Done when\n- [ ] Render per keystroke clearly lower in Reassure"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
