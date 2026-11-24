@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-11-24: Settings screen, Security & Backup group
+- `app/tabs/(tabs)/Settings.tsx`: Key Management, Biometric Authentication and App PIN replaced by one "Security & Backup" row whose Open button pushes the new screen `app/tabs/managekeys/SecurityBackup.tsx` (registered in `app/tabs/_layout.tsx`, title "Security & Backup"). That screen holds the three options with their old buttons and testIDs; the app PIN state moved there. (A first version used an expandable card; replaced at the user's request.)
+- New locator `settingsScreen.securityBackupButton` (`security-backup-button`).
+- Maestro: `subflows/open-manage-keys.yaml` taps `security-backup-button` first; `toggle-darkmode.yaml` asserts "Security & Backup" in place of "Key Management".
+- Maestro review of all flows: only `subflows/open-manage-keys.yaml` (used by backup-key and the three pairing-code flows) and `toggle-darkmode.yaml` touched the moved items; both updated. Their "back on Settings" checks still hold, because PairingCode, EnterPairingCode and BackupKey `router.replace` to Settings. Cancelling ManageKeys' identity check now goes back to Security & Backup (no flow does that).
+- New flow `maestro/security-backup.yaml` (three options visible, Manage Biometrics → Enable Biometric → back → back to Settings; Android `back`), added to CI after `toggle-darkmode` in `.github/scripts/run-maestro.sh` and to `documentation/testing/README.md`. `maestro check-syntax` OK. Not run: Maestro could list the iOS simulator (app showed the new Settings) but every run failed with "Device became unreachable during deviceInfo". tsc: only TS2820 on the new route until `.expo/types` regenerates (`npx expo start`).
+
 ## 2026-11-24: Bug fix, group chat sender names vanish on live updates
 - Symptom: in a group, the sender name showed on loaded messages but not on new ones (or vanished later); refreshing fixed it.
 - Cause (`app/tabs/msg/[room_id].tsx`, realtime handlers): INSERT used `refreshMessage`, which nests the name at `profiles.displayname`, while the UI reads `m.displayname` (flat, only from `get_messages_with_reactions`). UPDATE replaced the message with the bare `payload.new` row, dropping `displayname`, `files` and `reactions`, and it fires on every `read_by` change.

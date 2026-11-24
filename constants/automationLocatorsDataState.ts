@@ -47,6 +47,7 @@ export const automationLocatorsDataState = {
         editDisplayNameButton: 'edit-display-name-button',
         changePasswordButton: 'change-password-button',
         deleteAccountButton: 'delete-account-button',
+        securityBackupButton: 'security-backup-button',
         manageKeysButton: 'manage-keys-button',
         logoutButton: 'logout-button',
         manageBiometricsButton: 'manage-biometrics-button',

@@ -125,7 +125,7 @@ Each run:
 
 The chat flows need two seeded users in the database, **"Android Simulator"** and **"Testing"**. `search-bar` needs a user whose name matches "iphone".
 
-**Run in CI, in this order:** `send-messages`, `send-emojies`, `send-reaction`, `edit-message`, `forward-message`, `forward-cancel-then-send`, `delete-message`, `interactive-users`, `search-bar`, `toggle-darkmode`, `change-display-name`, `change-password`.
+**Run in CI, in this order:** `send-messages`, `send-emojies`, `send-reaction`, `edit-message`, `forward-message`, `forward-cancel-then-send`, `delete-message`, `interactive-users`, `search-bar`, `toggle-darkmode`, `security-backup`, `change-display-name`, `change-password`.
 
 **Run by hand only:**
 

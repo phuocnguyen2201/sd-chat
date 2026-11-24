@@ -15,6 +15,12 @@ The Settings tab allows users to manage their profile, account settings, and aut
   - Take new photo with camera
   - Automatic image resizing and optimization
 
+### Security & Backup
+A "Security & Backup" row with an **Open** button (testID `security-backup-button`) pushes [`/tabs/managekeys/SecurityBackup`](../../../app/tabs/managekeys/SecurityBackup.tsx), which shows three options:
+- **Key Management**: "Manage Keys" opens `/tabs/managekeys/ManageKeys` (share, receive and back up keys).
+- **Biometric Authentication**: "Manage Biometrics" opens `/tabs/managekeys/EnableBiometric` with `previousScreen: 'setting'`.
+- **App PIN**: shows Set / Not set; "Set up PIN" or "Change PIN" runs `managePin()` (the PIN state and success message live on that screen now, not in Settings).
+
 ### Account Security
 - **Password Change**: Update account password with confirmation
 - **Account Deletion**: Permanently delete user account and all associated data

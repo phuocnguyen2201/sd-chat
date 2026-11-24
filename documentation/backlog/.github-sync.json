@@ -1126,6 +1126,20 @@
       "url": "https://github.com/phuocnguyen2201/sd-chat/issues/165",
       "title": "Apply `20261123000000_mask_usernames.sql` to the live project (SEC-18)",
       "item_id": "PVTI_lAHOARaDrs4BsxOqzhK_iFE"
+    },
+    "S2.5.4": {
+      "number": 171,
+      "id": 6579783527,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/171",
+      "title": "Settings: group Manage Keys, biometrics and App PIN under a Security & Backup screen",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhLavek"
+    },
+    "S2.5.5": {
+      "number": 172,
+      "id": 6579786077,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/172",
+      "title": "Run `security-backup.yaml` and the updated Settings flows, check the new screen on a device",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhLavp0"
     }
   }
 }
