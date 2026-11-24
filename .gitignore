@@ -50,3 +50,6 @@ ios/
 .reassure/
 # Flashlight raw reports (large); summary numbers go in documentation/testing/performance.md
 perf/reports/*.json
+
+/documentation/backlog/__pycache__/
+/documentation/backlog/sync_github_project.py
