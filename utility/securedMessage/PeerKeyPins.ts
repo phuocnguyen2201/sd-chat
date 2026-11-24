@@ -15,6 +15,16 @@ function peerKeyStorage(userId: string, peerId: string): string {
   return `peer_public_key_${userId}_${peerId}`;
 }
 
+// Message signing keys (security #8c) are pinned the same way, in their own slot.
+function peerSigningKeyStorage(userId: string, peerId: string): string {
+  if (!userId || !peerId) {
+    throw new Error('A local user id and a peer id are required to reach a pinned signing key');
+  }
+  return `peer_signing_key_${userId}_${peerId}`;
+}
+
+const PIN_OPTIONS = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+
 export const PeerKeyPins = {
   /**
    * Trust-on-first-use: the first public key ever seen for a peer is pinned
@@ -49,6 +59,30 @@ export const PeerKeyPins = {
     await SecureStore.setItemAsync(peerKeyStorage(userId, peerId), publicKey, {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
+  },
+
+  /** Trust-on-first-use for a peer's message signing key; see checkPeerKey. */
+  async checkPeerSigningKey(
+    userId: string,
+    peerId: string,
+    signingKey: string
+  ): Promise<{ state: PeerKeyState; pinned: string | null }> {
+    const storageKey = peerSigningKeyStorage(userId, peerId);
+    const pinned = await SecureStore.getItemAsync(storageKey, PIN_OPTIONS);
+    if (!pinned) {
+      await SecureStore.setItemAsync(storageKey, signingKey, PIN_OPTIONS);
+      return { state: 'new', pinned: signingKey };
+    }
+    return { state: pinned === signingKey ? 'match' : 'changed', pinned };
+  },
+
+  async getPinnedSigningKey(userId: string, peerId: string): Promise<string | null> {
+    return SecureStore.getItemAsync(peerSigningKeyStorage(userId, peerId), PIN_OPTIONS);
+  },
+
+  /** Overwrite the signing-key pin. Only after the user confirmed the change. */
+  async trustPeerSigningKey(userId: string, peerId: string, signingKey: string): Promise<void> {
+    await SecureStore.setItemAsync(peerSigningKeyStorage(userId, peerId), signingKey, PIN_OPTIONS);
   },
 
   /**

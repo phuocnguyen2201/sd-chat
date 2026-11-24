@@ -19,6 +19,13 @@ import { Icon } from '@/components/ui/icon';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { resolveConversationKeyInteractive } from '@/utility/securedMessage/ConversationKeyResolver';
+import {
+  buildSignedMessageRow,
+  classifySignatureCached,
+  type SignatureState,
+} from '@/utility/securedMessage/MessageSigning';
+import { resolveSenderKeys, type SenderKey } from '@/utility/securedMessage/SenderSigningKeys';
+import { PeerKeyPins } from '@/utility/securedMessage/PeerKeyPins';
 import { Picker } from 'emoji-mart-native';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
 import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
@@ -90,6 +97,13 @@ export default function ChatScreen() {
 
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
+
+  // Sender signatures (security #8c): message id -> what the reader is told.
+  const [signatureStates, setSignatureStates] = useState<Record<string, SignatureState>>({});
+  const senderKeysRef = useRef(new Map<string, SenderKey>());
+  const promptedSendersRef = useRef(new Set<string>());
+  // Bumped when the user trusts a changed key, so the messages are checked again.
+  const [trustedKeysVersion, setTrustedKeysVersion] = useState(0);
 
   const scrollRef = useRef<ScrollView | null>(null);
   const navigation = useNavigation();
@@ -313,6 +327,53 @@ export default function ChatScreen() {
     };
   }, [conversation_id]);
 
+  // Check each message's sender signature (security #8c).
+  useEffect(() => {
+    if (!userId || messages.length === 0) return;
+    let cancelled = false;
+
+    const check = async () => {
+      const keys = senderKeysRef.current;
+      // Senders with no key yet (not published, or not loaded) are asked for again.
+      const missing = [...new Set(messages.map((m) => m.sender_id ?? ''))].filter(
+        (id) => id && !keys.get(id)?.key
+      );
+      if (missing.length > 0) {
+        const resolved = await resolveSenderKeys(userId, missing);
+        resolved.forEach((k, id) => keys.set(id, k));
+      }
+
+      // A changed signing key is confirmed once per sender, like SEC-7. Until
+      // the user trusts it, messages signed with the new key show the warning.
+      for (const [peerId, k] of keys) {
+        if (!k.changedTo || promptedSendersRef.current.has(peerId)) continue;
+        promptedSendersRef.current.add(peerId);
+        const name = messages.find((m) => m.sender_id === peerId)?.displayname ?? '';
+        if (await PeerKeyPins.confirmPeerKeyChange(name)) {
+          await PeerKeyPins.trustPeerSigningKey(userId, peerId, k.changedTo);
+          keys.set(peerId, { key: k.changedTo });
+          setTrustedKeysVersion((v) => v + 1);
+        }
+      }
+      if (cancelled) return;
+
+      const next: Record<string, SignatureState> = {};
+      for (const m of messages) {
+        if (!m.id) continue;
+        next[m.id] = classifySignatureCached(m, keys.get(m.sender_id ?? '')?.key ?? null);
+        // Each check takes milliseconds: let the UI thread run in between.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (cancelled) return;
+      }
+      setSignatureStates(next);
+    };
+
+    check().catch((error) => console.warn('Signature check failed:', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, userId, trustedKeysVersion]);
+
   // Auto-scroll to bottom
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -390,16 +451,17 @@ export default function ChatScreen() {
 
     // Encrypt and send the forwarded message
     const encryptedMessage = MessageEncryption.encryptMessage(plainText, forwardPartyKey);
+    if (!userId) throw new Error('No signed-in user to forward as');
+    // Signed by the person forwarding, not the original sender (security #8c).
     const msg: Message = {
-      conversation_id: forwardConversationId as string || '',
-      sender_id: userId,
-      content: encryptedMessage.ciphertext,
-      nonce: encryptedMessage.nonce,
-      key_nonce: encryptedMessage.keyNonce,
-      wrapped_key: encryptedMessage.wrappedKey,
-      message_type: messageToForward.message_type,
-      is_forward: true
-    }
+      ...buildSignedMessageRow({
+        conversationId: forwardConversationId,
+        senderId: userId,
+        messageType: messageToForward.message_type || 'text',
+        envelope: encryptedMessage,
+      }),
+      is_forward: true,
+    };
     const { error } = await messageAPI.forwardMessage(msg)
 
     if (error) {
@@ -450,16 +512,21 @@ export default function ChatScreen() {
     }
 
     //Forward the message first and get the id for the new conversation.
+    if (!userId) throw new Error('No signed-in user to forward as');
     const newFwdMessage: Message = {
-      sender_id: userId,
-      conversation_id: forwardConversationId as string || '',
-      message_type: messageToForward?.message_type,
-      content: newContent,
-      nonce: newNonce,
-      wrapped_key: newWrappedKey,
-      key_nonce: newKeyNonce,
-      is_forward: true
-    }
+      ...buildSignedMessageRow({
+        conversationId: forwardConversationId,
+        senderId: userId,
+        messageType: messageToForward?.message_type || 'text',
+        envelope: {
+          ciphertext: newContent,
+          nonce: newNonce,
+          wrappedKey: newWrappedKey,
+          keyNonce: newKeyNonce,
+        },
+      }),
+      is_forward: true,
+    };
     // insert new message first
     const { data: dataFwdMsg, error: fwdError } = await messageAPI.forwardMessage(newFwdMessage)
 
@@ -625,13 +692,22 @@ export default function ChatScreen() {
       const encryptedMSG = MessageEncryption.encryptMessage(newMessage, conversationKey);
       // Check if editing or new message
       if(editingMessageId) {
+        // Signed again over the same id, so the edit is still attributable.
+        const signed = buildSignedMessageRow({
+          id: editingMessageId,
+          conversationId: conversation_id,
+          senderId: userId,
+          messageType: 'text',
+          envelope: encryptedMSG,
+        });
         const { error } = await supabase
         .from('messages')
-        .update({ 
-          content: encryptedMSG.ciphertext, 
-          nonce: encryptedMSG.nonce, 
-          key_nonce: encryptedMSG.keyNonce, 
-          wrapped_key: encryptedMSG.wrappedKey })
+        .update({
+          content: signed.content,
+          nonce: signed.nonce,
+          key_nonce: signed.key_nonce,
+          wrapped_key: signed.wrapped_key,
+          signature: signed.signature })
         .eq('id', editingMessageId)
         .eq('sender_id', userId);
         
@@ -646,14 +722,12 @@ export default function ChatScreen() {
       }
       else {
         const { error } = await supabase.from('messages').insert([
-          {
-            conversation_id: conversation_id,
-            sender_id: userId,
-            content: encryptedMSG.ciphertext,
-            nonce: encryptedMSG.nonce,
-            key_nonce: encryptedMSG.keyNonce,
-            wrapped_key: encryptedMSG.wrappedKey,
-          },
+          buildSignedMessageRow({
+            conversationId: conversation_id,
+            senderId: userId,
+            messageType: 'text',
+            envelope: encryptedMSG,
+          }),
         ]);
 
           if (error) {
@@ -908,6 +982,16 @@ export default function ChatScreen() {
                       {renderMessageContent(m, url, data, isCurrentUser)}
                     </Box>
                   </Box>
+                  {m.id && signatureStates[m.id] === 'invalid' ? (
+                    <Box className={`flex-row -mt-1 mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                      <Text
+                        testID={automationLocatorsDataState.chatScreen.signatureWarning}
+                        className="text-xs text-red-500"
+                      >
+                        ⚠ Couldn't verify who sent this
+                      </Text>
+                    </Box>
+                  ) : null}
                   {/*Reaction loading*/}
                   <Box
                     className={`flex-row mb-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}

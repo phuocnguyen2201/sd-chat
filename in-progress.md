@@ -1,5 +1,15 @@
 # In Progress / Open Items
 
+## SEC-8c message signatures (2026-11-24): code + unit tests done, not deployed or on a device
+0. **Before `db push`:** `git pull --ff-only origin main` (brings `20261123000100_pin_search_path.sql`) and `git checkout backup/sec-24-18-14 -- supabase/migrations/20261123000000_mask_usernames.sql`. The rest of `backup/sec-24-18-14` (SEC-24 `VaultKdfParams`, SEC-18 tests, `backlog.json`) is still unmerged although its username-mask migration is live: decide whether to merge it.
+1. **Apply `supabase/migrations/20261124000000_message_signatures.sql`.** The columns already exist live; the RPC change is what matters. Until it's applied the chat screen gets no `signature`, so signed messages look unsigned (no warning, no protection).
+2. **Deploy the `push` function** (`supabase functions deploy push`). Until then, notification previews treat signed messages as having no signature (still shown while the cutoff is null).
+3. Two-device test: send, edit, forward, image and file all show no warning. Changing a row's `content` or `sender_id` in the dashboard shows the warning. Changing a peer's `signing_public_key` shows the "Security key changed" dialog. Old messages show normally.
+4. Run CryptoBench on a phone: if `verifyMessageSignature` is slow on Hermes, consider `@noble/curves` ed25519 (about 2× faster in Node).
+5. Later: set `SIGNATURES_REQUIRED_AFTER` in `MessageSigning.ts` once most users run this version.
+6. Maestro: no flow checks `signature-warning` yet.
+7. Close GitHub #70 and mark SEC-8c done in `backlog.json` when it's verified on a device.
+
 ## #25 / #26 / remembered accounts (2026-11-23): code + unit tests done, not on a device
 1. **Native rebuild** (dev client / EAS): `android.allowBackup: false` only takes effect in a new build.
 2. Restart Metro with `npx expo start -c` (the Tailwind config changed too).
@@ -79,7 +89,7 @@ Full detail in progress.md and security-scan.md. Manual steps in need-action.md.
 3. **`security/peer-key-pinning`:** on a test project, change a test peer's `profiles.public_key` (or a row's `other_party_pub_key`), clear the local conversation-key cache, open the chat - confirm the "Security key changed" dialog appears, Cancel gives no access/no DB write, "Trust new key" restores access.
 4. **`security/key-import-and-hkdf`:** scan a QR with a private key that doesn't match the account and confirm it's rejected with nothing changed; open an existing chat with the local key cache cleared (exercises the legacy-HKDF fallback) and confirm it still opens; create a new chat between two up-to-date devices.
 5. **None of this has touched the live Supabase project.** No live checks were run this pass (unlike passes 2/3), since these three findings are pure client-side crypto/logic fixes with no RLS/RPC/schema component.
-6. **#8c (no per-sender authentication within a conversation) is deferred, not fixed** - documented as a known limitation in `ConversationKeyManagement.ts`. Revisit after #7 lands, since a real fix needs per-user signing keys distributed/pinned the same way.
+6. ~~**#8c is deferred**~~ Implemented 2026-11-24, see the SEC-8c section at the top.
 
 ## Sealed key QR (security #4, 2026-09-28): code done, deploy pending (need-action.md)
 1. Apply `20260928000100_local_pairing_ephemeral_key.sql`, then deploy `device-pairing`, then test on two devices (the old device's sealing path is untested on a device).

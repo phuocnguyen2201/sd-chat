@@ -6,6 +6,7 @@ import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useSession } from '@/utility/session/SessionProvider';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { routeToKeyRecovery } from '@/utility/securedMessage/IdentityKeyGuard';
+import { publishOwnSigningKey } from '@/utility/securedMessage/SenderSigningKeys';
 
 /*
   `color` is ColorValue, not string: that is what React Navigation hands to
@@ -40,6 +41,9 @@ export default function TabLayout() {
       if (cancelled) return;
       if (state === 'ok') {
         setKeyVerified(true);
+        // The identity key is known good, so the signing key derived from it
+        // is too (security #8c). Not awaited: it doesn't gate the tabs.
+        publishOwnSigningKey(user.id, profile.signing_public_key);
       } else {
         routeToKeyRecovery(state);
       }

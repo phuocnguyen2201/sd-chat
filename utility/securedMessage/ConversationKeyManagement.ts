@@ -13,15 +13,10 @@ import * as Crypto from 'expo-crypto';
   participant by design, so a legacy entry for a conversation this user is in is
   the correct key for it.
 
-  Known limitation (security #8c, deferred): because every participant holds
-  the same symmetric key, a message's AEAD tag only proves "someone with this
-  conversation key produced this" - not which member. Any group member can
-  therefore forge a message that appears to come from any other member; there
-  is no per-sender signature or MAC. Fixing this properly needs a per-user
-  signing keypair (distributed and pinned - see PeerKeyPins, security #7),
-  new columns to carry the signature, and re-signing on forward/edit. That is
-  a much larger change than this Low-severity finding's other parts (#8a, #8b)
-  warranted on its own, so it is tracked as a follow-up rather than bundled in.
+  Every participant holds the same symmetric key, so a message's AEAD tag
+  only proves "someone with this conversation key produced this", not which
+  member. Who sent a message is proven separately by the sender's Ed25519
+  signature on the row (security #8c, see MessageSigning.ts).
 */
 export class ConversationKeyManager {
   

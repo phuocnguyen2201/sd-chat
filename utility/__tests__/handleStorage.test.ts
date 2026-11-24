@@ -7,9 +7,12 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('expo-crypto', () => ({
   getRandomBytes: (n: number) => new Uint8Array(require('crypto').randomBytes(n)),
+  randomUUID: () => require('crypto').randomUUID(),
 }));
+// The sender's identity key: message rows are signed with a key derived from it (security #8c).
+const mockIdentityKey = Buffer.from(require('tweetnacl').box.keyPair().secretKey).toString('base64');
 jest.mock('expo-secure-store', () => ({
-  getItem: jest.fn(),
+  getItem: jest.fn((key: string) => (key === 'user_encryption_key_user-1' ? mockIdentityKey : null)),
   setItem: jest.fn(),
   getItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
@@ -55,6 +58,7 @@ jest.mock('../connection', () => ({
 
 import { storageAPIs } from '../handleStorage';
 import { MessageEncryption } from '../securedMessage/secured';
+import { classifySignature, ownSigningPublicKey } from '../securedMessage/MessageSigning';
 
 const CONVO = 'convo-1';
 const USER = 'user-1';
@@ -109,6 +113,10 @@ describe('storageAPIs.uploadImageToSupabase', () => {
       )
     );
     expect(decrypted.name).toBe('super-secret-plans.jpg');
+
+    // The row is signed by the sender, over the image type and the sealed descriptor.
+    expect(messageRow).toMatchObject({ sender_id: USER, conversation_id: CONVO, message_type: 'image' });
+    expect(classifySignature(messageRow, ownSigningPublicKey(USER))).toBe('verified');
 
     // The files-table row blanks the original name and mime type.
     const [fileRow] = mockFilesInsert.mock.calls[0];

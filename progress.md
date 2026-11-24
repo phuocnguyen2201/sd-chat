@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-11-24: Question on how the app PIN is built
+- Answered only, no code changed. The app PIN is the app's own code (`utility/auth/AppPin.ts` + `ConfirmIdentityProvider.tsx`), not the OS passcode. It is built on device and library parts: SecureStore (Keychain/Keystore), expo-crypto random salt, @noble/hashes PBKDF2.
+- SEC-8c (GitHub #70) implemented, code + unit tests:
+  - New `MessageSigning.ts`: Ed25519 key derived by HKDF from the identity key; signs id, conversation, sender, type and the encrypted fields; `SIGNATURES_REQUIRED_AFTER` cutoff, null for now (decision c).
+  - New `SenderSigningKeys.ts`: publishes `profiles.signing_public_key` at the tabs gate; reads and pins peer keys on first use (new signing pins in `PeerKeyPins`).
+  - Signed on send, edit, forward (as the forwarder) and image/file upload. The chat shows "⚠ Couldn't verify who sent this" on a bad signature; a changed key gets the SEC-7 dialog.
+  - Notifications check signatures (decision: yes) with no network call; the `push` function now sends `signature`, `created_at` and `signing_public_key`.
+  - Migration `20261124000000_message_signatures.sql` (columns idempotent, format checks, RPC returns `signature`).
+  - 160/160 Jest. Crypto bench has sign/verify rows (Jest: about 36 ms to sign, 72 ms to check).
+- `supabase db push` failed: "Remote migration versions not found in local migrations directory". The remote has `20261123000000_mask_usernames` (only on branch `backup/sec-24-18-14`, same SQL as live) and `20261123000100_pin_search_path` (on `origin/main` via PR #167; local `main` is 2 commits behind). Gave the user the commands to restore both before pushing.
+- The signatures migration now keeps `search_path = ''` on the recreated `get_messages_with_reactions`; otherwise it would have undone #14 for that function. Checked live, read-only: both columns are nullable text, and the 2 existing `signing_public_key` values pass the new format check.
+- Docs updated: `documentation/testing/README.md`, `testing/performance.md`, `app/tabs/msg/room_id.md`, `utility/README.md`, `supabase/README.md`. New tests no longer mock the whole `react-native` module (README rule). `backlog.json` is not on `main` (only on `backup/sec-24-18-14`), so SEC-8c's status there isn't updated.
+- Branch `security/sec-8c` was pushed by mistake (one commit with everything, made from the old local `main` without #14). Deleted locally and on GitHub; PR #168 closed. The code is back as uncommitted changes on `main`, now at `origin/main` (with #14). 174/174 Jest. `supabase migration list` now matches except `20261124000000`, which is local only, as expected.
+
 ## 2026-11-23 (later): Backlog updated for remembered accounts, SEC-25, SEC-26
 - New story S1.5 "Switch between accounts saved on this phone" under the Accounts & Authentication epic: #154, tasks #155–#162 (6 done, 2 to do: Maestro run, device test).
 - S7.3 (#122): SEC-25 (#123) and SEC-26 (#124) closed as Done. New open tasks: #163 regenerate the Android project (`android/app/src/main/AndroidManifest.xml` still has `allowBackup="true"`, only `app.json` was changed), #164 device test.

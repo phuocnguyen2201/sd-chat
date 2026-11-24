@@ -76,7 +76,10 @@ Sends a new encrypted message.
    - Encrypted content (ciphertext)
    - Nonce for encryption
    - Wrapped key and key nonce
+   - A client-made message `id` and the sender's `signature` (built by `buildSignedMessageRow`, see "Sender signatures" below)
 5. Clears input field
+
+When editing, the same function updates the row instead and signs it again under the same `id`.
 6. Real-time subscription handles UI update
 
 #### `pickImage()`
@@ -111,6 +114,13 @@ Handles file selection and upload.
   2. Decrypt message using unwrapped message key
   3. Display plaintext message
 
+### Sender signatures (security #8c)
+Everyone in a chat holds the same conversation key, so decrypting a message doesn't prove who wrote it. Each row is also signed with the sender's Ed25519 key (`utility/securedMessage/MessageSigning.ts`).
+- **Signed when sending:** text, edits (same `id`), forwards (signed by the person forwarding, with `is_forward` set), and image/file uploads (in `handleStorage.ts`).
+- **Checked when reading:** after `messages` changes, the screen loads each sender's key with `resolveSenderKeys` (pinned on first use). It checks every message with `classifySignatureCached`, giving the UI thread a turn between checks. Results go into `signatureStates`.
+- **Warning:** a message in state `invalid` shows "⚠ Couldn't verify who sent this" under the bubble (testID `signature-warning`). Older unsigned messages show normally until `SIGNATURES_REQUIRED_AFTER` is set.
+- **Changed key:** if a sender's published key no longer matches the pin, the "Security key changed" dialog appears once per sender. Until the user trusts the new key, the pin is used, so messages signed with the new key show the warning.
+
 ### Security Features
 - Each message uses a unique encryption key
 - Keys are wrapped with conversation key
@@ -144,6 +154,7 @@ Handles file selection and upload.
 
 ### Message Rendering
 - **Text Messages**: Decrypted and displayed as text
+- **Signature warning**: shown under any bubble whose sender signature doesn't verify
 - **Image Messages**: Rendered as clickable images
 - **File Messages**: Rendered as download links with icon
 
@@ -183,6 +194,7 @@ Handles file selection and upload.
 - `@supabase/supabase-js`: Database and real-time
 - `@/utility/handleStorage`: Storage operations
 - `@/utility/securedMessage/secured`: Message encryption
+- `@/utility/securedMessage/MessageSigning`, `SenderSigningKeys`, `PeerKeyPins`: sender signatures and key pins
 - `@/utility/session/SessionProvider`: Session and conversation-key context
 - `@/components/ZoomImage`: Image zoom component
 

@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: message, error: messageError } = await db
       .from("messages")
-      .select("id, sender_id, conversation_id, content, nonce, wrapped_key, key_nonce, message_type")
+      .select("id, sender_id, conversation_id, content, nonce, wrapped_key, key_nonce, message_type, signature, created_at")
       .eq("id", messageId)
       .maybeSingle();
     if (messageError) throw messageError;
@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: sender } = await db
       .from("profiles")
-      .select("displayname, public_key")
+      .select("displayname, public_key, signing_public_key")
       .eq("id", message.sender_id)
       .maybeSingle();
     const displayname = sender?.displayname || "New Message";
@@ -150,6 +150,10 @@ Deno.serve(async (req: Request) => {
         nonce: message.nonce,
         wrapped_key: message.wrapped_key,
         key_nonce: message.key_nonce,
+        // The app checks the sender's signature before showing text (security #8c).
+        signature: message.signature,
+        created_at: message.created_at,
+        signing_public_key: sender?.signing_public_key,
       };
       if (new TextEncoder().encode(JSON.stringify(withCiphertext)).length <= MAX_DATA_BYTES) {
         previewData = withCiphertext;

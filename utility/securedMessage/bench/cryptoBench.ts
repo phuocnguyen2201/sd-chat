@@ -2,6 +2,7 @@ import { ChaCha20Poly1305 } from '@stablelib/chacha20poly1305';
 import { scryptAsync } from '@noble/hashes/scrypt';
 import * as nacl from 'tweetnacl';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { buildSignedMessageRow, classifySignature, ownSigningPublicKey } from '@/utility/securedMessage/MessageSigning';
 
 /*
   Crypto timing cases, shared by the Jest bench (Node numbers, for spotting
@@ -76,6 +77,17 @@ export async function buildCryptoCases(): Promise<{ cases: BenchCase[]; cleanup:
     MessageEncryption.setPrivateKey(BENCH_USER_ID, self.secretKey);
     const wrapped = await MessageEncryption.wrapConversationKey(conversationKey, self.publicKey, BENCH_USER_ID);
 
+    // Message signatures (security #8c), signed with the bench user's derived key.
+    const signRow = () =>
+        buildSignedMessageRow({
+            conversationId: '00000000-0000-4000-8000-000000000000',
+            senderId: BENCH_USER_ID,
+            messageType: 'text',
+            envelope: shortEnvelope,
+        });
+    const signedRow = signRow();
+    const signingKey = ownSigningPublicKey(BENCH_USER_ID);
+
     // A row wrapped before the HKDF fix, so unwrap has to take the fallback path.
     const legacyNonce = nacl.randomBytes(12);
     const legacyKey = legacyKdfSha512(
@@ -94,6 +106,8 @@ export async function buildCryptoCases(): Promise<{ cases: BenchCase[]; cleanup:
         { name: 'encryptMessage (short)', iterations: 500, fn: () => MessageEncryption.encryptMessage(shortText, conversationKey) },
         { name: 'encryptMessage (4 KB)', iterations: 200, fn: () => MessageEncryption.encryptMessage(longText, conversationKey) },
         { name: 'decryptMessage (short)', iterations: 500, fn: () => MessageEncryption.decryptMessage(shortEnvelope, conversationKey) },
+        { name: 'signMessage (Ed25519)', iterations: 100, fn: signRow },
+        { name: 'verifyMessageSignature (Ed25519)', iterations: 100, fn: () => classifySignature(signedRow, signingKey) },
         ...attachments.flatMap((a) => [
             { name: `encryptAttachment (${a.label})`, iterations: a.iterations, fn: () => MessageEncryption.encryptAttachment(a.bytes) },
             {

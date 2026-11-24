@@ -19,6 +19,7 @@ export type Profile = {
   username?: string;
   displayname?: string;
   public_key?: string;
+  signing_public_key?: string | null;
   avatar_url?: string;
   bio?: string;
   created_at?: string;

@@ -31,6 +31,8 @@ Checks that `storageAPIs.uploadImageToSupabase` never sends the real filename or
 - the encrypted file, stored under a random UUID name with a generic MIME type;
 - a descriptor (name, MIME type, per-file key) encrypted with the conversation key.
 
+It also checks that the message row is signed by the sender (security #8c). The SecureStore mock holds an identity key for the test user, because rows can't be signed without one.
+
 ### `securedMessage/__tests__/AttachmentEncryption.test.ts`: attachment encryption (security #5)
 **File content encryption**
 - A large binary file and an empty file both decrypt back to the original.
@@ -89,6 +91,28 @@ The first public key the device sees for a contact is saved ("pinned"). If the c
 - **`confirmPeerKeyChange`:** shows an alert that can't be dismissed without a choice. Returns `true` when the user trusts the new key and `false` when they cancel.
 - **`resolveConversationKeyInteractive`:** if the key hasn't changed, returns the result as is. If it has, asks the user: on confirm it trusts the key and retries, on decline it returns `untrusted`.
 - **`backfillMissingWrappedKeys`:** skips contacts whose key changed, and wraps keys normally for pinned or new contacts. Does nothing when no contact is missing a key, or when this device doesn't hold the key the profile advertises.
+
+### `securedMessage/__tests__/MessageSigning.test.ts`: per-sender message signatures (security #8c)
+Every member holds the same conversation key, so only the sender's own Ed25519 signature proves who wrote a message.
+- **Signing key:** the same identity key always gives the same signing key, and a different identity key gives a different one. A replaced identity key is picked up straight away.
+- **Verification:** a message verifies against its sender's key. A message signed by another member (Bob posing as Alice) is `invalid`. Changing any signed field (`id`, `conversation_id`, `sender_id`, `message_type`, `content`, `nonce`, `wrapped_key`, `key_nonce`) makes it `invalid`.
+- **Edge cases:**
+  - A signed message with no key to check against is `invalid`.
+  - Garbage signatures or keys give `invalid` instead of throwing.
+  - A missing `message_type` counts as `text`.
+  - Signing without an identity key throws.
+- **Unsigned (older) messages:** shown normally while no cutoff is set or when created before it. `invalid` when created at or after the cutoff, or with no date.
+- **Edit and forward:** an edit is signed again under the same id, and the old signature no longer matches. A forward is signed by the person forwarding. A pre-encryption attachment forwarded as is still verifies with its empty fields left null.
+- **Signing pins** (`PeerKeyPins`): first use pins the key, then later checks report `match` or `changed`. A changed key isn't adopted until it's trusted. Signing pins are kept apart from identity-key pins and from other local accounts.
+
+### `push-notification/__tests__/MessageNotification.test.ts`: signatures in notification previews (security #8c)
+Tests `senderVerifies`, which runs before a notification shows any text:
+- a sender never seen before is pinned from the key the push carries;
+- after that, the pin wins over a different key in the push (a server-side swap doesn't verify);
+- a signed message with no key is refused;
+- your own messages are checked against this device's key;
+- unsigned messages pass while no cutoff is set;
+- a tampered message is refused.
 
 ## End-to-end tests (Maestro)
 Flows live in `maestro/`. `.github/scripts/run-maestro.sh` runs them in a fixed order against the release APK. The flows share state (the signed-in account and the open chat), so the order matters.

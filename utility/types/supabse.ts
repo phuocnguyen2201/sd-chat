@@ -133,6 +133,7 @@ export interface UserProfile {
   displayname: string | null
   avatar_url: string | null
   public_key: string | null
+  signing_public_key?: string | null
   created_at: string
   files_profiles: Files [] | null
 }
@@ -184,6 +185,8 @@ export interface Message {
   files?: Array<Files>;
   is_forward?: boolean;
   created_at?: string;
+  /** Sender's Ed25519 signature over the row (security #8c); null on older messages. */
+  signature?: string | null;
 }
 
 export interface Reaction {

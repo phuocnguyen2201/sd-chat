@@ -57,6 +57,7 @@ Handles push notifications when new messages are received. This function is trig
    - Retrieves recipient's FCM token from profiles table
 
 3. **Push Notification**
+   - For preview-capable (Android) tokens, a text message's data-only push also carries the ciphertext plus `signature`, `created_at` and the sender's `signing_public_key` (security #8c). The app checks the signature before showing any text (`utility/push-notification/MessageNotification.ts`).
    - Sends notification to Expo Push Notification API
    - Includes:
      - Recipient's FCM token
@@ -207,6 +208,15 @@ Four tables, all added via hand-run SQL (not currently tracked under `supabase/m
 **`local_pairing_codes`** — added 2026-09-15 (commit `3104094`) for the same-room pairing-code gate: `user_id`, `issued_by_device_id`, `code_hash` (never the plaintext code), `status` (`pending → verified`, plus `expired`), `expires_at`, `attempts`, `locked_until`, `verified_by_device_id`, and since 2026-09-28 (migration `20260928000100_local_pairing_ephemeral_key.sql`, security #4) `requester_ephemeral_pub` / `requester_key_proof`. Those two are the new device's one-time X25519 public key and its HMAC over the code; both are public. `local-code-verify` requires them (a 400 "Update SD Chat" otherwise) and stores them only on a match, and `local-code-status` returns them once verified, so the old device can seal the key QR to that key. Same RLS rationale as `device_pairing_requests` — **no client-facing policies**; every read/write goes through the `local-code-*` actions above. A partial unique index limits one active (`pending`/`verified`) code per account.
 
 **`key_backups`** — added 2026-09-22 for the key vault, migration at `sd-chat-vault/supabase/migrations/20260922000000_key_backups.sql`, **not applied yet**. One row per account: the scrypt parameters (`kdf_n`/`kdf_r`/`kdf_p`, `kdf_salt`) and `nonce` needed to re-derive the sealing key, plus `vault_ref` and `blob_version`. **No key material and no passphrase** — none of it is secret on its own, and none of it is any use without the passphrase, which is stored nowhere. The sealed key itself lives outside Supabase entirely, on the vault service (`sd-chat-vault/`). RLS: `auth.uid() = user_id` for all four verbs, so the client reads and writes it directly. `on delete cascade` from `profiles`, so the row goes when the account does — the blob on the vault does not, which is why `deleteAccountAndLocalData` deletes it explicitly before signing out.
+
+### Message signatures (security #8c)
+
+Migration `20261124000000_message_signatures.sql`:
+- `messages.signature`: the sender's Ed25519 signature over the row (base64, 64 bytes; check `messages_signature_format`). Null on messages from before #8c.
+- `profiles.signing_public_key`: the account's Ed25519 public key (base64, 32 bytes; check `profiles_signing_public_key_format`). The app writes it; readers pin it on first use.
+- `get_messages_with_reactions` is recreated to also return `signature` (a return-type change needs `drop` + `create`). It keeps `search_path = ''` from `20261123000100_pin_search_path.sql`, and EXECUTE stays limited to `authenticated`/`service_role`.
+
+Both column adds use `if not exists`: the columns were first added by hand on the live project.
 
 ### Auth: sign-up and email confirmation
 

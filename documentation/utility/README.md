@@ -11,7 +11,8 @@ utility/
 ├── handleStorage.ts                 # File and image storage operations
 ├── messages.ts                      # API functions for all database operations
 ├── push-notification/
-│   └── push-Notification.ts         # Push notification registration and management
+│   ├── push-Notification.ts         # Push notification registration and management
+│   └── MessageNotification.ts       # Android data-only pushes: decrypt, check the sender signature, show
 ├── securedMessage/
 │   ├── secured.ts                   # Message encryption/decryption, ephemeral ECDH sealing
 │   ├── ConversationKeyManagement.ts # Conversation key caching and storage
@@ -23,6 +24,9 @@ utility/
 │   ├── RemoteDevicePairing.ts       # Server-relayed device-pairing client (device-pairing Edge Function)
 │   ├── DeviceIdentity.ts            # Stable per-install device id + `devices` row registration
 │   ├── ConversationKeyResolver.ts   # Finds or unwraps a conversation's key, with fallback candidates
+│   ├── PeerKeyPins.ts               # Trust-on-first-use pins for peers' identity and signing keys
+│   ├── MessageSigning.ts            # Per-sender Ed25519 message signatures (security #8c)
+│   ├── SenderSigningKeys.ts         # Publishes this user's signing key, looks up and pins senders' keys
 │   └── VaultBackup.ts               # Passphrase-sealed identity-key backup and recovery (the vault)
 ├── session/
 │   └── SessionProvider.tsx          # Session, profile, theme, and conversation-key context
@@ -111,8 +115,8 @@ Combined data fetching:
 - `avatars`: User avatars
 
 **`storageAPIs`**:
-- `uploadImageToSupabase()`: Upload image to messages bucket, create signed URL, insert message
-- `uploadFileToSupabase()`: Upload file to files bucket, create signed URL, insert message
+- `uploadImageToSupabase()`: Upload image to messages bucket, create signed URL, insert a signed message row
+- `uploadFileToSupabase()`: Upload file to files bucket, create signed URL, insert a signed message row
 - `uploadAvatarToSupabase()`: Upload avatar, delete old avatar, update profile
 - `resizedImage()`: Resize and compress image (128px width, 70% quality, JPEG)
 - `deleteAvatarFromSupabase()`: Delete user's avatar from storage
@@ -306,6 +310,29 @@ The `absent` / `failed` distinction is load-bearing: minting a fresh conversatio
 
 This is also what brings conversations back after a vault recovery, since the vault blob holds only the identity key.
 
+### `securedMessage/MessageSigning.ts`
+**Purpose**: Prove who sent a message (security #8c). Every member holds the same conversation key, so only the sender's own signature shows which member wrote a row.
+
+**Key**: Ed25519, seeded with HKDF-SHA512 from the X25519 identity secret (`info = "sd-chat/signing/v1"`). Every device holding the identity key has the same signing key, so nothing new is stored or synced.
+
+**What is signed** (length-prefixed, domain `sdchat-msg-v1`): `id`, `conversation_id`, `sender_id`, `message_type` (empty means `text`), `content`, `nonce`, `wrapped_key`, `key_nonce`. Missing fields sign as `''`.
+
+**Exports**:
+- `buildSignedMessageRow({ conversationId, senderId, messageType, envelope, id? })`: the columns for an insert or edit, with a new UUID unless `id` is given. Throws without an identity key.
+- `classifySignature(message, senderKey, requiredAfter?)` → `'verified' | 'unsigned' | 'invalid'`. A signed message with no key to check against is `invalid`. An unsigned one is `unsigned`, unless `SIGNATURES_REQUIRED_AFTER` is set and the message was created at or after it.
+- `classifySignatureCached(...)`: the same, cached for as long as the app runs (up to 2000 results).
+- `ownSigningKeyPair(userId)` / `ownSigningPublicKey(userId)`, `deriveSigningKeyPair(secret)`, `signingBytes`, `signFields`, `verifyFields`.
+- `SIGNATURES_REQUIRED_AFTER`: `null` for now. Set it to an ISO date once most users send signed messages.
+
+### `securedMessage/SenderSigningKeys.ts`
+**Purpose**: Where signing keys come from.
+- `publishOwnSigningKey(userId, published)`: writes `profiles.signing_public_key` if it's missing or stale. Called from the tabs layout once the identity key is verified.
+- `resolveSenderKeys(localUserId, senderIds)` → `Map<id, { key, changedTo? }>`: your own id gets this device's key. A peer's published key is pinned on first use (`PeerKeyPins.checkPeerSigningKey`). A different published key is returned as `changedTo` while `key` stays the pin. Offline, it falls back to the pins.
+
+### `push-notification/MessageNotification.ts`
+**Purpose**: Show Android message notifications with the decrypted text, without any network call.
+- `senderVerifies(userId, push)`: checks the push's signature against the pinned key (your own key for your own messages). For a sender never seen before, it pins the `signing_public_key` the push carries. A changed key is never trusted here. If the check fails, the notification says "New message".
+
 ### `securedMessage/VaultBackup.ts`
 **Purpose**: The "doomsday vault" — a second recovery path for the identity private key, for when no device is left to pair with. Zero-knowledge: the key is sealed on-device and the vault only ever receives ciphertext.
 
@@ -355,7 +382,7 @@ This is also what brings conversations back after a vault recovery, since the va
 - `Database`: Complete database schema with tables, views, functions
 - `UserProfile`: User profile interface
 - `Conversation`: Conversation interface with participants
-- `Message`: Message interface
+- `Message`: Message interface (includes `signature`, null on messages from before security #8c)
 - `ApiResponse<T>`: Generic API response wrapper
 - `Json`: JSON value type
 
@@ -381,7 +408,7 @@ This is also what brings conversations back after a vault recovery, since the va
 
 **Fields**:
 - User: id, email, user_metadata, app_metadata, timestamps
-- Profile: id, email, username, displayname, fcm_token, public_key, avatar_url, bio, timestamps
+- Profile: id, email, username, displayname, public_key, signing_public_key, avatar_url, bio, timestamps
 - UserContextType: user, profile, loading, refreshProfile, logout
 
 ## Usage Patterns
@@ -459,8 +486,9 @@ const image = await handleDeviceFilePath.pickImageFromAlbumOrGallery();
 4. **Key Derivation**: Uses HKDF for key derivation from shared secrets
 5. **Nonce Management**: Unique nonces for each encryption operation
 6. **Ephemeral Pairing Keys**: Device-pairing key pairs (`generateEphemeralKeyPair`) exist only in memory, are never written to secure storage, and are wiped (`.fill(0)`) as soon as a handshake completes, fails, or is cancelled
-7. **Vault Backups**: the identity key is sealed on-device with a scrypt-derived key before it is uploaded; the vault stores ciphertext and never sees the passphrase or the key. The account id is bound in as AEAD associated data, so a blob cannot be opened under a different account. A forgotten passphrase is unrecoverable by design.
-8. **Service Role Key — KNOWN ISSUE, not yet fixed**: `connection.ts` currently exports `supabaseAdmin` built from `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`. Because Expo inlines any `EXPO_PUBLIC_*` variable into the client bundle, the service-role key (which bypasses RLS) ships inside the compiled app and is extractable from it. It's actively used client-side for account/message deletion (`utility/messages.ts`) and `auth.admin.deleteUser()`. This needs to move into server-side Edge Functions and the key needs rotating; deliberately left untouched during the device-pairing work below so it doesn't get committed together with unrelated changes.
+7. **Sender Signatures**: every message row carries the sender's Ed25519 signature (`MessageSigning.ts`), checked against a key pinned on first use. This proves which member wrote a message even though all members share the conversation key.
+8. **Vault Backups**: the identity key is sealed on-device with a scrypt-derived key before it is uploaded; the vault stores ciphertext and never sees the passphrase or the key. The account id is bound in as AEAD associated data, so a blob cannot be opened under a different account. A forgotten passphrase is unrecoverable by design.
+9. **Service Role Key — KNOWN ISSUE, not yet fixed**: `connection.ts` currently exports `supabaseAdmin` built from `EXPO_PUBLIC_SUPABASE_SERVICE_KEY`. Because Expo inlines any `EXPO_PUBLIC_*` variable into the client bundle, the service-role key (which bypasses RLS) ships inside the compiled app and is extractable from it. It's actively used client-side for account/message deletion (`utility/messages.ts`) and `auth.admin.deleteUser()`. This needs to move into server-side Edge Functions and the key needs rotating; deliberately left untouched during the device-pairing work below so it doesn't get committed together with unrelated changes.
 
 ## Error Handling
 

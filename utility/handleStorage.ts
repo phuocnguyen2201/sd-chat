@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DocumentPickerAsset } from 'expo-document-picker';
 import { Constants } from '../constants/Constants';
 import { AttachmentDescriptor, MessageEncryption } from './securedMessage/secured';
+import { buildSignedMessageRow } from './securedMessage/MessageSigning';
 
 export const storageAPIs = {
   async uploadImageToSupabase(
@@ -54,17 +55,15 @@ export const storageAPIs = {
 
     // Send message with the encrypted descriptor (name, mime, per-file key) -
     // never the plaintext filename.
+    if (!userId) throw new Error('No signed-in user to send as');
     const {data: newImage, error: errorImage} = await supabase
       .from('messages')
-      .insert([{
-        conversation_id: conversation_id,
-        sender_id: userId,
-        message_type: 'image',
-        content: encryptedDescriptor.ciphertext,
-        nonce: encryptedDescriptor.nonce,
-        wrapped_key: encryptedDescriptor.wrappedKey,
-        key_nonce: encryptedDescriptor.keyNonce,
-      }])
+      .insert([buildSignedMessageRow({
+        conversationId: conversation_id,
+        senderId: userId,
+        messageType: 'image',
+        envelope: encryptedDescriptor,
+      })])
       .select()
       .single();
     if(errorImage) throw errorImage
@@ -134,17 +133,15 @@ export const storageAPIs = {
 
     // Send message with the encrypted descriptor (name, mime, per-file key) -
     // never the plaintext filename.
+    if (!userId) throw new Error('No signed-in user to send as');
     const {data: newFile, error: fileError } = await supabase
       .from('messages')
-      .insert([{
-        conversation_id: conversation_id,
-        sender_id: userId,
-        message_type: 'file',
-        content: encryptedDescriptor.ciphertext,
-        nonce: encryptedDescriptor.nonce,
-        wrapped_key: encryptedDescriptor.wrappedKey,
-        key_nonce: encryptedDescriptor.keyNonce,
-      }])
+      .insert([buildSignedMessageRow({
+        conversationId: conversation_id,
+        senderId: userId,
+        messageType: 'file',
+        envelope: encryptedDescriptor,
+      })])
       .select()
       .single();
 
