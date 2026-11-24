@@ -50,6 +50,7 @@ The wrap/unwrap cases store a throwaway identity key under the user id `crypto-b
 | unwrapConversationKey (HKDF / legacy fallback) | 21.1 / 23.1 | 25.8 / 29.0 |
 | ecdhSeal / ecdhOpen (2.9 KB) | 20.0 / 19.6 | 22.3 / 21.1 |
 | Vault scrypt (N=2^15, r=8) | 149 | 160 |
+| signMessage / verifyMessageSignature (Ed25519, added 2026-11-24) | 36.0 / 71.7 | 39.8 / 76.5 |
 
 Phone numbers: not recorded yet. Expect Hermes to be several times slower than Node.
 
@@ -57,6 +58,7 @@ What stands out:
 - **X25519 costs about 20 ms per call even in Node** (tweetnacl `box.before`). Each wrap or unwrap pays it once. Creating a group pays it once per member, and backfill pays it once per row, all on the JS thread.
 - **A 10 MB attachment takes about 200 ms each way** in Node, also on the JS thread. On a phone the UI will likely freeze for that long.
 - The legacy HKDF fallback adds only about 2 ms, so keeping "read both" costs almost nothing.
+- **Checking a message signature costs about 70 ms under Jest** (tweetnacl `sign.detached.verify`; about 11 ms in plain Node outside Jest). The chat screen checks one message at a time with a yield in between, and caches results for as long as the app runs. If the phone numbers are too slow, `@noble/curves` ed25519 was about 2× faster in Node.
 
 ## Render regressions (Reassure)
 

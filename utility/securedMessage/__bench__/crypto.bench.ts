@@ -10,6 +10,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('expo-crypto', () => ({
   getRandomBytes: (n: number) => new Uint8Array(require('crypto').randomBytes(n)),
+  randomUUID: () => require('crypto').randomUUID(),
 }));
 const mockSecureStoreData = new Map<string, string>();
 jest.mock('expo-secure-store', () => ({

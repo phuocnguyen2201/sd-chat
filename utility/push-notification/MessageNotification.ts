@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConversationKeyManager } from '@/utility/securedMessage/ConversationKeyManagement';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
+import { classifySignature, ownSigningPublicKey } from '@/utility/securedMessage/MessageSigning';
+import { PeerKeyPins } from '@/utility/securedMessage/PeerKeyPins';
 
 /*
   Shows new-message notifications with the decrypted text (Android only).
@@ -27,7 +29,7 @@ export const BACKGROUND_MESSAGE_TASK = 'sdchat-background-message';
 const FALLBACK_BODY = 'New message';
 const MAX_BODY_LENGTH = 200;
 
-type MessagePushData = {
+export type MessagePushData = {
   kind?: string;
   message_id?: string;
   conversation_id?: string;
@@ -39,7 +41,46 @@ type MessagePushData = {
   nonce?: string;
   wrapped_key?: string;
   key_nonce?: string;
+  signature?: string | null;
+  created_at?: string;
+  // The sender's published signing key, as the server read it from profiles.
+  signing_public_key?: string | null;
 };
+
+/*
+  The sender's signature is checked before any text is shown (security #8c).
+  Still no network: the key is the one pinned on this device, or, for a
+  sender never seen before, the key the push carries, pinned on first use -
+  the same trust as reading it from profiles. A changed key is never trusted
+  here; the chat screen asks the user about it. Anything that doesn't verify
+  shows "New message".
+*/
+export async function senderVerifies(userId: string, data: MessagePushData): Promise<boolean> {
+  const senderId = data.sender_id ?? '';
+  const message = {
+    id: data.message_id,
+    conversation_id: data.conversation_id,
+    sender_id: senderId,
+    message_type: data.message_type,
+    content: data.content,
+    nonce: data.nonce,
+    wrapped_key: data.wrapped_key,
+    key_nonce: data.key_nonce,
+    signature: data.signature,
+    created_at: data.created_at,
+  };
+
+  let key: string | null = null;
+  if (senderId === userId) {
+    key = ownSigningPublicKey(userId);
+  } else if (senderId) {
+    key = await PeerKeyPins.getPinnedSigningKey(userId, senderId);
+    if (!key && data.signing_public_key) {
+      key = (await PeerKeyPins.checkPeerSigningKey(userId, senderId, data.signing_public_key)).pinned;
+    }
+  }
+  return classifySignature(message, key) !== 'invalid';
+}
 
 function readPushData(payload: Notifications.NotificationTaskPayload | undefined): MessagePushData | null {
   if (!payload || 'actionIdentifier' in payload) {
@@ -70,6 +111,7 @@ async function decryptBody(data: MessagePushData): Promise<string> {
   if (!key) return FALLBACK_BODY;
 
   try {
+    if (!(await senderVerifies(user.id, data))) return FALLBACK_BODY;
     const text = MessageEncryption.decryptMessage(
       { ciphertext: content, nonce, wrappedKey: wrapped_key, keyNonce: key_nonce },
       key
