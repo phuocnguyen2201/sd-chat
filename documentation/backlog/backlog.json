@@ -654,7 +654,7 @@
             ],
             [
               "Remove unused `biometricSecurity.ts`",
-              "todo",
+              "done",
               "### What\nDelete `utility/biometricsSecurity/biometricSecurity.ts`.\n\n### Why\nNothing calls it since `utility/auth/biometricCheck` replaced it.\n\n### Where\n- `utility/biometricsSecurity/biometricSecurity.ts`\n\n### Steps\n1. `grep -rn biometricSecurity app components utility` → no imports.\n2. Delete the file (and the folder if empty).\n3. `npx tsc --noEmit` and `npx jest`.\n\n### Done when\n- [ ] File gone\n- [ ] tsc and tests unchanged"
             ]
           ]

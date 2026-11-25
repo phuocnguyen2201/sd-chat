@@ -1,5 +1,9 @@
 # Progress Log
 
+## 2026-11-26: #121 removed unused `biometricSecurity.ts`
+- Deleted `utility/biometricsSecurity/biometricSecurity.ts` (and the now-empty folder). Nothing imported it or `checkBiometricAvailability`; `utility/auth/biometricCheck` replaced it.
+- `tsc`: none of the existing errors mention biometrics, so the deletion adds none.
+
 ## 2026-11-26: #176 group renames show live (code done, migration not applied)
 - New migration `20261126000000_conversations_realtime.sql`: adds `public.conversations` to `supabase_realtime` if it isn't there yet. Only members get events, because the existing members-only SELECT policy applies.
 - `utility/messages.ts`: `subscribeToConversations` takes an optional `onConversationUpdated` (UPDATE on `conversations`). New `subscribeToConversationRow(id)` for the open room.

@@ -56,7 +56,7 @@
 2. Run the Maestro flows touched: open-manage-keys (all pairing flows), backup-key, delete-account, change-password, pairing-code-cancel. They use `subflows/confirm-identity.yaml` (PIN 1234).
 3. Device check: with Face ID (cancel must refuse), without (PIN path, 5 wrong tries removes the PIN, then the password), the 4 vs 6 digit choice, and Settings → App PIN change.
 4. Optional: a server-side recent-sign-in check in `delete-account`.
-5. `utility/biometricsSecurity/biometricSecurity.ts` has no callers now. Delete it if nothing else is planned for it.
+5. ~~`biometricSecurity.ts`~~ deleted 2026-11-26 (#121).
 
 ## App performance testing (2026-11-02): tools set up, device runs pending
 Details in `documentation/testing/performance.md`.
