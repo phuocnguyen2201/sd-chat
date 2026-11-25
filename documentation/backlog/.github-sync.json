@@ -1146,6 +1146,20 @@
       "id": 6579853450,
       "url": "https://github.com/phuocnguyen2201/sd-chat/issues/173",
       "title": "Apply `20261123000100_pin_search_path.sql` to the live project (SEC-14)"
+    },
+    "S2.1.5": {
+      "number": 176,
+      "id": 6613892760,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/176",
+      "title": "Group name changes show live for every member (no refresh)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhL6g-U"
+    },
+    "S2.5.6": {
+      "number": 177,
+      "id": 6613895058,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/177",
+      "title": "Center the \"Select Avatar\" text in the chat settings avatar picker",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhL6hGI"
     }
   }
 }

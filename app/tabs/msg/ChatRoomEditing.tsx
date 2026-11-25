@@ -207,8 +207,11 @@ export default function ChatRoomEditing() {
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 100, height: 100, borderRadius: 50 }} />
           ) : (
-            <Box className="w-24 h-24 bg-gray-300 rounded-full items-center justify-center">
-              <Text>Select Avatar</Text>
+            <Box
+              className="bg-gray-300 rounded-full items-center justify-center px-2"
+              style={{ width: 100, height: 100 }}
+            >
+              <Text className="text-center text-gray-700">Select Avatar</Text>
             </Box>
           )}
         </TouchableOpacity>

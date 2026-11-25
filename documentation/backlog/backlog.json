@@ -176,6 +176,11 @@
             [
               "Delete chat from the chat list",
               "done"
+            ],
+            [
+              "Group name changes show live for every member (no refresh)",
+              "todo",
+              "### What\nWhen a member renames a group, the new name should appear right away for everyone who has the group open or is on the chat list.\n\n### Why\nToday other members only see the new name after a refresh. Nothing listens for changes to the `conversations` table: the chat room subscribes to `messages` only, and the chat list to `conversation_participants` only.\n\n### Where\n- `app/tabs/msg/[room_id].tsx` (realtime channel around line 271, header title)\n- `utility/messages.ts` (`user-conversations:<userId>` channel around line 800, used by the chat list)\n- `app/tabs/msg/ChatRoomEditing.tsx` (where the rename is saved)\n- new migration in `supabase/migrations/` (realtime publication)\n\n### Steps\n1. Migration: `alter publication supabase_realtime add table public.conversations;` (check first that it isn't already in the publication on the live project).\n2. Room screen: add an `UPDATE` listener on `conversations` filtered by `id=eq.<conversation_id>` and update the header name (and avatar) from the payload.\n3. Chat list: listen for `UPDATE` on `conversations` the user is in (filter by the ids already loaded, or re-fetch the row when an event arrives) and update that row's name.\n4. Check the existing `conversations` SELECT policy: realtime only sends rows the member can read, so outsiders get nothing.\n5. Test on two simulators: A renames, B sees it in the open room and on the chat list without refreshing.\n\n### Done when\n- [ ] B sees the new name within a couple of seconds, in the room header and on the chat list\n- [ ] Non-members get no event\n- [ ] Migration applied live"
             ]
           ]
         },
@@ -277,6 +282,11 @@
               "Run `security-backup.yaml` and the updated Settings flows, check the new screen on a device",
               "done",
               "### What\nRun the Maestro flows changed by the Settings redesign and look at the new Security & Backup screen on a device.\n\n### Why\nManage Keys, Biometric Authentication and App PIN moved from Settings to a new screen, so every flow that opens Manage Keys now has an extra step. None of the changed flows has been run.\n\n### Where\n- `app/tabs/(tabs)/Settings.tsx` (one \"Security & Backup\" row, testID `security-backup-button`)\n- `app/tabs/managekeys/SecurityBackup.tsx` (new screen, registered in `app/tabs/_layout.tsx`)\n- `maestro/security-backup.yaml` (new), `maestro/subflows/open-manage-keys.yaml`, `maestro/toggle-darkmode.yaml`\n\n### Steps\n1. Run `npx expo start` once so `.expo/types` picks up the new route (clears the TS2820 error).\n2. Run `maestro test maestro/security-backup.yaml`, then `toggle-darkmode.yaml` and a flow that uses `open-manage-keys` (e.g. `backup-key.yaml`).\n3. On a device: Settings → Security & Backup → each of the three options opens and works; back returns to Settings; App PIN set/change still works; light and dark mode.\n\n### Done when\n- [ ] The three flows pass\n- [ ] All three options work from the new screen\n- [ ] No TS2820 error after types regenerate"
+            ],
+            [
+              "Center the \"Select Avatar\" text in the chat settings avatar picker",
+              "done",
+              "### What\nIn chat settings (Edit Chat Room), the placeholder circle shown when a group has no avatar has its \"Select Avatar\" text off-centre.\n\n### Why\nThe label wraps onto two lines inside the 96px circle, and the `Text` has no `text-center`, so each line is left-aligned. The box itself is already `items-center justify-center`.\n\n### Where\n- `app/tabs/msg/ChatRoomEditing.tsx` around line 209 (`<Box className=\"w-24 h-24 bg-gray-300 rounded-full items-center justify-center\"><Text>Select Avatar</Text>`)\n\n### Steps\n1. Add `className=\"text-center\"` to the `Text` (and some padding, e.g. `px-2` on the box, so the words don't touch the edge).\n2. Optional: match the circle size to the image (`w-24 h-24` is 96px; the image is 100px), so the layout doesn't jump after picking an avatar.\n3. Check in light and dark mode (the grey circle and text colour) on a small and a large phone.\n\n### Done when\n- [ ] Text is centred horizontally and vertically in the circle\n- [ ] No size jump between the placeholder and the picked avatar"
             ]
           ]
         }
