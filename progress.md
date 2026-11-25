@@ -1,5 +1,9 @@
 # Progress Log
 
+## 2026-11-26 (later): Backlog pulled from GitHub
+- #162 (remembered accounts device test) and #176 (group name live update) → done.
+- #163 kept `done` locally: it is still Todo on GitHub, so a pull would undo the local edit.
+
 ## 2026-11-26: #121 removed unused `biometricSecurity.ts`
 - Deleted `utility/biometricsSecurity/biometricSecurity.ts` (and the now-empty folder). Nothing imported it or `checkBiometricAvailability`; `utility/auth/biometricCheck` replaced it.
 - `tsc`: none of the existing errors mention biometrics, so the deletion adds none.

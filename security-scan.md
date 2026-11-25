@@ -1,5 +1,16 @@
 # Security Scan
 
+## 2026-11-26 — Review of #176 (live group renames) and #121; new finding #31
+
+Method: read the merged #176 diff (`2ed8c3c`) and the `conversations` policies and grants in the migrations. No live checks.
+
+- **#176 is fine on its own.** The chat-list listener has no filter, but realtime applies the members-only SELECT policy ("Authenticated can view their conversations") to each subscriber, so non-members get no events. The payload is the `conversations` row, which members can already read. The room listener only takes `name` for groups, so a DM's title can't be changed this way.
+- **#121 (deleting `biometricSecurity.ts`)** removes dead code that allowed the device-passcode fallback (`disableDeviceFallback: false`). Nothing imported it. No risk.
+
+| # | Severity | Finding | Where | Status |
+|---|---|---|---|---|
+| 31 | Low | **Any member can change any column of a conversation, not just its name and avatar.** The UPDATE policy "Allow users update own conversations" only checks membership (`USING`, no `WITH CHECK`), and `authenticated` has `GRANT ALL` on the table. So a member can set `created_by` to themselves or someone else, or flip `is_group`. `created_by` is still trusted in two places: the key-wrapper fallback in `findKeyWrapperPeerId` (used when `wrapped_by` is null, e.g. legacy rows) and `delete-account`'s `.eq("created_by", userId)`. Flipping `is_group` changes how clients name and resolve keys for the chat. #176 makes renames visible live but doesn't widen access. **Fix:** `revoke update on public.conversations from authenticated, anon; grant update (name, avatar_url) on public.conversations to authenticated;`, plus a pgTAP test that a member can rename but can't change `created_by`/`is_group`. Check first that no client or RPC updates other columns as `authenticated`. | `supabase/migrations/20260925000000_baseline_schema.sql:842`, `:1093-1094`; `ConversationKeyResolver.ts:48`; `supabase/functions/delete-account/index.ts:68` | 🔴 Open. |
+
 ## 2026-11-24 — #22 pin group keys to the member who wrapped the row (code + tests, not deployed)
 
 **The problem:** when a row's key opened, the resolver checked it against the pin for "the wrapper". For a group, the app always took that to be `conversations.created_by`, through the caller's hint in `Chat.tsx` or `findKeyWrapperPeerId`. But any member's device fills empty rows (`backfillMissingWrappedKeys`). So a row backfilled by member M was checked against the creator's pin. That gave a false "Security key changed" dialog, or on first use it pinned M's key under the creator's id, and the real creator's key later looked "changed".

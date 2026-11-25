@@ -143,7 +143,7 @@
             ],
             [
               "Device test: switch between two saved accounts, expired session, remove card",
-              "todo",
+              "done",
               "### What\nHand-test the remembered-accounts login screen on a real phone.\n\n### Why\nCovers what unit tests can't: biometrics per account, swipe paging, session restore.\n\n### Where\n- `components/RememberedAccountsPanel.tsx`\n- `utility/auth/RememberedAccounts.ts`\n- `utility/auth/SecureSessionStorage.ts`\n- `app/login.tsx`\n\n### Steps\n1. Sign in with account A, then B: two cards, form hidden.\n2. Tap A: Face ID → signed in without password. Cancel Face ID → PIN → password fallback.\n3. Sign Out of A: card stays; tap it → password box with email filled.\n4. Add 5+ accounts: 2×2 pages, swipe, dots.\n5. ⋯ → Remove from this device: card, session and avatar gone; account still works with password.\n6. Settings → Switch Account; push goes to the active account.\n\n### Done when\n- [ ] Every step behaves as described\n- [ ] No other account's chats show after switching"
             ]
           ]
@@ -179,7 +179,7 @@
             ],
             [
               "Group name changes show live for every member (no refresh)",
-              "todo",
+              "done",
               "### What\nWhen a member renames a group, the new name should appear right away for everyone who has the group open or is on the chat list.\n\n### Why\nToday other members only see the new name after a refresh. Nothing listens for changes to the `conversations` table: the chat room subscribes to `messages` only, and the chat list to `conversation_participants` only.\n\n### Where\n- `app/tabs/msg/[room_id].tsx` (realtime channel around line 271, header title)\n- `utility/messages.ts` (`user-conversations:<userId>` channel around line 800, used by the chat list)\n- `app/tabs/msg/ChatRoomEditing.tsx` (where the rename is saved)\n- new migration in `supabase/migrations/` (realtime publication)\n\n### Steps\n1. Migration: `alter publication supabase_realtime add table public.conversations;` (check first that it isn't already in the publication on the live project).\n2. Room screen: add an `UPDATE` listener on `conversations` filtered by `id=eq.<conversation_id>` and update the header name (and avatar) from the payload.\n3. Chat list: listen for `UPDATE` on `conversations` the user is in (filter by the ids already loaded, or re-fetch the row when an event arrives) and update that row's name.\n4. Check the existing `conversations` SELECT policy: realtime only sends rows the member can read, so outsiders get nothing.\n5. Test on two simulators: A renames, B sees it in the open room and on the chat list without refreshing.\n\n### Done when\n- [ ] B sees the new name within a couple of seconds, in the room header and on the chat list\n- [ ] Non-members get no event\n- [ ] Migration applied live"
             ]
           ]
