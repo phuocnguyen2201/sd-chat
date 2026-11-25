@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-11-25: Backlog pulled back from GitHub
+- New `--pull` mode in `documentation/backlog/sync_github_project.py`: reads each task issue's open/closed state, board Status, title and description into `backlog.json`, records issues the state file missed, and lists backlog-labelled issues that aren't in the JSON. `--pull --dry-run` previews without writing.
+- Pulled: #37 (forward-cancel device check), #69 (SEC-22) and #70 (SEC-8c) → done. #173 was missing from the committed `.github-sync.json` and is now recorded. A second pull finds 0 changes, so JSON and GitHub match.
+- Push now fills in a missing board item id (left by `--pull`) instead of failing.
+
 ## 2026-11-24: Settings screen, Security & Backup group
 - `app/tabs/(tabs)/Settings.tsx`: Key Management, Biometric Authentication and App PIN replaced by one "Security & Backup" row whose Open button pushes the new screen `app/tabs/managekeys/SecurityBackup.tsx` (registered in `app/tabs/_layout.tsx`, title "Security & Backup"). That screen holds the three options with their old buttons and testIDs; the app PIN state moved there. (A first version used an expandable card; replaced at the user's request.)
 - New locator `settingsScreen.securityBackupButton` (`security-backup-button`).

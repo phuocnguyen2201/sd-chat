@@ -202,7 +202,7 @@
             ],
             [
               "Device check: forward-cancel no longer opens edit",
-              "todo",
+              "done",
               "### What\nConfirm the 2026-09-26 fix: cancelling Forward no longer leaves the composer in edit mode.\n\n### Why\nBefore the fix, sending after a cancelled forward edited the original message.\n\n### Where\n- `app/tabs/msg/[room_id].tsx`\n- `maestro/forward-cancel-then-send.yaml` (never run)\n\n### Steps\n1. Forward → tap one recipient (`Forward (1)`) → Cancel → type and send.\n2. A new message appears; the original is unchanged.\n3. Android: no leftover bottom padding on the input bar. If there is, try `KeyboardAvoidingView behavior=\"height\"`.\n4. Edit still works and \"Editing message · Cancel\" cancels it.\n5. Run `forward-cancel-then-send.yaml`.\n\n### Done when\n- [ ] Repro no longer edits the original\n- [ ] Maestro flow passes"
             ]
           ]
@@ -371,12 +371,12 @@
             ],
             [
               "Pin group keys to the wrapping member (`wrapped_by`, SEC-22)",
-              "todo",
+              "done",
               "### What\nRecord who wrapped each conversation-key row (`wrapped_by`) and check the pin against that member, not `conversations.created_by`.\n\n### Why\nA row backfilled by another member is checked against the creator's pin, giving a false \"key changed\" dialog or pinning the wrong key.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts` (`findKeyWrapperPeerId`)\n- `backfillMissingWrappedKeys`\n- new migration on `conversation_participants`\n\n### Steps\n1. Migration: add `wrapped_by uuid` (nullable), RLS so it must equal `auth.uid()` on write.\n2. Write it on every wrap and backfill.\n3. Resolver: use `wrapped_by` when present, fall back to `created_by`.\n4. Unit tests + pgTAP check.\n\n### Done when\n- [ ] Backfilled rows no longer trigger a false warning\n- [ ] Tests pass"
             ],
             [
               "Per-sender message signatures inside a conversation (SEC-8c)",
-              "todo",
+              "done",
               "### What\nSign each message with a per-user signing key so members can tell who really sent it.\n\n### Why\nAll members share one symmetric key, so the AEAD tag only proves \"some member sent this\". A member could forge another member's message.\n\n### Where\n- `utility/securedMessage/ConversationKeyManagement.ts` (documents the limitation)\n- `secured.ts`\n- `messages` table (new signature column)\n\n### Steps\n1. Design: Ed25519 key per user, published like `public_key` and pinned like SEC-7.\n2. Sign `(conversation_id, sender_id, nonce, ciphertext)`; verify on read and show a warning on failure.\n3. Forwarding re-signs as the forwarder.\n4. Migration + tests.\n\n### Done when\n- [ ] Forged sender shows a warning\n- [ ] Old unsigned messages still display"
             ]
           ]

@@ -1140,6 +1140,12 @@
       "url": "https://github.com/phuocnguyen2201/sd-chat/issues/172",
       "title": "Run `security-backup.yaml` and the updated Settings flows, check the new screen on a device",
       "item_id": "PVTI_lAHOARaDrs4BsxOqzhLavp0"
+    },
+    "S7.1.10": {
+      "number": 173,
+      "id": 6579853450,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/173",
+      "title": "Apply `20261123000100_pin_search_path.sql` to the live project (SEC-14)"
     }
   }
 }
