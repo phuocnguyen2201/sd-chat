@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-11-26: #176 group renames show live (code done, migration not applied)
+- New migration `20261126000000_conversations_realtime.sql`: adds `public.conversations` to `supabase_realtime` if it isn't there yet. Only members get events, because the existing members-only SELECT policy applies.
+- `utility/messages.ts`: `subscribeToConversations` takes an optional `onConversationUpdated` (UPDATE on `conversations`). New `subscribeToConversationRow(id)` for the open room.
+- Chat list (`Chat.tsx`) updates the row's name/avatar. Room header (`[room_id].tsx`) keeps the title in state and replaces it on a group rename (a DM keeps the peer's name).
+- tsc clean for changed files, Jest 198/198. Not applied live, not tested on two devices.
+
 ## 2026-11-26: #177 centre "Select Avatar" in chat settings
 - `ChatRoomEditing.tsx`: placeholder circle is now 100x100 (same as the picked image, no layout jump), `px-2`, text `text-center text-gray-700` (readable on the grey circle in dark mode too). Backlog task S2.5 marked done. Not checked on a device yet.
 

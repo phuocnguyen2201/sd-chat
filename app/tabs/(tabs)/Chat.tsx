@@ -387,9 +387,22 @@ export default function Chat() {
     fetchChatRooms();
     fetchUsers();
 
-    const subscription = realtimeAPI.subscribeToConversations(userId, (newConversation) => {
-      setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
-    });
+    const subscription = realtimeAPI.subscribeToConversations(
+      userId,
+      (newConversation) => {
+        setListChatRooms((prevRooms: any) => [newConversation, ...prevRooms]);
+      },
+      // A member renamed the group or changed its avatar (#176).
+      (updated) => {
+        setListChatRooms((prevRooms) =>
+          prevRooms.map((room) =>
+            room.id === updated.id
+              ? { ...room, name: updated.name, avatar_url: updated.avatar_url }
+              : room
+          )
+        );
+      }
+    );
 
     return () => {
       subscription.unsubscribe();

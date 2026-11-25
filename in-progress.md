@@ -1,5 +1,11 @@
 # In Progress / Open Items
 
+
+## #176 live group renames (2026-11-26): code done, migration not applied
+1. `supabase db push` (applies `20261126000000_conversations_realtime.sql`; it's a no-op if the table is already in the publication).
+2. Two simulators: A renames the group in chat settings; B sees the new name in the open room header and on the chat list within a few seconds, without refreshing.
+3. A third account that isn't in the group gets no event.
+4. Then close GitHub #176 and mark the S2.1 task done in `backlog.json`.
 ## Settings Security & Backup group (2026-11-24): code done, device check pending
 0. Run `npx expo start` once so `.expo/types` knows `/tabs/managekeys/SecurityBackup` (clears TS2820 in Settings.tsx).
 1. On a device, in light and dark mode: Settings → Open goes to Security & Backup, each of the three buttons works, and Back returns each time (including from Enable Biometric).
