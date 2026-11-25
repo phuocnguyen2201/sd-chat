@@ -664,7 +664,7 @@
             ],
             [
               "Regenerate the Android project so the manifest drops `allowBackup=\"true\"`",
-              "todo",
+              "done",
               "### What\nMake the native Android project match `app.json`'s `allowBackup: false`.\n\n### Why\n`app.json` was changed but the checked-in `android/app/src/main/AndroidManifest.xml` still has `android:allowBackup=\"true\"`, so builds still allow backups (SEC-25 isn't fully closed on Android).\n\n### Where\n- `android/app/src/main/AndroidManifest.xml`\n- `app.json`\n\n### Steps\n1. `npx expo prebuild --platform android` (review the diff, keep custom changes) or set `android:allowBackup=\"false\"` by hand.\n2. Rebuild and check the merged manifest: `aapt dump xmltree app.apk AndroidManifest.xml | grep allowBackup`.\n\n### Done when\n- [ ] Built APK has allowBackup=false"
             ],
             [

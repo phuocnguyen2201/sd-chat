@@ -18,7 +18,7 @@
 3. Commit with SEC-8c or on its own branch, then close GitHub #69 after the device test.
 
 ## SEC-8c message signatures (2026-11-24): code + unit tests done, not deployed or on a device
-0. **Before `db push`:** `git pull --ff-only origin main` (brings `20261123000100_pin_search_path.sql`) and `git checkout backup/sec-24-18-14 -- supabase/migrations/20261123000000_mask_usernames.sql`. The rest of `backup/sec-24-18-14` (SEC-24 `VaultKdfParams`, SEC-18 tests, `backlog.json`) is still unmerged although its username-mask migration is live: decide whether to merge it.
+0. **Before `db push`:** `git pull --ff-only origin main` (brings `20261123000100_pin_search_path.sql`) and `git checkout backup/sec-24-18-14 -- supabase/migrations/20261123000000_mask_usernames.sql`. `backup/sec-24-18-14` was merged in PR #175 (2026-11-26).
 1. **Apply `supabase/migrations/20261124000000_message_signatures.sql`.** The columns already exist live; the RPC change is what matters. Until it's applied the chat screen gets no `signature`, so signed messages look unsigned (no warning, no protection).
 2. **Deploy the `push` function** (`supabase functions deploy push`). Until then, notification previews treat signed messages as having no signature (still shown while the cutoff is null).
 3. Two-device test: send, edit, forward, image and file all show no warning. Changing a row's `content` or `sender_id` in the dashboard shows the warning. Changing a peer's `signing_public_key` shows the "Security key changed" dialog. Old messages show normally.
@@ -28,7 +28,7 @@
 7. Close GitHub #70 and mark SEC-8c done in `backlog.json` when it's verified on a device.
 
 ## #25 / #26 / remembered accounts (2026-11-23): code + unit tests done, not on a device
-1. **Native rebuild** (dev client / EAS): `android.allowBackup: false` only takes effect in a new build.
+1. ~~Regenerate Android~~ done 2026-11-26 (manifest has `allowBackup="false"`). Build an APK and confirm: `aapt dump xmltree app.apk AndroidManifest.xml | grep allowBackup`.
 2. Restart Metro with `npx expo start -c` (the Tailwind config changed too).
 3. Device checks:
    - Update over an existing signed-in install: you should stay signed in, and AsyncStorage should hold no `sb-…-auth-token` plaintext.
