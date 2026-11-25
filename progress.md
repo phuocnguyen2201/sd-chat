@@ -1,5 +1,9 @@
 # Progress Log
 
+## 2026-11-26: Security open-items review (read-only)
+- Checked `security-scan.md`, `backlog.json`, `in-progress.md` and the code against each other. Still open in code: #24 (no scrypt bounds in `VaultBackup.ts:290` on `main`; the fix sits unmerged on `backup/sec-24-18-14`), #25 native half (`android/.../AndroidManifest.xml` still `allowBackup="true"`, needs prebuild), #28 (vault container hardening, build-tool `npm audit`), #23 (re-check when remote pairing UI exists).
+- Written but not live: #12, #13 (`fcm_token`), #8c, #22 migrations/deploys; #21 dashboard "Secure password change". Device/Maestro checks outstanding for #5, #7, #8a/b, #21, #25, #26.
+
 ## 2026-11-26: Backlog pulled from GitHub again
 - `--pull`: 19 tasks todo → done (#40, #46, #50, #60, #61, #65, #76, #77, #81, #84, #85, #86, #91, #92, #104, #114, #165, #172, #173). No task went backwards. A second pull finds 0 changes.
 - Backlog now 102 done, 25 todo out of 127 tasks. Open work: live Supabase steps for S1.3/S1.4, device and Maestro runs for S1.5/S7.2/S7.3, CI first runs (S8.2/S8.3), chat unit tests, and all of S9.2 performance fixes.
