@@ -5,6 +5,9 @@ import * as nacl from 'tweetnacl';
 import { supabase } from '@/utility/connection';
 import { MessageEncryption } from '@/utility/securedMessage/secured';
 import { DeviceIdentity } from '@/utility/securedMessage/DeviceIdentity';
+import { checkKdfParams, checkSaltAndNonce, UnsupportedBackupError } from '@/utility/securedMessage/VaultKdfParams';
+
+export { UnsupportedBackupError };
 
 /*
   The "doomsday vault": a second recovery path for the identity private key,
@@ -40,6 +43,7 @@ const SCRYPT_PARAMS = {
     dkLen: 32,
 } as const;
 
+// Must match KDF_LIMITS in VaultKdfParams.ts, which recovery checks against.
 const SALT_BYTES = 16;
 const NONCE_BYTES = 12;
 const BLOB_VERSION = 1;
@@ -278,19 +282,22 @@ export async function recoverIdentityKey(passphrase: string): Promise<void> {
     }
 
     const metadata = meta as BackupMetadata;
-    if (metadata.kdf !== 'scrypt') {
-        throw new Error(`This backup uses an unsupported KDF: ${metadata.kdf}`);
+    // Security #24: the row decides how much work scrypt does, so its settings
+    // are checked before anything is downloaded or derived.
+    const kdfParams = checkKdfParams(metadata);
+    let salt: Uint8Array;
+    let nonce: Uint8Array;
+    try {
+        salt = MessageEncryption.base64ToBytes(metadata.kdf_salt);
+        nonce = MessageEncryption.base64ToBytes(metadata.nonce);
+    } catch {
+        throw new UnsupportedBackupError('The backup salt or nonce is not valid base64');
     }
+    checkSaltAndNonce(salt, nonce);
 
     const ciphertext = MessageEncryption.base64ToBytes(await getBlob(userId, accessToken));
-    const salt = MessageEncryption.base64ToBytes(metadata.kdf_salt);
-    const nonce = MessageEncryption.base64ToBytes(metadata.nonce);
 
-    const sealingKey = await deriveSealingKey(passphrase, salt, {
-        N: metadata.kdf_n,
-        r: metadata.kdf_r,
-        p: metadata.kdf_p,
-    });
+    const sealingKey = await deriveSealingKey(passphrase, salt, kdfParams);
 
     const aead = new ChaCha20Poly1305(sealingKey);
     const privateKey = aead.open(nonce, ciphertext, new TextEncoder().encode(userId));
