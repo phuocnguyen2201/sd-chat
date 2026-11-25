@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-11-26: #177 centre "Select Avatar" in chat settings
+- `ChatRoomEditing.tsx`: placeholder circle is now 100x100 (same as the picked image, no layout jump), `px-2`, text `text-center text-gray-700` (readable on the grey circle in dark mode too). Backlog task S2.5 marked done. Not checked on a device yet.
+
+## 2026-11-26 (later): Two bug tasks added (group name live update, avatar text)
+- #176 (S2.1.5, under story #27): group name changes need a refresh. Cause: nothing subscribes to `conversations`; the room listens to `messages` only and the chat list to `conversation_participants` only, and no migration adds `conversations` to `supabase_realtime`.
+- #177 (S2.5.6, under story #47): "Select Avatar" in `ChatRoomEditing.tsx` (~line 209) wraps to two left-aligned lines; needs `text-center`.
+- New `--only KEY,KEY` in the sync script: pushes just those tasks and leaves parents and other issues alone.
+- Not changed: #163 is done locally but Todo on GitHub. Stories #27 and #47 are closed on GitHub while they now have an open task.
+
 ## 2026-11-26: Security open-items review (read-only)
 - Checked `security-scan.md`, `backlog.json`, `in-progress.md` and the code against each other. Still open in code: #24 (no scrypt bounds in `VaultBackup.ts:290` on `main`; the fix sits unmerged on `backup/sec-24-18-14`), #25 native half (`android/.../AndroidManifest.xml` still `allowBackup="true"`, needs prebuild), #28 (vault container hardening, build-tool `npm audit`), #23 (re-check when remote pairing UI exists).
 - Written but not live: #12, #13 (`fcm_token`), #8c, #22 migrations/deploys; #21 dashboard "Secure password change". Device/Maestro checks outstanding for #5, #7, #8a/b, #21, #25, #26.
