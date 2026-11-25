@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-11-26: Backlog pulled from GitHub again
+- `--pull`: 19 tasks todo → done (#40, #46, #50, #60, #61, #65, #76, #77, #81, #84, #85, #86, #91, #92, #104, #114, #165, #172, #173). No task went backwards. A second pull finds 0 changes.
+- Backlog now 102 done, 25 todo out of 127 tasks. Open work: live Supabase steps for S1.3/S1.4, device and Maestro runs for S1.5/S7.2/S7.3, CI first runs (S8.2/S8.3), chat unit tests, and all of S9.2 performance fixes.
+- Stories and epics whose tasks are now all done are still open on GitHub until the next push.
+
 ## 2026-11-25: Backlog pulled back from GitHub
 - New `--pull` mode in `documentation/backlog/sync_github_project.py`: reads each task issue's open/closed state, board Status, title and description into `backlog.json`, records issues the state file missed, and lists backlog-labelled issues that aren't in the JSON. `--pull --dry-run` previews without writing.
 - Pulled: #37 (forward-cancel device check), #69 (SEC-22) and #70 (SEC-8c) → done. #173 was missing from the committed `.github-sync.json` and is now recorded. A second pull finds 0 changes, so JSON and GitHub match.

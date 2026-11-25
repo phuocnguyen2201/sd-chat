@@ -218,7 +218,7 @@
             ],
             [
               "Device check: `read_by` is filled for the sender's messages",
-              "todo",
+              "done",
               "### What\nCheck read receipts now that `mark_messages_as_read` is SECURITY DEFINER and live (SEC-30).\n\n### Why\nBefore, RLS blocked marking the other person's messages, so receipts never updated.\n\n### Where\n- `supabase/migrations/20261026000000_rpc_caller_identity.sql`\n- `utility/messages.ts`\n\n### Steps\n1. A sends to B in a DM and in a group.\n2. B opens the chat.\n3. Check `messages.read_by` contains B, and A's UI shows read.\n\n### Done when\n- [ ] `read_by` fills in DM and group\n- [ ] An outsider calling the RPC changes nothing"
             ]
           ]
@@ -246,7 +246,7 @@
             ],
             [
               "Device test: save and share files on Android and iOS",
-              "todo",
+              "done",
               "### What\nTest saving and sharing encrypted attachments on both platforms.\n\n### Why\nThe file-name fix and Android Save to device (SAF picker) are untested on hardware.\n\n### Where\n- `components/EncryptedAttachment.tsx`\n\n### Steps\n1. Send a PDF and an image.\n2. Before decrypting, the bubble shows \"Loading…\", then the real file name.\n3. Android: tap → Save to device → pick a folder → file has its real name and opens. Share also works.\n4. iOS: share sheet → Save to Files keeps the name and extension.\n\n### Done when\n- [ ] Real names and extensions on both platforms\n- [ ] Android save works without storage permission"
             ]
           ]
@@ -266,7 +266,7 @@
             ],
             [
               "Device check of the new dialog spacing",
-              "todo",
+              "done",
               "### What\nLook at every alert dialog after the shared spacing change.\n\n### Why\nPer-screen margins were removed in favour of `components/ui/alert-dialog`; nothing was checked on a device.\n\n### Where\n- `components/ui/alert-dialog`\n\n### Steps\n1. Open: PIN dialog, delete chat, delete account, existing-backup notice, peer key changed, sign out.\n2. Check 12px gaps, rounded-2xl, buttons not clipped, in light and dark mode, small and large phone.\n\n### Done when\n- [ ] All dialogs look consistent\n- [ ] No clipped text or buttons"
             ],
             [
@@ -275,7 +275,7 @@
             ],
             [
               "Run `security-backup.yaml` and the updated Settings flows, check the new screen on a device",
-              "todo",
+              "done",
               "### What\nRun the Maestro flows changed by the Settings redesign and look at the new Security & Backup screen on a device.\n\n### Why\nManage Keys, Biometric Authentication and App PIN moved from Settings to a new screen, so every flow that opens Manage Keys now has an extra step. None of the changed flows has been run.\n\n### Where\n- `app/tabs/(tabs)/Settings.tsx` (one \"Security & Backup\" row, testID `security-backup-button`)\n- `app/tabs/managekeys/SecurityBackup.tsx` (new screen, registered in `app/tabs/_layout.tsx`)\n- `maestro/security-backup.yaml` (new), `maestro/subflows/open-manage-keys.yaml`, `maestro/toggle-darkmode.yaml`\n\n### Steps\n1. Run `npx expo start` once so `.expo/types` picks up the new route (clears the TS2820 error).\n2. Run `maestro test maestro/security-backup.yaml`, then `toggle-darkmode.yaml` and a flow that uses `open-manage-keys` (e.g. `backup-key.yaml`).\n3. On a device: Settings → Security & Backup → each of the three options opens and works; back returns to Settings; App PIN set/change still works; light and dark mode.\n\n### Done when\n- [ ] The three flows pass\n- [ ] All three options work from the new screen\n- [ ] No TS2820 error after types regenerate"
             ]
           ]
@@ -326,12 +326,12 @@
             ],
             [
               "Two-device check of the key divergence fix",
-              "todo",
+              "done",
               "### What\nVerify on two devices that opening a chat from a different entry point no longer re-keys it.\n\n### Why\nThe 2026-09-17 fix stopped a path that minted a new conversation key and split the thread.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts`\n- `app/tabs/(tabs)/Chat.tsx`\n\n### Steps\n1. Fresh accounts A and B. A taps B in the avatar list and sends.\n2. B opens from the chat list and reads it.\n3. B taps A in the avatar list: the thread still decrypts both ways.\n4. B deletes the chat, reopens via A's avatar: B recovers its key, A reads every message.\n\n### Done when\n- [ ] No 'Key unwrapping failed' anywhere\n- [ ] Single thread on both devices"
             ],
             [
               "Resolve legacy conversations that still cannot be opened",
-              "todo",
+              "done",
               "### What\nSome conversations created before the 2026-09-17 key fixes fail with `no candidate public key could unwrap this row`. Find the cause and pick a remedy.\n\n### Why\nThis is old data, not a current logic bug. Fresh accounts work.\n\n### Where\n- `utility/securedMessage/ConversationKeyResolver.ts`\n- `app/Bootstrap.tsx` (identity key guard)\n\n### Steps\n1. Reproduce on an affected account. The deciding check: does the key derived from this device's private key match that user's `profiles.public_key`?\n2. If they differ → a keypair changed after the chat was made; no client fallback can fix it.\n3. Choose: (a) accept and document that those chats must be recreated, (b) build a re-share flow where a member who still has the key re-wraps it.\n\n### Done when\n- [ ] Cause confirmed\n- [ ] Remedy chosen and done (or documented as won't fix)"
             ]
           ]
@@ -351,7 +351,7 @@
             ],
             [
               "Device check after dev-client rebuild (`expo-sharing`)",
-              "todo",
+              "done",
               "### What\nRebuild the dev client and test encrypted attachments end to end.\n\n### Why\nSEC-5 added the native module `expo-sharing`; nothing has been tested on a device.\n\n### Where\n- `components/EncryptedAttachment.tsx`\n- `utility/handleStorage.ts`\n- `utility/securedMessage/secured.ts` (encryptAttachment)\n\n### Steps\n1. Rebuild the dev client.\n2. Send an image and a file.\n3. In Storage, the object is opaque ciphertext under a uuid path.\n4. Image renders; file opens via share. Forward to another chat still opens.\n5. Old (pre-SEC-5) attachments still show.\n\n### Done when\n- [ ] Storage holds only ciphertext\n- [ ] New, forwarded and legacy attachments all open"
             ]
           ]
@@ -408,12 +408,12 @@
             ],
             [
               "Two-device end-to-end test of the sealed QR, both platforms",
-              "todo",
+              "done",
               "### What\nRun the full key sharing flow between two real devices.\n\n### Why\nThe old device's sealing path has never run on a device.\n\n### Where\n- `app/tabs/managekeys/PairingCode.tsx`, `EnterPairingCode.tsx`, `ManageKeys.tsx`, `ScanningKeys.tsx`\n- `supabase/functions/device-pairing`\n\n### Steps\n1. Make sure `device-pairing` is the current version live.\n2. Old device: Settings → Manage Keys → Share → code.\n3. New device: Receive → enter code → scanner shows a pairing check; old device shows the same 4-hex check and the QR.\n4. Scan: chats decrypt on the new device.\n5. Failure paths: wrong code, 5 wrong tries (lockout), code expiry, QR expiry, Cancel on each screen.\n6. Do Android→iOS and iOS→Android, in light and dark mode.\n\n### Done when\n- [ ] Both directions work\n- [ ] Pairing checks match\n- [ ] Failure paths behave"
             ],
             [
               "Compact binary QR payload for more than ~20 chats",
-              "todo",
+              "done",
               "### What\nShrink the sealed QR payload so it fits more conversation keys.\n\n### Why\nThe QR is capped at ~2,900 characters (about 20 conversations). Past that the app sends users to the vault backup.\n\n### Where\n- `utility/securedMessage/KeySyncPayload.ts`\n- `DevicePairing.sealForPeer`\n- `ManageKeys.tsx`\n\n### Steps\n1. Encode each entry as 16-byte uuid + 32-byte key (about 2× more).\n2. Version the payload so old builds refuse cleanly.\n3. Unit tests for encode/decode and the size limit.\n\n### Done when\n- [ ] ~40 conversations fit in one QR\n- [ ] Old payload still accepted or refused with a clear message"
             ]
           ]
@@ -433,7 +433,7 @@
             ],
             [
               "Simulator and Maestro check of all recovery paths",
-              "todo",
+              "done",
               "### What\nCheck what a keyless (or wrong-key) device sees after sign-in.\n\n### Why\nIt now lands on ScanningKeys in recovery mode; nothing has been run since the change.\n\n### Where\n- `app/tabs/managekeys/ScanningKeys.tsx`\n- `routeToKeyRecovery()`\n- `maestro/recover-key-from-backup.yaml`\n\n### Steps\n1. Simulator: sign in on a wiped install → alert → ScanningKeys with no camera.\n2. Each option works: Enter pairing code (back arrow returns), Recover from backup, Delete account.\n3. Run `backup-key.yaml`, then `recover-key-from-backup.yaml`.\n\n### Done when\n- [ ] All three exits work\n- [ ] Maestro flows pass"
             ]
           ]
@@ -449,17 +449,17 @@
             ],
             [
               "New-device request screen (create, poll, confirm, unwrap)",
-              "todo",
+              "done",
               "### What\nBuild the screen a new device uses to ask for keys remotely.\n\n### Why\nRemote pairing is built on the server and in `RemoteDevicePairing.ts`, but no screen calls it.\n\n### Where\n- `utility/securedMessage/RemoteDevicePairing.ts`, `DeviceIdentity.ts`\n- `supabase/functions/device-pairing`\n- Entry point: ScanningKeys recovery options\n\n### Steps\n1. Add \"Pair with a device that isn't here\" to the recovery options.\n2. Call `createRequest()` (needs a verified local code, SEC-6), poll `status()`.\n3. Enter the code shown on the old device via `confirm()`, then `fetchAndUnwrap()` and install keys.\n4. Handle expiry, refusal and errors. Maestro flow.\n\n### Done when\n- [ ] New device gets working keys without a QR\n- [ ] Expired/refused requests are handled"
             ],
             [
               "Old-device approval screen",
-              "todo",
+              "done",
               "### What\nBuild the screen where an existing device sees and approves a pairing request.\n\n### Why\nThe other half of remote pairing.\n\n### Where\n- `RemoteDevicePairing.approve()`\n- Settings → Manage Keys\n\n### Steps\n1. List pending requests (device name, time).\n2. Gate with the identity check (PIN/biometrics).\n3. Show the one-time code, call `approve()`; Deny removes the request.\n\n### Done when\n- [ ] Approve and deny both work\n- [ ] Requires identity check"
             ],
             [
               "Review the remote pairing gate (SEC-23)",
-              "todo",
+              "done",
               "### What\nRe-review the server-side gate for remote pairing once the screens exist.\n\n### Why\nThe original finding's detail was lost. `create` requires a verified local code (SEC-6), but the full flow has never been reviewed with a UI.\n\n### Where\n- `supabase/functions/device-pairing/index.ts`\n\n### Steps\n1. Walk the flow as an attacker with a stolen session: can they create, approve or fetch?\n2. Check rate limits, expiry and one-use codes.\n3. Write the result into security-scan.md (SEC-23).\n\n### Done when\n- [ ] Review written down\n- [ ] Any new issue filed"
             ]
           ]
@@ -487,12 +487,12 @@
             ],
             [
               "Harden the vault container like Traefik (SEC-28)",
-              "todo",
+              "done",
               "### What\nGive the vault service the same container hardening Traefik already has.\n\n### Why\nTraefik runs read-only, non-root, with capabilities dropped; the vault (which holds key backups) doesn't.\n\n### Where\n- `sd-chat-vault/docker-compose.yml`\n- `sd-chat-vault/vault-service/`\n\n### Steps\n1. Add `read_only: true` (+ `tmpfs` for /tmp if needed), `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, a non-root `user`.\n2. Make sure the data volume is still writable by that user.\n3. Redeploy on the Pi; backup and recover from the app still work.\n4. Also look at `npm audit` (24 high, build tooling only) and note which can be bumped.\n\n### Done when\n- [ ] Vault runs hardened\n- [ ] Backup/recover still work"
             ],
             [
               "Supabase to Pi replication",
-              "todo",
+              "done",
               "### What\nKeep a copy of the Supabase data on the Pi. Start with a cold backup (scheduled `pg_dump` + storage sync).\n\n### Why\nToday the only copy is Supabase. The vault holds keys but not chats.\n\n### Where\n- `sd-chat-vault/docker-compose.yml`\n- new backup job on the Pi\n\n### Steps\n1. Decide the goal: cold backup (recommended first), warm standby, or failover.\n2. Get a DB connection string (session pooler on port 5432 from home; direct is IPv6 only).\n3. Nightly `pg_dump` of `public` with `--no-owner --no-acl`; rclone the storage buckets with S3 keys.\n4. Put it on a USB SSD, encrypted at rest; set retention (deleted accounts stay in old dumps).\n5. Test a restore.\n\n### Done when\n- [ ] Nightly backups run\n- [ ] A restore has been tested\n- [ ] Retention and encryption in place"
             ]
           ]
@@ -551,7 +551,7 @@
             ],
             [
               "Device test: Android notification text and two-device tokens",
-              "todo",
+              "done",
               "### What\nTest decrypted notifications on Android and the push-token fix (SEC-20).\n\n### Why\nBoth were built but never run on a device.\n\n### Where\n- `utility/push-notification/push-Notification.ts`\n- `supabase/functions/push`\n\n### Steps\n1. Android: app killed / backgrounded / open → decrypted text, one notification, tap opens the room.\n2. No local key, >3 KB message, image/file → \"New message\". iOS → \"New message\", never ciphertext.\n3. One account on two devices: only the latest device keeps an active token.\n4. Switch accounts (remembered accounts): pushes follow the active account.\n5. Known gap: group chats get no push (`push` uses `.single()`); file a follow-up if still true.\n\n### Done when\n- [ ] All cases behave as listed\n- [ ] Group-chat gap tracked"
             ]
           ]
@@ -600,17 +600,17 @@
             ],
             [
               "Rerun Supabase advisors after the live migrations",
-              "todo",
+              "done",
               "### What\nRun the Security and Performance advisors on the live project after the pending migrations are applied.\n\n### Why\nSeveral migrations went live by hand; nobody has re-checked the advisors since.\n\n### Where\n- Supabase dashboard → Advisors (or `get_advisors` via the Supabase MCP)\n\n### Steps\n1. After the SEC-12/13 and username-mask migrations are applied, run both advisors.\n2. Record the results in security-scan.md.\n3. File a task for anything new.\n\n### Done when\n- [ ] Results recorded\n- [ ] New findings filed"
             ],
             [
               "Apply `20261123000000_mask_usernames.sql` to the live project (SEC-18)",
-              "todo",
+              "done",
               "### What\nApply the username-mask migration live.\n\n### Why\nUsernames are the email's local part and readable by every user. The migration stores them masked (`johnsmith` → `jo**th`) and drops the UNIQUE constraint.\n\n### Where\n- `supabase/migrations/20261123000000_mask_usernames.sql`\n- `supabase/tests/username_mask.test.sql`\n\n### Steps\n1. `supabase test db` locally (108/108 expected).\n2. `supabase db push`.\n3. Check: `select username from profiles limit 5;` shows masked names; sign-up of a new user gets a masked name.\n4. In the app, @usernames show masked and nothing breaks.\n\n### Done when\n- [ ] Migration applied live\n- [ ] Existing and new usernames are masked"
             ],
             [
               "Apply `20261123000100_pin_search_path.sql` to the live project (SEC-14)",
-              "todo",
+              "done",
               "### What\nApply the search_path migration live.\n\n### Where\n- `supabase/migrations/20261123000100_pin_search_path.sql`\n- `supabase/tests/search_path.test.sql`\n\n### Steps\n1. `supabase test db` locally (120/120 expected).\n2. `supabase db push`.\n3. Dashboard → Advisors → Security: no \"Function Search Path Mutable\" left (leaked-password stays off on Free, expected).\n4. Open a chat and start a DM in the app to confirm both RPCs still work.\n\n### Done when\n- [ ] Migration applied live\n- [ ] Advisors show no mutable search_path"
             ]
           ]
