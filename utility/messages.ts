@@ -794,7 +794,8 @@ export const realtimeAPI = {
 
   subscribeToConversations(
     userId: string,
-    callback: (conversation: Conversation) => void
+    callback: (conversation: Conversation) => void,
+    onConversationUpdated?: (row: Pick<Conversation, 'id' | 'name' | 'avatar_url' | 'is_group'>) => void
   ) {
     return supabase
       .channel(`user-conversations:${userId}`)
@@ -821,6 +822,44 @@ export const realtimeAPI = {
             
             if (data) callback(data)
           }
+        }
+      )
+      // Renames and avatar changes (#176). No filter: the conversations SELECT
+      // policy means realtime only delivers rows this user is a member of.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        (payload) => {
+          const row = payload.new as Conversation
+          onConversationUpdated?.({
+            id: row.id,
+            name: row.name,
+            avatar_url: row.avatar_url,
+            is_group: row.is_group,
+          })
+        }
+      )
+      .subscribe()
+  },
+
+  // Header name for an open room (#176).
+  subscribeToConversationRow(
+    conversationId: string,
+    callback: (row: Pick<Conversation, 'id' | 'name' | 'avatar_url' | 'is_group'>) => void
+  ) {
+    return supabase
+      .channel(`conversation-row:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as Conversation
+          callback({ id: row.id, name: row.name, avatar_url: row.avatar_url, is_group: row.is_group })
         }
       )
       .subscribe()

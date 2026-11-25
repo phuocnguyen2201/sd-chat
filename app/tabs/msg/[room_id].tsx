@@ -28,7 +28,7 @@ import { resolveSenderKeys, type SenderKey } from '@/utility/securedMessage/Send
 import { PeerKeyPins } from '@/utility/securedMessage/PeerKeyPins';
 import { Picker } from 'emoji-mart-native';
 import { automationLocatorsDataState } from '@/constants/automationLocatorsDataState';
-import { conversationAPI, messageAPI, reactionAPI } from '@/utility/messages';
+import { conversationAPI, messageAPI, reactionAPI, realtimeAPI } from '@/utility/messages';
 import {
   Popover,
   PopoverBackdrop,
@@ -57,11 +57,26 @@ import { Files, Message } from '@/utility/types/supabse';
  */
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const { conversation_id, displayName } = useLocalSearchParams<{
+  const { conversation_id, displayName: displayNameParam } = useLocalSearchParams<{
     conversation_id?: string;
     displayName?: string;
     public_key?: string;
   }>();
+  // Starts from the route param; a group rename by any member replaces it (#176).
+  const [displayName, setDisplayName] = useState(displayNameParam);
+  useEffect(() => {
+    setDisplayName(displayNameParam);
+  }, [displayNameParam]);
+  useEffect(() => {
+    if (!conversation_id) return;
+    const channel = realtimeAPI.subscribeToConversationRow(conversation_id, (row) => {
+      // A DM's title is the peer's name, not conversations.name.
+      if (row.is_group && row.name) setDisplayName(row.name);
+    });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversation_id]);
 
   const {
     user,
