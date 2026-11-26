@@ -4,9 +4,19 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 // ============================================================================
 // Device pairing: relays end-to-end sealed key material between an
 // account's devices. This function never sees a plaintext private key -
-// only ciphertext, ephemeral public keys, and a SHA-256 hash of the
-// one-time confirmation code. See device_pairing_schema.sql for why the
-// table has no client-facing RLS policies: everything is gated here.
+// only ciphertext, ephemeral public keys, nonces and a commitment. The
+// tables have no client-facing RLS policies or grants: everything is gated here.
+//
+// Remote pairing (security #23), see utility/securedMessage/RemotePairingCheck.ts:
+//   create    new device: one-time key K + commitment H(K || Nn)  -> pending
+//   challenge old device: nonce Na, bound to the K and commitment it saw -> challenged
+//   reveal    new device: Nn, must open the commitment            -> revealed
+//   approve   the challenging device: key sealed to K, after the user typed
+//             the 6-digit check value shown on the new device      -> approved
+//   deny      any of the account's devices other than the requester
+//   fetch-key new device, single use
+// The server can't fake the check value: it would have to commit to a nonce
+// before seeing Na.
 // ============================================================================
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -24,8 +34,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I, 32 symbols
-const CODE_LENGTH = 6;
+const REMOTE_COMMIT_CONTEXT = "sd-chat-remote-pairing-commit-v1";
 const REQUEST_TTL_MS = 2 * 60 * 1000;
 const MAX_FIELD_LENGTH = 8000; // generous cap for base64 blobs, guards against abuse
 
@@ -41,17 +50,6 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
-}
-
-function generateCode(): string {
-  const bytes = new Uint8Array(CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    // 256 % 32 === 0, so this is uniform - no modulo bias.
-    code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  }
-  return code;
 }
 
 function randomDigit(): number {
@@ -83,6 +81,35 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
+/** H(context || K || Nn), the same as remotePairingCommitment on the client. */
+async function remoteCommitment(ephemeralPublicKey: string, requesterNonce: string): Promise<string> {
+  const context = new TextEncoder().encode(REMOTE_COMMIT_CONTEXT);
+  const key = base64ToBytes(ephemeralPublicKey);
+  const nonce = base64ToBytes(requesterNonce);
+  const input = new Uint8Array(context.length + key.length + nonce.length);
+  input.set(context, 0);
+  input.set(key, context.length);
+  input.set(nonce, context.length + key.length);
+  return bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", input)));
+}
+
+function isBase64Of32Bytes(value: unknown): value is string {
+  return typeof value === "string" && BASE64_32_BYTES.test(value);
 }
 
 function isNonEmptyString(value: unknown, maxLength = MAX_FIELD_LENGTH): value is string {
@@ -118,7 +145,7 @@ async function cleanupExpired(userId: string): Promise<void> {
     .from("device_pairing_requests")
     .delete()
     .eq("user_id", userId)
-    .in("status", ["pending", "code_issued", "approved"])
+    .in("status", ["pending", "challenged", "revealed", "approved"])
     .lt("expires_at", new Date().toISOString());
 }
 
@@ -136,9 +163,14 @@ async function cleanupExpiredLocalCodes(userId: string): Promise<void> {
 // ----------------------------------------------------------------------------
 
 async function actionCreate(userId: string, body: any) {
-  const { deviceId, ephemeralPublicKey } = body;
-  if (!isNonEmptyString(deviceId) || !isNonEmptyString(ephemeralPublicKey)) {
+  const { deviceId, ephemeralPublicKey, commitment } = body;
+  if (!isNonEmptyString(deviceId) || !isBase64Of32Bytes(ephemeralPublicKey)) {
     return json({ error: "deviceId and ephemeralPublicKey are required" }, 400);
+  }
+  // Security #23: requests without a commitment come from app versions that
+  // can't show the check value, so they're refused.
+  if (!isBase64Of32Bytes(commitment)) {
+    return json({ error: "Update SD Chat on this device to pair it" }, 400);
   }
   if (!(await assertOwnDevice(userId, deviceId))) {
     return json({ error: "Unknown device" }, 403);
@@ -174,6 +206,7 @@ async function actionCreate(userId: string, body: any) {
       user_id: userId,
       requesting_device_id: deviceId,
       requesting_ephemeral_public_key: ephemeralPublicKey,
+      requester_commitment: commitment,
       expires_at: expiresAt,
     })
     .select("id, expires_at")
@@ -197,10 +230,10 @@ async function actionStatus(userId: string, body: any) {
   const { data: reqRow, error } = await db
     .from("device_pairing_requests")
     .select(
-      "id, status, requesting_device_id, requesting_ephemeral_public_key, expires_at, created_at"
+      "id, status, requesting_device_id, requesting_ephemeral_public_key, requester_commitment, approver_nonce, requester_nonce, challenged_by_device_id, expires_at, created_at"
     )
     .eq("user_id", userId)
-    .in("status", ["pending", "code_issued", "approved"])
+    .in("status", ["pending", "challenged", "revealed", "approved"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -227,44 +260,136 @@ async function actionStatus(userId: string, body: any) {
     requestingDeviceId: reqRow.requesting_device_id,
     requestingDeviceName: deviceRow?.device_name ?? "Unknown device",
     requestingEphemeralPublicKey: reqRow.requesting_ephemeral_public_key,
+    requesterCommitment: reqRow.requester_commitment,
+    approverNonce: reqRow.approver_nonce,
+    requesterNonce: reqRow.requester_nonce,
     isMine: isNonEmptyString(deviceId) ? deviceId === reqRow.requesting_device_id : undefined,
+    isChallenger: isNonEmptyString(deviceId) ? deviceId === reqRow.challenged_by_device_id : undefined,
     expiresAt: reqRow.expires_at,
   });
 }
 
-async function actionApprove(userId: string, body: any) {
-  const { deviceId, senderEphemeralPublicKey, ciphertext, nonce } = body;
+async function actionChallenge(userId: string, body: any) {
+  const { deviceId, requestId, requesterEphemeralPublicKey, requesterCommitment, approverNonce } = body;
   if (
     !isNonEmptyString(deviceId) ||
-    !isNonEmptyString(senderEphemeralPublicKey) ||
-    !isNonEmptyString(ciphertext) ||
-    !isNonEmptyString(nonce)
+    !isNonEmptyString(requestId) ||
+    !isBase64Of32Bytes(requesterEphemeralPublicKey) ||
+    !isBase64Of32Bytes(requesterCommitment) ||
+    !isBase64Of32Bytes(approverNonce)
   ) {
-    return json({ error: "deviceId, senderEphemeralPublicKey, ciphertext and nonce are required" }, 400);
+    return json({ error: "deviceId, requestId, requesterEphemeralPublicKey, requesterCommitment and approverNonce are required" }, 400);
   }
   if (!(await assertOwnDevice(userId, deviceId))) {
     return json({ error: "Unknown device" }, 403);
   }
 
-  const code = generateCode();
-  const codeHash = await sha256Hex(code);
-  const expiresAt = new Date(Date.now() + REQUEST_TTL_MS).toISOString();
-
+  // Only the request this device was shown: same id, key and commitment.
   const { data, error } = await db
     .from("device_pairing_requests")
     .update({
-      status: "code_issued",
-      code_hash: codeHash,
-      code_issued_by_device_id: deviceId,
+      status: "challenged",
+      approver_nonce: approverNonce,
+      challenged_by_device_id: deviceId,
+    })
+    .eq("id", requestId)
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .eq("requesting_ephemeral_public_key", requesterEphemeralPublicKey)
+    .eq("requester_commitment", requesterCommitment)
+    .neq("requesting_device_id", deviceId) // can't approve your own request
+    .gt("expires_at", new Date().toISOString())
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("challenge failed:", error);
+    return json({ error: "Failed to approve pairing request" }, 500);
+  }
+  if (!data) {
+    return json({ error: "This pairing request is no longer waiting for approval" }, 409);
+  }
+  return json({ ok: true });
+}
+
+async function actionReveal(userId: string, body: any) {
+  const { deviceId, requestId, requesterNonce } = body;
+  if (!isNonEmptyString(deviceId) || !isNonEmptyString(requestId) || !isBase64Of32Bytes(requesterNonce)) {
+    return json({ error: "deviceId, requestId and requesterNonce are required" }, 400);
+  }
+
+  const { data: row, error } = await db
+    .from("device_pairing_requests")
+    .select("requesting_ephemeral_public_key, requester_commitment")
+    .eq("id", requestId)
+    .eq("user_id", userId)
+    .eq("requesting_device_id", deviceId)
+    .eq("status", "challenged")
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (error) {
+    console.error("reveal lookup failed:", error);
+    return json({ error: "Failed to continue pairing" }, 500);
+  }
+  if (!row) {
+    return json({ error: "No pairing request waiting for this device" }, 409);
+  }
+  // The old device checks this too; checking here turns a bad nonce into a clear error.
+  if ((await remoteCommitment(row.requesting_ephemeral_public_key, requesterNonce)) !== row.requester_commitment) {
+    return json({ error: "Nonce does not match the commitment" }, 400);
+  }
+
+  const { data: updated, error: updateError } = await db
+    .from("device_pairing_requests")
+    .update({ status: "revealed", requester_nonce: requesterNonce })
+    .eq("id", requestId)
+    .eq("status", "challenged")
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("reveal failed:", updateError);
+    return json({ error: "Failed to continue pairing" }, 500);
+  }
+  if (!updated) {
+    return json({ error: "Please try again" }, 409);
+  }
+  return json({ ok: true });
+}
+
+async function actionApprove(userId: string, body: any) {
+  const { deviceId, requestId, senderEphemeralPublicKey, ciphertext, nonce } = body;
+  if (
+    !isNonEmptyString(deviceId) ||
+    !isNonEmptyString(requestId) ||
+    !isNonEmptyString(senderEphemeralPublicKey) ||
+    !isNonEmptyString(ciphertext) ||
+    !isNonEmptyString(nonce)
+  ) {
+    return json({ error: "deviceId, requestId, senderEphemeralPublicKey, ciphertext and nonce are required" }, 400);
+  }
+  if (!(await assertOwnDevice(userId, deviceId))) {
+    return json({ error: "Unknown device" }, 403);
+  }
+
+  // Only the device that challenged, and only after the new device revealed.
+  const expiresAt = new Date(Date.now() + REQUEST_TTL_MS).toISOString();
+  const { data, error } = await db
+    .from("device_pairing_requests")
+    .update({
+      status: "approved",
+      approved_by_device_id: deviceId,
       sender_ephemeral_public_key: senderEphemeralPublicKey,
       ciphertext,
       nonce,
-      attempts: 0,
       expires_at: expiresAt,
     })
+    .eq("id", requestId)
     .eq("user_id", userId)
-    .eq("status", "pending")
-    .neq("requesting_device_id", deviceId) // can't approve your own request
+    .eq("status", "revealed")
+    .eq("challenged_by_device_id", deviceId)
+    .gt("expires_at", new Date().toISOString())
     .select("id")
     .maybeSingle();
 
@@ -273,60 +398,32 @@ async function actionApprove(userId: string, body: any) {
     return json({ error: "Failed to approve pairing request" }, 500);
   }
   if (!data) {
-    return json({ error: "No pending pairing request to approve" }, 409);
+    return json({ error: "No pairing request ready to approve" }, 409);
   }
 
-  return json({ requestId: data.id, code, expiresAt });
+  return json({ requestId: data.id, expiresAt });
 }
 
-async function actionConfirm(userId: string, body: any) {
-  const { deviceId, requestId, code } = body;
-  if (!isNonEmptyString(deviceId) || !isNonEmptyString(requestId) || !isNonEmptyString(code, 32)) {
-    return json({ error: "deviceId, requestId and code are required" }, 400);
+async function actionDeny(userId: string, body: any) {
+  const { deviceId, requestId } = body;
+  if (!isNonEmptyString(deviceId) || !isNonEmptyString(requestId)) {
+    return json({ error: "deviceId and requestId are required" }, 400);
+  }
+  if (!(await assertOwnDevice(userId, deviceId))) {
+    return json({ error: "Unknown device" }, 403);
   }
 
-  // Atomically claim the single confirmation attempt (0 -> 1). A
-  // concurrent/duplicate submit finds attempts already at 1 and no row
-  // matches, so it cannot get a second guess.
-  const { data: claimed, error: claimError } = await db
+  // Denied rows carry no key material, and leaving the active states frees the
+  // account for a new request.
+  await db
     .from("device_pairing_requests")
-    .update({ attempts: 1 })
+    .update({ status: "denied", ciphertext: null, nonce: null, sender_ephemeral_public_key: null })
     .eq("id", requestId)
     .eq("user_id", userId)
-    .eq("requesting_device_id", deviceId)
-    .eq("status", "code_issued")
-    .eq("attempts", 0)
-    .gt("expires_at", new Date().toISOString())
-    .select("code_hash")
-    .maybeSingle();
+    .neq("requesting_device_id", deviceId)
+    .in("status", ["pending", "challenged", "revealed"]);
 
-  if (claimError) {
-    console.error("confirm claim failed:", claimError);
-    return json({ error: "Failed to confirm code" }, 500);
-  }
-  if (!claimed) {
-    return json({ error: "No code awaiting confirmation, request a new one" }, 410);
-  }
-
-  const submittedHash = await sha256Hex(code.trim().toUpperCase());
-  const matched = submittedHash === claimed.code_hash;
-
-  const { data: finalRow, error: finalError } = await db
-    .from("device_pairing_requests")
-    .update({
-      status: matched ? "approved" : "denied",
-      approved_by_device_id: matched ? deviceId : null,
-    })
-    .eq("id", requestId)
-    .select("status")
-    .single();
-
-  if (finalError) {
-    console.error("confirm finalize failed:", finalError);
-    return json({ error: "Failed to confirm code" }, 500);
-  }
-
-  return json({ status: finalRow.status });
+  return json({ ok: true });
 }
 
 async function actionFetchKey(userId: string, body: any) {
@@ -611,10 +708,14 @@ Deno.serve(async (req: Request) => {
         return await actionCreate(user.id, body);
       case "status":
         return await actionStatus(user.id, body);
+      case "challenge":
+        return await actionChallenge(user.id, body);
+      case "reveal":
+        return await actionReveal(user.id, body);
       case "approve":
         return await actionApprove(user.id, body);
-      case "confirm":
-        return await actionConfirm(user.id, body);
+      case "deny":
+        return await actionDeny(user.id, body);
       case "fetch-key":
         return await actionFetchKey(user.id, body);
       case "cancel":

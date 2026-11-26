@@ -7,8 +7,36 @@ Latest status for every finding. The dated entries below keep their status as of
 | Status | Findings |
 |---|---|
 | ✅ Done (15) | #1, #2, #3, #6, #9, #10, #11, #15, #16, #17, #19, #24, #27, #29, #30 |
-| 🟡 Fixed in code, not live or not checked on a device (14) | **#12 (Medium, the old bug is live in production: apply `20261026000200`, then redeploy `delete-account`)**, #13 (`fcm_token` migration), #14 (`pin_search_path` migration; leaked-password protection still off), #18 (`mask_usernames` migration), #20, #21, #22 (migration), #25, #26, #31 (migration), #8c (migration + `push` deploy). #4, #5, #7, #8a/b were fixed in code in September; the log never records them as deployed or tested on a device, so check them before closing. |
-| 🔴 Open (2) | #23 (Low, parked until the remote pairing screens exist), #28 (Info, `npm audit`: build tooling only) |
+| 🟡 Fixed in code, not live or not checked on a device (15) | #23 (Low, migration + function deploy; the remote pairing screens must use the new API), **#12 (Medium, the old bug is live in production: apply `20261026000200`, then redeploy `delete-account`)**, #13 (`fcm_token` migration), #14 (`pin_search_path` migration; leaked-password protection still off), #18 (`mask_usernames` migration), #20, #21, #22 (migration), #25, #26, #31 (migration), #8c (migration + `push` deploy). #4, #5, #7, #8a/b were fixed in code in September; the log never records them as deployed or tested on a device, so check them before closing. |
+| 🔴 Open (1) | #28 (Info, `npm audit`: build tooling only) |
+
+## 2026-11-26 — #23 fixed in code: remote pairing needs a check value typed on the old device (not applied or deployed)
+
+**Re-review (the original detail was lost).** Walked the remote flow in `device-pairing` and `RemoteDevicePairing.ts`.
+- *Stolen session alone:* can't get keys. The local-code gate in `create` can be passed by a session holder (it can call `local-code-create` itself), but `approve` needs a device that holds the identity key to seal it, and the old 6-character code was shown only on that device.
+- *The real gap:* nothing tied the new device's one-time key to anything the user saw. The old device sealed the identity key to whatever `requestingEphemeralPublicKey` the server returned, and the server generated (and knew) the confirmation code. So whoever controls the server or the database could swap in its own key, confirm with its own code, and fetch the identity key. `approve` also wasn't tied to a request id.
+- A fingerprint of the key alone wouldn't fix it: the server sees the real key first and can grind one of its own with the same short value. (The local QR flow's 4-hex `pairingCheck` and 4-digit `keyProof` have the same weakness against a server; not changed here.)
+
+**Fix: commit-then-reveal check value** (same idea as Bluetooth numeric comparison). `utility/securedMessage/RemotePairingCheck.ts`:
+1. New device: one-time key K and random 32-byte nonce Nn; `create` sends K and H("sd-chat-remote-pairing-commit-v1" || K || Nn).
+2. Old device, after the identity check: `challenge` sends a random nonce Na, bound to the request id, K and the commitment it was shown. It remembers K and the commitment.
+3. New device: `reveal` sends Nn; the server checks it opens the commitment. The new device shows a 6-digit value from SHA-256 over user id, request id, K, Na and Nn.
+4. Old device: checks Nn against the commitment it remembered, and the user types the 6 digits. Only a match seals the key, and only to the remembered K. A mismatch calls `deny`, so each request gets one try.
+
+A server in the middle must commit to its nonce before it sees Na, so it gets one guess at 6 digits (1 in 10^6).
+
+**Server** (`supabase/functions/device-pairing/index.ts`): `create` refuses requests without a commitment ("Update SD Chat…"); new `challenge` (own device, not the requester, matching key + commitment, pending only), `reveal` (requesting device only, nonce must open the commitment), `deny` (another own device; clears key material). `approve` needs the request id, state `revealed`, and the device that challenged. The server-issued code and the `confirm` action are removed.
+
+**Schema:** `supabase/migrations/20261126000200_remote_pairing_check.sql`: columns `requester_commitment`, `approver_nonce`, `requester_nonce`, `challenged_by_device_id`; statuses `challenged` and `revealed`; the one-active-request index covers them. Also revokes the baseline `GRANT ALL` on `device_pairing_requests` and `local_pairing_codes` from `anon`/`authenticated` (RLS already had no policies). Old columns (`code_hash`, …) are kept, unused, so the deployed function doesn't break before the redeploy.
+
+**Not done here:** "approve only from an already-trusted device" on the server. The `devices` flags are client-writable, so the server can't tell; the protection is that only a device holding the identity key can produce a useful sealed payload, and the user's typed check value.
+
+**Tests:**
+- Jest `utility/securedMessage/__tests__/RemoteDevicePairing.test.ts` (9): full flow, wrong value (denied, nothing sealed, no retry), a server swapping in its own key, a nonce chosen after seeing Na, sealing only to the challenged key. Full suite 207/207.
+- pgTAP `supabase/tests/remote_pairing.test.sql` (10). All 9 files, 157/157.
+- End to end against the function served locally (`supabase functions serve`): 27/27, including another account, the requesting device, and a non-challenging device being refused at each step, single-use fetch, and REST access to the table refused.
+
+**Pending:** `supabase db push`, `supabase functions deploy device-pairing`, then build the screens (S4.3.2 new-device request: show the 6 digits; S4.3.3 old-device approval: identity check → `challenge` → type the digits → `approve`, Deny → `deny`).
 
 ## 2026-11-26 — #31 fixed in code: members can only change `name` and `avatar_url` (not applied)
 
@@ -275,7 +303,7 @@ Full suite **130/130**, and `tsc` shows no new errors. Maestro:
 | 20 | Medium | `updateTokenStatus` deactivated tokens with `.neq('profile_id', user.id)`: other users' tokens instead of this user's other devices. Owner-only RLS probably made it a no-op, so a user's old devices were never deactivated either. | `utility/push-notification/push-Notification.ts:124` | 🟡 Fixed in code 2026-10-26. |
 | 21 | Medium | No re-authentication for sensitive actions: `secure_password_change = false` (a stolen session can change the password), and key export (ManageKeys / PairingCode), vault backup overwrite (BackupKey) and account deletion need no biometric or password re-check. The biometric screen's Back button used to skip straight to ManageKeys. | `supabase/config.toml:180`, `app/tabs/managekeys/*` | 🟡 Back button fixed (`8552bef`). The rest is 🔴 open. |
 | 22 | Low | Group key pinning is keyed by `conversations.created_by`, not by the member who actually wrapped the row. A group row backfilled by another member (`backfillMissingWrappedKeys`) opens with that member's key, which is then checked against the creator's pin. That gives a false "key changed" dialog, or pins the wrong key on first use. Fix: record `wrapped_by` on the row and pin against it. | `ConversationKeyResolver.ts:43` (`findKeyWrapperPeerId`) | 🟡 **Fixed in code (2026-11-24),** see the entry at the top of this file. Migration not applied yet. |
-| 23 | Low | Remote (server-relayed) pairing gate. The detail was lost. The remote flow still has no UI, and `create` requires a verified local code (#6). | `supabase/functions/device-pairing/index.ts` | ❔ Re-check when the remote pairing UI is built. |
+| 23 | Low | Remote (server-relayed) pairing gate. The detail was lost. The remote flow still has no UI, and `create` requires a verified local code (#6). | `supabase/functions/device-pairing/index.ts` | 🟡 **Re-reviewed and fixed in code (2026-11-26),** see the entry at the top. Not applied or deployed. |
 | 24 | Low | Vault recovery feeds `kdf_n` / `kdf_r` / `kdf_p` from the `key_backups` row straight into scrypt with no bounds. A huge `N` written to the row (owner-only RLS, so the owner or a DB-level attacker) hangs or crashes the app at recovery. Fix: refuse values outside a fixed range (e.g. `N` ≤ 2^17, `r` ≤ 16, `p` ≤ 4). | `utility/securedMessage/VaultBackup.ts:289-293` | ✅ **Fixed 2026-11-26** (`VaultKdfParams.ts`, merged in PR #175). |
 | 25 | Low | The Supabase session (with its refresh token) is kept in AsyncStorage, which is unencrypted, and Android has `allowBackup="true"`, so it can end up in device backups. Fix: SecureStore-backed session storage, or `allowBackup=false`. | `utility/connection.ts:11`, `android/app/src/main/AndroidManifest.xml` | 🔴 Open. |
 | 26 | Info | The local snapshot SQLite DB is one file for every account on the device, not namespaced per user like SecureStore keys, so switching accounts can show the previous account's cached data. | `utility/localstorage/snapshot.ts:4` | 🔴 Open. |
