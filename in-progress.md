@@ -1,5 +1,12 @@
 # In Progress / Open Items
 
+## SEC-23 / #180 remote pairing check value (2026-11-26): code + tests done, not applied or deployed
+1. Commit and open a PR from `security/sec-23-remote-pairing-check`.
+2. `supabase db push` (applies `20261126000200_remote_pairing_check.sql`), then `supabase functions deploy device-pairing`. Order doesn't matter much: no screen uses remote pairing yet.
+3. When building S4.3.2 / S4.3.3 (#84, #85): new device shows the 6 digits from `reveal()`; old device runs the identity check, then `challenge()`, asks the user to type the digits, then `approve()`; Deny calls `deny()`. Show `RemotePairingCheckError` as "codes don't match, start again".
+4. Later: drop the unused `code_hash`, `code_issued_by_device_id`, `attempts` columns and the `code_issued` status once the new function is live.
+5. Close GitHub #180 (and mark its backlog task done) after the screens use it.
+
 ## SEC-31 / #181 conversation column grants (2026-11-26): code + pgTAP done, not applied
 1. Commit and open a PR from `security/sec-31-conversation-columns`.
 2. `supabase db push` (applies `20261126000100_conversations_update_columns.sql`).

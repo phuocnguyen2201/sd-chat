@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-11-26 (later): SEC-23 / #180 remote pairing check value (code + tests, not applied or deployed)
+- Branch `security/sec-23-remote-pairing-check` (uncommitted). Re-reviewed the remote flow: the server could swap the new device's key and confirm with its own code. Fixed with a commit-then-reveal 6-digit check value the user types on the old device.
+- New `RemotePairingCheck.ts`; `RemoteDevicePairing.ts` gets `challenge`, `reveal`, `deny`, and `approve(…, typedCheck, …)` (no more `confirm`). `device-pairing`: new `challenge`/`reveal`/`deny`, `approve` bound to request + challenging device, `confirm` removed.
+- Migration `20261126000200_remote_pairing_check.sql` (new columns/states, revoke client grants on both pairing tables).
+- Tests: Jest 207/207 (9 new), pgTAP 157/157 (10 new), end-to-end against the locally served function 27/27.
+
 ## 2026-11-26 (later): Remote pairing items reopened
 - Reopened on GitHub: #84, #85 (Todo), story #82 and epic #71 (In Progress), since no remote pairing screen exists. Pulled into backlog.json (S4.3.2, S4.3.3 → todo). #86 stays closed; #180 covers SEC-23. #163 kept done locally.
 
