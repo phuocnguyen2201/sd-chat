@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-11-26 (later): Remote pairing items reopened
+- Reopened on GitHub: #84, #85 (Todo), story #82 and epic #71 (In Progress), since no remote pairing screen exists. Pulled into backlog.json (S4.3.2, S4.3.3 → todo). #86 stays closed; #180 covers SEC-23. #163 kept done locally.
+
+## 2026-11-26 (later): SEC-31 / #181 fixed in code (not applied)
+- Branch `security/sec-31-conversation-columns`. Migration `20261126000100_conversations_update_columns.sql`: `authenticated` keeps SELECT and gets UPDATE on `name` and `avatar_url` only; `anon` loses all access.
+- New pgTAP `supabase/tests/conversations_update.test.sql` (16 checks). Local: 147/147 pass across 8 files; with the old grants, 10 of the 16 fail.
+- security-scan.md: #31 entry and a "Current status" table at the top with the latest state of all 31 findings.
+
+## 2026-11-26 (later): Backlog tasks for SEC-31 and SEC-23
+- #181 (S7.1.11, under story #106): members can only update a conversation's `name` and `avatar_url` (column-level UPDATE grant + pgTAP).
+- #180 (S4.3.5, under story #82): confirmation step in remote pairing, parked until the remote pairing screens exist.
+- Found: nothing in `app/` or `components/` uses `RemoteDevicePairing`, but #84, #85 (the two remote pairing screens) and #86 (SEC-23 review) are Done on GitHub, and story #82 and epic #71 are closed.
+- #163 still differs (done locally, Todo on GitHub).
+
 ## 2026-11-26 (later): Backlog pulled from GitHub
 - #162 (remembered accounts device test) and #176 (group name live update) → done.
 - #163 kept `done` locally: it is still Todo on GitHub, so a pull would undo the local edit.

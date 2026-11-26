@@ -1,5 +1,28 @@
 # Security Scan
 
+## Current status (2026-11-26)
+
+Latest status for every finding. The dated entries below keep their status as of that date, so some of them are out of date (for example, the 2026-10-03 table still shows #25 and #27 as 🔴, and the 2026-10-26 table shows #9/#11/#30 as not applied).
+
+| Status | Findings |
+|---|---|
+| ✅ Done (15) | #1, #2, #3, #6, #9, #10, #11, #15, #16, #17, #19, #24, #27, #29, #30 |
+| 🟡 Fixed in code, not live or not checked on a device (14) | **#12 (Medium, the old bug is live in production: apply `20261026000200`, then redeploy `delete-account`)**, #13 (`fcm_token` migration), #14 (`pin_search_path` migration; leaked-password protection still off), #18 (`mask_usernames` migration), #20, #21, #22 (migration), #25, #26, #31 (migration), #8c (migration + `push` deploy). #4, #5, #7, #8a/b were fixed in code in September; the log never records them as deployed or tested on a device, so check them before closing. |
+| 🔴 Open (2) | #23 (Low, parked until the remote pairing screens exist), #28 (Info, `npm audit`: build tooling only) |
+
+## 2026-11-26 — #31 fixed in code: members can only change `name` and `avatar_url` (not applied)
+
+**Checked first:** the app updates `conversations` in two places only, `name` (`ChatRoomEditing.tsx:124`) and `avatar_url` (`conversationAPI.updateGroupAvatarForGroupChat`, `utility/messages.ts:488`). Nothing writes `epoch` or `meta_data`. Conversations are created only by the `SECURITY DEFINER` RPCs (`create_conversation_with_participants`, `create_dm_conversation`) and deleted only by `delete-account` (service role). There are no INSERT/DELETE policies, so RLS already blocked those for clients.
+
+**Fix:** `supabase/migrations/20261126000100_conversations_update_columns.sql`:
+- `revoke all` on `public.conversations` from `anon` and `authenticated`.
+- `grant select` to `authenticated` (the app and realtime need it) and `grant update (name, avatar_url)` to `authenticated`.
+- The UPDATE policy is unchanged. With no `WITH CHECK`, Postgres reuses `USING` for UPDATE, so the row must still belong to a conversation the caller is in.
+
+**Tests:** new `supabase/tests/conversations_update.test.sql`, 16 checks: the column grants; a non-creator member can rename and change the avatar; the same member gets 42501 on `created_by`, `is_group` and DELETE; an outsider's rename changes nothing; anon has no access. With the old `GRANT ALL` restored, 10 of the 16 fail. Full local run after `supabase db reset`: **147/147 pass across 8 files**.
+
+**Pending:** `supabase db push`, then on a device: rename a group and change its avatar as a non-creator member (should still work), and confirm the live rename from #176 still shows up.
+
 ## 2026-11-26 — Review of #176 (live group renames) and #121; new finding #31
 
 Method: read the merged #176 diff (`2ed8c3c`) and the `conversations` policies and grants in the migrations. No live checks.
@@ -9,7 +32,7 @@ Method: read the merged #176 diff (`2ed8c3c`) and the `conversations` policies a
 
 | # | Severity | Finding | Where | Status |
 |---|---|---|---|---|
-| 31 | Low | **Any member can change any column of a conversation, not just its name and avatar.** The UPDATE policy "Allow users update own conversations" only checks membership (`USING`, no `WITH CHECK`), and `authenticated` has `GRANT ALL` on the table. So a member can set `created_by` to themselves or someone else, or flip `is_group`. `created_by` is still trusted in two places: the key-wrapper fallback in `findKeyWrapperPeerId` (used when `wrapped_by` is null, e.g. legacy rows) and `delete-account`'s `.eq("created_by", userId)`. Flipping `is_group` changes how clients name and resolve keys for the chat. #176 makes renames visible live but doesn't widen access. **Fix:** `revoke update on public.conversations from authenticated, anon; grant update (name, avatar_url) on public.conversations to authenticated;`, plus a pgTAP test that a member can rename but can't change `created_by`/`is_group`. Check first that no client or RPC updates other columns as `authenticated`. | `supabase/migrations/20260925000000_baseline_schema.sql:842`, `:1093-1094`; `ConversationKeyResolver.ts:48`; `supabase/functions/delete-account/index.ts:68` | 🔴 Open. |
+| 31 | Low | **Any member can change any column of a conversation, not just its name and avatar.** The UPDATE policy "Allow users update own conversations" only checks membership (`USING`, no `WITH CHECK`), and `authenticated` has `GRANT ALL` on the table. So a member can set `created_by` to themselves or someone else, or flip `is_group`. `created_by` is still trusted in two places: the key-wrapper fallback in `findKeyWrapperPeerId` (used when `wrapped_by` is null, e.g. legacy rows) and `delete-account`'s `.eq("created_by", userId)`. Flipping `is_group` changes how clients name and resolve keys for the chat. #176 makes renames visible live but doesn't widen access. **Fix:** `revoke update on public.conversations from authenticated, anon; grant update (name, avatar_url) on public.conversations to authenticated;`, plus a pgTAP test that a member can rename but can't change `created_by`/`is_group`. Check first that no client or RPC updates other columns as `authenticated`. | `supabase/migrations/20260925000000_baseline_schema.sql:842`, `:1093-1094`; `ConversationKeyResolver.ts:48`; `supabase/functions/delete-account/index.ts:68` | 🟡 **Fixed in code (2026-11-26),** see the entry above. Migration not applied. |
 
 ## 2026-11-24 — #22 pin group keys to the member who wrapped the row (code + tests, not deployed)
 
