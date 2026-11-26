@@ -459,18 +459,23 @@
             ],
             [
               "New-device request screen (create, poll, confirm, unwrap)",
-              "done",
+              "todo",
               "### What\nBuild the screen a new device uses to ask for keys remotely.\n\n### Why\nRemote pairing is built on the server and in `RemoteDevicePairing.ts`, but no screen calls it.\n\n### Where\n- `utility/securedMessage/RemoteDevicePairing.ts`, `DeviceIdentity.ts`\n- `supabase/functions/device-pairing`\n- Entry point: ScanningKeys recovery options\n\n### Steps\n1. Add \"Pair with a device that isn't here\" to the recovery options.\n2. Call `createRequest()` (needs a verified local code, SEC-6), poll `status()`.\n3. Enter the code shown on the old device via `confirm()`, then `fetchAndUnwrap()` and install keys.\n4. Handle expiry, refusal and errors. Maestro flow.\n\n### Done when\n- [ ] New device gets working keys without a QR\n- [ ] Expired/refused requests are handled"
             ],
             [
               "Old-device approval screen",
-              "done",
+              "todo",
               "### What\nBuild the screen where an existing device sees and approves a pairing request.\n\n### Why\nThe other half of remote pairing.\n\n### Where\n- `RemoteDevicePairing.approve()`\n- Settings → Manage Keys\n\n### Steps\n1. List pending requests (device name, time).\n2. Gate with the identity check (PIN/biometrics).\n3. Show the one-time code, call `approve()`; Deny removes the request.\n\n### Done when\n- [ ] Approve and deny both work\n- [ ] Requires identity check"
             ],
             [
               "Review the remote pairing gate (SEC-23)",
               "done",
               "### What\nRe-review the server-side gate for remote pairing once the screens exist.\n\n### Why\nThe original finding's detail was lost. `create` requires a verified local code (SEC-6), but the full flow has never been reviewed with a UI.\n\n### Where\n- `supabase/functions/device-pairing/index.ts`\n\n### Steps\n1. Walk the flow as an attacker with a stolen session: can they create, approve or fetch?\n2. Check rate limits, expiry and one-use codes.\n3. Write the result into security-scan.md (SEC-23).\n\n### Done when\n- [ ] Review written down\n- [ ] Any new issue filed"
+            ],
+            [
+              "Add a confirmation step to the remote pairing flow (SEC-23)",
+              "todo",
+              "### What\nAdd an explicit confirmation step to remote (server-relayed) pairing, so a new device only gets keys after the user confirms on a device they already trust. Severity: Low.\n\n### Why\nThe remote flow has no confirmation step. Whoever controls the session or the server could push a pairing through without the user noticing. The local QR flow has the pairing check for this; the remote flow needs its equivalent.\n\n### Where\n- `supabase/functions/device-pairing/index.ts`\n- `utility/securedMessage/RemoteDevicePairing.ts`, `DeviceIdentity.ts`\n- the remote pairing screens (not built yet)\n\n### Steps\n1. **Parked until the remote pairing screens exist.** Nothing in `app/` or `components/` uses `RemoteDevicePairing` yet.\n2. When the old-device approval screen is built: show the request (device name, time) and a short code or check value derived from the new device's one-time key, the same way the local flow shows a pairing check.\n3. Require the user to confirm on the old device, behind the identity check (PIN/biometrics), before `approve()` runs.\n4. Server: `approve` is refused unless that confirmation came from an already-trusted device of the same account, and each request can be approved once only.\n5. Test: approve, deny, expired request, and a request approved from an untrusted device (must fail).\n\n### Done when\n- [ ] No keys move without a confirmation on a trusted device\n- [ ] security-scan.md #23 updated with the confirmation step\n\n> Blocked by the remote pairing screens (new-device request and old-device approval)."
             ]
           ]
         }
@@ -622,6 +627,11 @@
               "Apply `20261123000100_pin_search_path.sql` to the live project (SEC-14)",
               "done",
               "### What\nApply the search_path migration live.\n\n### Where\n- `supabase/migrations/20261123000100_pin_search_path.sql`\n- `supabase/tests/search_path.test.sql`\n\n### Steps\n1. `supabase test db` locally (120/120 expected).\n2. `supabase db push`.\n3. Dashboard → Advisors → Security: no \"Function Search Path Mutable\" left (leaked-password stays off on Free, expected).\n4. Open a chat and start a DM in the app to confirm both RPCs still work.\n\n### Done when\n- [ ] Migration applied live\n- [ ] Advisors show no mutable search_path"
+            ],
+            [
+              "Members can only update a conversation's name and avatar (SEC-31)",
+              "todo",
+              "### What\nLimit what a member can change on a `conversations` row to `name` and `avatar_url`. Severity: Low. Found 2026-11-26.\n\n### Why\nThe UPDATE policy \"Allow users update own conversations\" only checks membership (`USING`, no `WITH CHECK`), and `authenticated` has `GRANT ALL` on the table. So any member can set `created_by` to anyone or flip `is_group`.\n\n`created_by` is still trusted in two places: the key-wrapper fallback in `findKeyWrapperPeerId` (used when `wrapped_by` is null, e.g. legacy rows) and `delete-account`'s `.eq(\"created_by\", userId)`. Flipping `is_group` changes how clients name the chat and resolve its keys.\n\n### Where\n- `supabase/migrations/20260925000000_baseline_schema.sql:842` (policy), `:1093-1094` (grants)\n- `utility/securedMessage/ConversationKeyResolver.ts:48` (`findKeyWrapperPeerId`)\n- `supabase/functions/delete-account/index.ts:68`\n- new migration in `supabase/migrations/`, new pgTAP test in `supabase/tests/`\n\n### Steps\n1. Check that no client code or RPC updates other `conversations` columns as `authenticated` (grep `.from('conversations').update`, and RPCs that aren't SECURITY DEFINER).\n2. Migration: `revoke update on public.conversations from authenticated, anon;` then `grant update (name, avatar_url) on public.conversations to authenticated;`\n3. pgTAP: a member can rename and change the avatar; a member can't change `created_by` or `is_group`; an outsider can't update at all.\n4. `supabase test db` (all suites), then apply live with `supabase db push`.\n5. In the app: renaming a group and changing its avatar still work, and #176's live rename still arrives.\n\n### Done when\n- [ ] Only `name` and `avatar_url` can be updated by members\n- [ ] New pgTAP checks pass with the other suites\n- [ ] Migration applied live\n- [ ] security-scan.md #31 marked fixed"
             ]
           ]
         },

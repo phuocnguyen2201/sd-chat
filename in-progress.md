@@ -1,5 +1,10 @@
 # In Progress / Open Items
 
+## SEC-31 / #181 conversation column grants (2026-11-26): code + pgTAP done, not applied
+1. Commit and open a PR from `security/sec-31-conversation-columns`.
+2. `supabase db push` (applies `20261126000100_conversations_update_columns.sql`).
+3. On a device, as a member who didn't create the group: rename it and change its avatar (both should still work); another member sees the rename live (#176).
+4. Close GitHub #181 and mark S7.1.11 done in `backlog.json`.
 
 ## #176 live group renames (2026-11-26): code done, migration not applied
 1. `supabase db push` (applies `20261126000000_conversations_realtime.sql`; it's a no-op if the table is already in the publication).

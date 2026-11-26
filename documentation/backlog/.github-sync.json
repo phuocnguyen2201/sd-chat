@@ -1160,6 +1160,20 @@
       "url": "https://github.com/phuocnguyen2201/sd-chat/issues/177",
       "title": "Center the \"Select Avatar\" text in the chat settings avatar picker",
       "item_id": "PVTI_lAHOARaDrs4BsxOqzhL6hGI"
+    },
+    "S4.3.5": {
+      "number": 180,
+      "id": 6619007299,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/180",
+      "title": "Add a confirmation step to the remote pairing flow (SEC-23)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhL-8WQ"
+    },
+    "S7.1.11": {
+      "number": 181,
+      "id": 6619009132,
+      "url": "https://github.com/phuocnguyen2201/sd-chat/issues/181",
+      "title": "Members can only update a conversation's name and avatar (SEC-31)",
+      "item_id": "PVTI_lAHOARaDrs4BsxOqzhL-8c0"
     }
   }
 }
