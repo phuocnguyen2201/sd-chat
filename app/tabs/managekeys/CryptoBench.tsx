@@ -43,7 +43,7 @@ export default function CryptoBench() {
 
     return (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-            <Box className="mb-4 rounded-2xl border border-gray-200 p-4">
+            <Box className="mb-4 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
                 <Text>
                     Times each encryption step on this device. Keep the screen on and the app in the
                     foreground until it finishes.
@@ -57,7 +57,7 @@ export default function CryptoBench() {
             {error !== '' && <Text className="mb-4 text-red-500">{error}</Text>}
 
             {results.map((r) => (
-                <Box key={r.name} className="mb-2 rounded-xl border border-gray-200 p-3">
+                <Box key={r.name} className="mb-2 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
                     <Text className="font-bold">{r.name}</Text>
                     <Text className="text-sm">
                         mean {r.meanMs.toFixed(2)} ms · p95 {r.p95Ms.toFixed(2)} ms · {r.opsPerSec.toFixed(1)} ops/s ·{' '}

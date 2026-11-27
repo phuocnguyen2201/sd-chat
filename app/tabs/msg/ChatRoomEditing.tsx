@@ -202,16 +202,16 @@ export default function ChatRoomEditing() {
 
   return (
     <ScrollView className={`${isDarkMode == "dark"? 'bg-black':'bg-white'}`} contentContainerStyle={{ padding: 16 }}>
-      <Box className="items-center mb-6 border border-gray-200">
+      <Box className="items-center mb-6 border border-gray-200 dark:border-gray-800">
         <TouchableOpacity onPress={() => setShowActionSheet(true)}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 100, height: 100, borderRadius: 50 }} />
           ) : (
             <Box
-              className="bg-gray-300 rounded-full items-center justify-center px-2"
+              className="bg-gray-300 dark:bg-gray-700 rounded-full items-center justify-center px-2"
               style={{ width: 100, height: 100 }}
             >
-              <Text className="text-center text-gray-700">Select Avatar</Text>
+              <Text className="text-center text-gray-700 dark:text-gray-200">Select Avatar</Text>
             </Box>
           )}
         </TouchableOpacity>

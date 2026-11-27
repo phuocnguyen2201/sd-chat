@@ -1,14 +1,19 @@
 # Security Scan
 
-## Current status (2026-11-26)
+## Current status (2026-11-27)
 
-Latest status for every finding. The dated entries below keep their status as of that date, so some of them are out of date (for example, the 2026-10-03 table still shows #25 and #27 as 🔴, and the 2026-10-26 table shows #9/#11/#30 as not applied).
+Latest status for every finding. The dated entries below keep their status as of that date, so some of them are out of date.
+
+**Live check 2026-11-27 (read-only, `supabase migration list --linked`, `supabase functions list`):** every migration up to `20261126000200` is applied. `device-pairing` v11 (deployed 2026-11-26 11:22, after the last commit to it), `push` v38 (2026-11-24), `delete-account` v5 (2026-11-23, after its last code change on 2026-10-26). So nothing server-side is waiting for a deploy. What's left is device checks and dashboard settings.
 
 | Status | Findings |
 |---|---|
 | ✅ Done (15) | #1, #2, #3, #6, #9, #10, #11, #15, #16, #17, #19, #24, #27, #29, #30 |
-| 🟡 Fixed in code, not live or not checked on a device (15) | #23 (Low, migration + function deploy; the remote pairing screens must use the new API), **#12 (Medium, the old bug is live in production: apply `20261026000200`, then redeploy `delete-account`)**, #13 (`fcm_token` migration), #14 (`pin_search_path` migration; leaked-password protection still off), #18 (`mask_usernames` migration), #20, #21, #22 (migration), #25, #26, #31 (migration), #8c (migration + `push` deploy). #4, #5, #7, #8a/b were fixed in code in September; the log never records them as deployed or tested on a device, so check them before closing. |
+| 🟡 Live, not checked on a device (15) | #4, #5, #7, #8a, #8b, #8c, #12, #13, #18, #20, #22, #23, #25, #26, #31 |
+| 🟡 Needs a dashboard setting (2) | #14 (leaked-password protection is off), #21 (turn on Secure password change; also run the Maestro flows) |
 | 🔴 Open (1) | #28 (Info, `npm audit`: build tooling only) |
+
+Other follow-ups: #8c set `SIGNATURES_REQUIRED_AFTER` once most users are on the new build; #23 the remote pairing screens (S4.3.2, S4.3.3) must use the new `challenge`/`reveal`/`approve` API; #25 confirm `allowBackup="false"` in a built APK.
 
 ## 2026-11-26 — #23 fixed in code: remote pairing needs a check value typed on the old device (not applied or deployed)
 

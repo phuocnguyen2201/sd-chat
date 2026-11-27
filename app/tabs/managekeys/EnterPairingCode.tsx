@@ -145,10 +145,10 @@ export default function EnterPairingCode() {
                 paddingTop: insets.top,
             }}
         >
-            <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-6" style={{ width: '100%', maxWidth: 360 }}>
+            <Box className="items-center mb-6 rounded-2xl border border-gray-200 dark:border-gray-700 p-6" style={{ width: '100%', maxWidth: 360 }}>
                 <Text className="mb-4 text-center">Enter the 4-digit code shown on your other device</Text>
 
-                <Input className="rounded-lg border border-gray-300" style={{ width: 160 }}>
+                <Input className="rounded-lg border border-gray-300 dark:border-gray-600" style={{ width: 160 }}>
                     <InputField
                         keyboardType="number-pad"
                         maxLength={4}

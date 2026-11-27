@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-11-27: Dark mode on every screen and panel
+- The Create Group Chat panel stayed white in dark mode. Scanned every screen and component in `app/`, `components/` and `utility/` for light-only colours and added `dark:` classes (the convention the newer screens use; NativeWind follows the mode set by `GluestackUIProvider`).
+- Fixed: CreateGroupChat and ForwardMessage panels (card, preview, selected and unselected rows, hint text), LoadingModal, Chat (logged-out screen, header and user-list borders, search input, row borders, online-dot ring), chat room (key-error, loading and logged-out screens, image/file buttons, message input and its text), ChatRoomEditing (avatar box, placeholder), and the card borders in CryptoBench, EnterPairingCode, PairingCode and ManageKeys.
+- Left as is: grey hint text (`text-gray-400/500`, readable in both modes), blue buttons, theme-token classes, MessageAction (already has dark styles), and the white box behind the key QR in ManageKeys (a QR code needs a light background to scan).
+- Jest 207/207. Not checked on a device yet.
+
+## 2026-11-27: Security status check
+- Live (read-only): all migrations through `20261126000200` are applied; `device-pairing` v11, `push` v38 and `delete-account` v5 are deployed after their last code changes. Updated the "Current status" table in security-scan.md: no server-side deploy is pending. Device checks, two dashboard settings (#14, #21) and #28 remain.
+
 ## 2026-11-26 (later): SEC-23 / #180 remote pairing check value (code + tests, not applied or deployed)
 - Branch `security/sec-23-remote-pairing-check` (uncommitted). Re-reviewed the remote flow: the server could swap the new device's key and confirm with its own code. Fixed with a commit-then-reveal 6-digit check value the user types on the old device.
 - New `RemotePairingCheck.ts`; `RemoteDevicePairing.ts` gets `challenge`, `reveal`, `deny`, and `approve(…, typedCheck, …)` (no more `confirm`). `device-pairing`: new `challenge`/`reveal`/`deny`, `approve` bound to request + challenging device, `confirm` removed.

@@ -846,7 +846,7 @@ export default function ChatScreen() {
   // Show error if key is missing
   if (keyError) {
     return (
-      <Box className="flex-1 bg-white items-center justify-center p-4">
+      <Box className="flex-1 bg-white dark:bg-black items-center justify-center p-4">
         <Text className="text-red-500 text-center mb-4">{keyError}</Text>
         <Pressable
           onPress={() => router.back()}
@@ -861,7 +861,7 @@ export default function ChatScreen() {
   // Show loading if key not ready
   if (!conversationKey || currentConversationId !== conversation_id) {
     return (
-      <Box className="flex-1 bg-white items-center justify-center">
+      <Box className="flex-1 bg-white dark:bg-black items-center justify-center">
         <Text className="text-gray-400">Loading conversation...</Text>
       </Box>
     );
@@ -869,7 +869,7 @@ export default function ChatScreen() {
 
   if (!userId) {
     return (
-      <Box className="flex-1 bg-white items-center justify-center">
+      <Box className="flex-1 bg-white dark:bg-black items-center justify-center">
         <Text className="text-gray-400">Please log in to view messages</Text>
       </Box>
     );
@@ -1140,19 +1140,19 @@ export default function ChatScreen() {
           )}
           <HStack space="sm" className="items-center">
             {/* Image Upload Button */}
-            <Pressable testID={automationLocatorsDataState.chatScreen.picturePickerButton} onPress={pickImage} className="p-2 rounded-full bg-gray-100">
+            <Pressable testID={automationLocatorsDataState.chatScreen.picturePickerButton} onPress={pickImage} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800">
               <Text className="text-lg">🖼️</Text>
             </Pressable>
 
             {/* File Upload Button */}
-            <Pressable testID={automationLocatorsDataState.chatScreen.filesPickerButton} onPress={pickFile} className="p-2 rounded-full bg-gray-100">
+            <Pressable testID={automationLocatorsDataState.chatScreen.filesPickerButton} onPress={pickFile} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800">
               <Text className="text-lg">📎</Text>
             </Pressable>
 
-            <Input className="flex-1 rounded-full bg-gray-100 border border-gray-200">
+            <Input className="flex-1 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               <InputField
                 testID={automationLocatorsDataState.chatScreen.messageInput}
-                className="text-black px-4"
+                className="text-black dark:text-white px-4"
                 value={newMessage}
                 onChangeText={setNewMessage}
                 placeholder="Aa"

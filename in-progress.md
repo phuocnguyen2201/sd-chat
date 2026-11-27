@@ -1,5 +1,9 @@
 # In Progress / Open Items
 
+## Dark mode sweep (2026-11-27): code done, device check pending
+1. In dark mode, check: Chat tab (search bar, borders), Create Group Chat panel (+ button), Forward Message panel (long-press a message → Forward), chat room input and the 🖼️/📎 buttons, Edit Chat Room avatar placeholder, the loading modal, and Manage Keys / Pairing Code / Enter Pairing Code / Crypto Bench card borders. Then switch back to light mode and check nothing changed.
+2. Run `toggle-darkmode.yaml`.
+
 ## SEC-23 / #180 remote pairing check value (2026-11-26): code + tests done, not applied or deployed
 1. Commit and open a PR from `security/sec-23-remote-pairing-check`.
 2. `supabase db push` (applies `20261126000200_remote_pairing_check.sql`), then `supabase functions deploy device-pairing`. Order doesn't matter much: no screen uses remote pairing yet.

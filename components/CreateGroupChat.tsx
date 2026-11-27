@@ -101,10 +101,10 @@ export default function ForwardMessage({
         style={{ pointerEvents: 'auto' }}
       />
 
-      <Box className="absolute left-4 right-4 top-20 bg-white rounded-lg shadow-lg z-50 p-4">
+      <Box className="absolute left-4 right-4 top-20 bg-white dark:bg-gray-900 dark:border dark:border-gray-700 rounded-lg shadow-lg z-50 p-4">
         <Text className="text-lg font-semibold mb-2">Create Group Chat</Text>
 
-        <Text className="text-sm text-gray-600 mb-2">Choose recipients</Text>
+        <Text className="text-sm text-gray-600 dark:text-gray-400 mb-2">Choose recipients</Text>
         <Box>
             <ScrollView style={{ maxHeight: 150 }} className="mb-4">
                 <VStack space="sm" className="mb-3">
@@ -117,7 +117,7 @@ export default function ForwardMessage({
                             <Pressable
                                 key={p.id}
                                 onPress={() => toggleSelect(p.id)}
-                                className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100' : 'bg-white'}`}
+                                className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 dark:bg-blue-900' : 'bg-white dark:bg-gray-900'}`}
                                 >
                                 <Text className="text-sm font-medium">{p.displayname || p.username}</Text>
                                 <Text className="text-xs text-gray-500">@{p.username}</Text>

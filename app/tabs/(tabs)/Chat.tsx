@@ -698,7 +698,7 @@ export default function Chat() {
 
   if (!userId) {
     return (
-      <Box className="flex-1 bg-white items-center justify-center">
+      <Box className="flex-1 bg-white dark:bg-black items-center justify-center">
         <Text className="text-gray-400">Please log in to view chats</Text>
       </Box>
     );
@@ -715,7 +715,7 @@ export default function Chat() {
     >
     <Box className={`flex-1 px-4 md:px-6 lg:px-8 isolate ${isDarkMode == "dark"? '':'bg-white'}`} style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <Box className="border-b border-gray-200 pt-4 px-4 pb-3">
+      <Box className="border-b border-gray-200 dark:border-gray-800 pt-4 px-4 pb-3">
         <HStack className="justify-between items-center mb-4">
           <Heading size="xl" className="font-bold text-typography-900">
             Chats
@@ -744,13 +744,13 @@ export default function Chat() {
         )}
 
         {/* Search Bar */}
-        <Input className="rounded-full bg-gray-100 border-0">
+        <Input className="rounded-full bg-gray-100 dark:bg-gray-800 border-0">
           <InputField
             testID={automationLocatorsDataState.homeScreen.searchInput}
             placeholder="Search Messenger"
             value={searchQuery}
             onChangeText={setSearchQuery}
-            className="text-gray-700 px-4"
+            className="text-gray-700 dark:text-gray-100 px-4"
             placeholderTextColor="#9CA3AF"
           />
           { searchQuery != ''?           
@@ -766,7 +766,7 @@ export default function Chat() {
 
       {/* Users Horizontal Scroll */}
       <Box className="flex-1">
-        <Box className="border-b border-gray-100 py-3">
+        <Box className="border-b border-gray-100 dark:border-gray-800 py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="md" testID={automationLocatorsDataState.homeScreen.userList} className="mr-4">
               {filteredUsers?.map((users, index: number) => (
@@ -850,7 +850,7 @@ export default function Chat() {
                             handleConversationPress(room);
                           }
                         }}
-                        className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
+                        className={`flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
                       >
                         <Box className="relative">
                           <Avatar size="lg" className="mr-3">
@@ -862,7 +862,7 @@ export default function Chat() {
                             </AvatarFallbackText>
                             <AvatarImage source={{ uri: groupChatName != '' && is_group ? groupAvatar : participantAvatar || undefined }} />
                           </Avatar>
-                          <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+                          <Box className="absolute bottom-0 right-3 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-black" />
                         </Box>
 
                         <Box className="flex-1">
@@ -891,7 +891,7 @@ export default function Chat() {
                               setChatToDelete(room.id);
                               setShowDeleteChatDialog(true);
                             }}
-                            className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
+                            className={`flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800 ${isDarkMode == "dark"? 'bg-black':'bg-white'}`}
                           >
                             <Icon as={Trash2Icon} size="sm" className="text-red-500 mr-2" />
                             <Text className="text-red-500">Delete chat</Text>

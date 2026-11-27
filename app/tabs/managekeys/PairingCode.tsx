@@ -163,7 +163,7 @@ export default function PairingCode() {
                 paddingTop: insets.top,
             }}
         >
-            <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-6" style={{ width: '100%', maxWidth: 360 }}>
+            <Box className="items-center mb-6 rounded-2xl border border-gray-200 dark:border-gray-700 p-6" style={{ width: '100%', maxWidth: 360 }}>
                 <Text className="mb-4 text-center">
                     On your other device, tap &quot;Receive Keys&quot; and enter this code.
                 </Text>

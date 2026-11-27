@@ -197,7 +197,7 @@ export default function ManageKeys() {
 
     return (
         <ScrollView className="flex-1 px-4 md:px-6 lg:px-8" contentContainerStyle={{ paddingTop: insets.top }}>
-            <Box className="items-center mb-6 rounded-2xl border border-gray-200 p-4">
+            <Box className="items-center mb-6 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
                 <Text>
                     To sync your encryption keys to another device, tap &quot;Receive Keys&quot; on the OTHER
                     device first, then come back here and tap &quot;Share Keys&quot;. You&apos;ll enter a
@@ -238,7 +238,7 @@ export default function ManageKeys() {
                 </>
             )}
 
-            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
+            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
                 <Text>Note: The key code is encrypted for the device that entered your pairing code, so a photo of it is useless to anyone else. Still, only pair with devices that are physically in your possession.</Text>
             </Box>
             <Button onPress={() => { router.push('/tabs/managekeys/EnterPairingCode'); }}
@@ -252,7 +252,7 @@ export default function ManageKeys() {
               The other recovery path: pairing needs a second device that is
               still working, and this covers the case where there isn't one.
             */}
-            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 p-4">
+            <Box className="items-center mb-6 mt-6 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
                 <Text>
                     Back up your key to recover it on a new device even if every device you own is
                     lost or wiped. It is encrypted with a passphrase you choose before it leaves
